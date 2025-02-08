@@ -1,0 +1,25 @@
+<!DOCTYPE html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>Network Management</title>
+  </head>
+  <body>
+    <h1>Network Stats</h1>
+    <table>
+      <tr>
+        <th>Interface</th>
+        <th>Packet Count</th>
+        <th>Bytes Received</th>
+      </tr>
+      {% for entry in data %}
+      <tr>
+        <td>{{ entry.interface }}</td>
+        <td>{{ entry.packet_count }}</td>
+        <td>{{ entry.bytes_received }}</td>
+      </tr>
+      {% endfor %}
+    </table>
+  </body>
+</html>

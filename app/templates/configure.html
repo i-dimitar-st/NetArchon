@@ -1,0 +1,20 @@
+<!DOCTYPE html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>Configure Network</title>
+  </head>
+  <body>
+    <h1>Configure Network</h1>
+    <form action="/save_config" method="POST">
+      <label for="dhcp_range">DHCP Range:</label><br />
+      <input type="text" id="dhcp_range" name="dhcp_range" /><br /><br />
+
+      <label for="firewall_rules">Firewall Rules:</label><br />
+      <textarea id="firewall_rules" name="firewall_rules"></textarea><br /><br />
+
+      <input type="submit" value="Save Configuration" />
+    </form>
+  </body>
+</html>
