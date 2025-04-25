@@ -77,3 +77,33 @@
 2025-04-25 16:48:22 | WARNING | DNS | Average packet per sec > 725.804631846105
 2025-04-25 16:48:22 | WARNING | DNS | Average packet per sec > 609.7005087737514
 2025-04-25 16:49:41 | INFO | MAIN | Shutting down Network Gateway Services gracefully.
+2025-04-25 16:57:57 | INFO | GUI | Started APP
+2025-04-25 16:57:57 | INFO | GUI | Starting RabbidMQ Consumer
+2025-04-25 16:57:57 | INFO | GUI | Starting RabbitMQ listener for message queue: dhcp_server...
+2025-04-25 16:57:57 | INFO | GUI | RabbitMQ listeners app_gui thread started.
+2025-04-25 16:57:57 | INFO | GUI | Starting RabbitMQ listener for message queue: dns_server...
+2025-04-25 16:57:57 | INFO | MAIN | Starting MAIN
+2025-04-25 16:57:57 | INFO | GUI | RabbitMQ listeners app_gui thread started.
+2025-04-25 16:57:57 | INFO | MAIN | Starting DCHP Server
+2025-04-25 16:57:57 | INFO | DHCP | Initialized
+2025-04-25 16:57:57 | INFO | MAIN | Starting DNS Server
+2025-04-25 16:57:57 | INFO | MAIN | Starting GUI
+2025-04-25 16:57:57 | INFO | DNS | Starting at IFACE:enp2s0 MAC:18:c0:4d:46:f4:11 IP:192.168.20.100 PORT:53
+2025-04-25 16:57:57 | DEBUG | DHCP | SQLite database for leases initialized.
+2025-04-25 16:57:57 | DEBUG | DNS | Deleting DNS DB files ...
+2025-04-25 16:57:57 | DEBUG | DNS | /projects/gitlab/netarchon/db/dns.sqlite3-wal deleted.
+2025-04-25 16:57:57 | DEBUG | DNS | /projects/gitlab/netarchon/db/dns.sqlite3 deleted.
+2025-04-25 16:57:57 | DEBUG | DNS | /projects/gitlab/netarchon/db/dns.sqlite3-shm deleted.
+2025-04-25 16:57:57 | INFO | DHCP | Serving from:192.168.20.100, 255.255.255.0, 18:c0:4d:46:f4:11
+2025-04-25 16:57:57 | INFO | DHCP | Started
+2025-04-25 16:57:57 | DEBUG | DNS | queue_worker_0 started
+2025-04-25 16:57:57 | DEBUG | DNS | queue_worker_1 started
+2025-04-25 16:57:57 | DEBUG | DNS | queue_worker_2 started
+2025-04-25 16:57:57 | DEBUG | DNS | queue_worker_3 started
+2025-04-25 16:57:57 | DEBUG | DNS | queue_worker_4 started
+2025-04-25 16:57:57 | INFO | DNS | Service started
+2025-04-25 16:57:57 | WARNING | DNS | Average packet per sec > 2097152.0
+2025-04-25 16:57:57 | WARNING | DNS | Average packet per sec > 971.50339715874
+2025-04-25 16:57:57 | WARNING | DNS | Average packet per sec > 1167.0294936004452
+2025-04-25 16:57:57 | WARNING | DNS | Average packet per sec > 928.0665575076338
+2025-04-25 16:57:57 | WARNING | DNS | Average packet per sec > 794.0499163853217

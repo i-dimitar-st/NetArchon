@@ -1,1 +1,8 @@
+# We need to setup VENV on inital config
 venv/
+
+# Logs cannot be shared
+logs/
+
+# This is local DB generated in operation
+db/
