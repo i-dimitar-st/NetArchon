@@ -10,6 +10,7 @@ import sys
 import logging
 import signal
 import ipaddress
+import re
 import scapy.all as scapy
 from collections import deque
 from scapy.layers.inet import IP, UDP, Ether
@@ -42,7 +43,7 @@ DEFAULT_UNSUPPORTED_DNS_QUERY_TYPES = [12, 28, 65]
 
 DEFAULT_DNS_BUFFER_QUEUE_SIZE = 100
 DEFAULT_DNS_BUFFER_QUEUE_SIZE_SPEED_INCREASE = 50
-DEFAULT_DNS_REQUESTS_DEDUPLICATE_QUEUE_SIZE = 100
+DEFAULT_DNS_REQUESTS_DEDUPLICATE_QUEUE_SIZE = 60
 
 DEFAULT_CACHE_REMOVER_PERIOD = 60 * 60 * 1
 DEFAULT_CACHE_LOOKBACK_PERIOD = 60 * 60 * 3
@@ -669,8 +670,11 @@ class DNSServer:
             return None
 
     def _is_query_blacklisted(self, query: bytes) -> bool:
-        decoded_query = query.decode('utf-8', errors='ignore').rstrip('.').lower()
-        return bool(decoded_query in self.BLACKLIST)
+        decoded_query = query.decode('utf-8').rstrip('.').lower()
+        for blacklist_rule in self.BLACKLIST:
+            if re.search(blacklist_rule, decoded_query):
+                return True
+        return False
 
     def _process_query(self, packet: Ether) -> DNS | None:
         """
