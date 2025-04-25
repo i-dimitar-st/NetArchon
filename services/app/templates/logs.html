@@ -1,0 +1,189 @@
+<!DOCTYPE html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>Logs</title>
+    <link rel="icon" href="{{ url_for('static', filename='favicon.svg') }}" type="image/svg+xml" />
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/bootstrap/5.3.0/css/bootstrap.min.css" />
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css" />
+    <style>
+      .log-window {
+        height: 65vh; /* Use viewport height instead of fixed pixels */
+        min-height: 200px; /* Set a minimum height */
+        max-height: 600px; /* Set a maximum height */
+        overflow-y: auto;
+        background-color: #f8f9fa;
+        border: 1px solid #dee2e6;
+        font-family: monospace;
+        font-size: 0.85rem;
+      }
+      /* For smaller screens, adjust the height */
+      @media (max-width: 768px) {
+        .log-window {
+          height: 50vh;
+          min-height: 150px;
+        }
+      }
+      /* For very small screens */
+      @media (max-width: 576px) {
+        .log-window {
+          height: 40vh;
+          min-height: 120px;
+          font-size: 0.8rem;
+        }
+      }
+      .log-entry {
+        padding: 4px 10px;
+        border-bottom: 1px solid #eee;
+        word-break: break-word; /* Allow long lines to break */
+      }
+      .log-timestamp {
+        color: #6c757d;
+        margin-right: 8px;
+        display: inline-block; /* Better control for smaller screens */
+      }
+      .log-level {
+        margin-right: 8px;
+        display: inline-block; /* Better control for smaller screens */
+      }
+      .log-level-debug {
+        color: #0d6efd;
+      }
+      .log-level-info {
+        color: #17a2b8;
+      }
+      .log-level-warning {
+        color: #ffc107;
+      }
+      .log-level-error {
+        color: #dc3545;
+      }
+    </style>
+  </head>
+  <body class="bg-light">
+    <!-- Navigation -->
+    <nav class="navbar navbar-expand-lg navbar-dark bg-primary">
+      <div class="container">
+        <a class="navbar-brand d-flex align-items-center" href="/">
+          <i class="fas fa-network-wired me-2"></i>
+          <span>Logs</span>
+        </a>
+        <button class="navbar-toggler" type="button" data-bs-toggle="collapse" data-bs-target="#navbarNav">
+          <span class="navbar-toggler-icon"></span>
+        </button>
+        <div class="collapse navbar-collapse" id="navbarNav">
+          <ul class="navbar-nav ms-auto">
+            <li class="nav-item">
+              <a class="nav-link active" href="/">Dashboard</a>
+            </li>
+            <li class="nav-item">
+              <a class="nav-link" href="/info">Info</a>
+            </li>
+            <li class="nav-item">
+              <a class="nav-link" href="/dhcp">DHCP</a>
+            </li>
+            <li class="nav-item">
+              <a class="nav-link" href="/dns">DNS</a>
+            </li>
+            <li class="nav-item">
+              <a class="nav-link" href="/config">Configuration</a>
+            </li>
+            <li class="nav-item">
+              <a class="nav-link active" href="/logs">Logs</a>
+            </li>
+          </ul>
+        </div>
+      </div>
+    </nav>
+
+    <!-- Main Content -->
+    <div class="container py-4">
+      <!-- Logs Window -->
+      <div class="w-90">
+        <div class="card mb-4">
+          <div class="card-header bg-white">
+            <div class="d-flex justify-content-between align-items-center flex-wrap">
+              <h5 class="mb-0">Main Logs ({{ system_logs | length }})</h5>
+              <div class="mt-2 mt-sm-0">
+                <select class="form-select form-select-sm d-inline-block" style="width: auto" id="log-level-filter">
+                  <option value="debug">DEBUG</option>
+                  <option value="info">INFO</option>
+                  <option value="warning">WARNING</option>
+                  <option value="error">ERROR</option>
+                  <option value="all" selected>ALL</option>
+                </select>
+              </div>
+            </div>
+          </div>
+          <div class="card-body p-0">
+            <div class="log-window" id="log-window">
+              <!-- Mock log entries will be inserted here by JavaScript -->
+            </div>
+          </div>
+          <div class="card-footer bg-white">
+            <div class="d-flex justify-content-between flex-wrap">
+              <button class="btn btn-sm btn-outline-secondary mb-2 mb-sm-0" id="btn-clear-logs">
+                <i class="fas fa-eraser me-1"></i>Clear
+              </button>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- Scripts -->
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/bootstrap/5.3.0/js/bootstrap.bundle.min.js"></script>
+    <script>
+      // eslint-disable-next-line
+      const logs = {{ system_logs | tojson | safe }}
+      // Function to display logs in the log window
+      function displayLogs(logs, filter = "all") {
+        const logWindow = document.getElementById("log-window");
+        logWindow.innerHTML = "";
+
+        logs.forEach((log) => {
+          if (filter === "all" || filter === log.level.toLowerCase()) {
+          const logEntry = document.createElement("div");
+          logEntry.className = `log-entry log-${log.level.toLowerCase()}`;
+
+          const logTimestamp = document.createElement("span");
+          logTimestamp.className = "log-timestamp";
+          logTimestamp.textContent = log.timestamp;
+
+          const logLevel = document.createElement("span");
+          logLevel.className = `log-level log-level-${log.level.toLowerCase()}`;
+          logLevel.textContent = log.level;
+
+          const logMessage = document.createElement("span");
+          logMessage.className = `log-message`;
+          logMessage.textContent = log.message;
+
+          logEntry.appendChild(logTimestamp);
+          logEntry.appendChild(logLevel);
+          logEntry.appendChild(logMessage);
+          logWindow.appendChild(logEntry);
+          }
+        });
+
+        // Auto-scroll to bottom
+        logWindow.scrollTop = logWindow.scrollHeight;
+      }
+
+      // Initialize
+      document.addEventListener("DOMContentLoaded", function () {
+        displayLogs(logs);
+
+        // Filter logs by level
+        document.getElementById("log-level-filter").addEventListener("change", function () {
+          displayLogs(logs, this.value);
+        });
+
+        // Clear logs button
+        document.getElementById("btn-clear-logs").addEventListener("click", function () {
+          document.getElementById("log-window").innerHTML = "";
+        });
+      });
+    </script>
+  </body>
+</html>

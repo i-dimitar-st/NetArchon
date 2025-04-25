@@ -1,0 +1,79 @@
+<!DOCTYPE html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>Info</title>
+    <link rel="icon" href="{{ url_for('static', filename='favicon.svg') }}" type="image/svg+xml" />
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/bootstrap/5.3.0/css/bootstrap.min.css" />
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css" />
+  </head>
+  <body class="bg-light">
+    <!-- Navigation -->
+    <nav class="navbar navbar-expand-lg navbar-dark bg-primary">
+      <div class="container">
+        <a class="navbar-brand d-flex align-items-center" href="/">
+          <i class="fas fa-desktop me-2"></i>
+          <span>Information</span>
+        </a>
+        <button class="navbar-toggler" type="button" data-bs-toggle="collapse" data-bs-target="#navbarNav">
+          <span class="navbar-toggler-icon"></span>
+        </button>
+        <div class="collapse navbar-collapse" id="navbarNav">
+          <ul class="navbar-nav ms-auto">
+            <li class="nav-item">
+              <a class="nav-link" href="/">Dashboard</a>
+            </li>
+            <li class="nav-item">
+              <a class="nav-link active" href="/info">Info</a>
+            </li>
+            <li class="nav-item">
+              <a class="nav-link" href="/dhcp">DHCP</a>
+            </li>
+            <li class="nav-item">
+              <a class="nav-link" href="/dns">DNS</a>
+            </li>
+            <li class="nav-item">
+              <a class="nav-link" href="/config">Config</a>
+            </li>
+            <li class="nav-item">
+              <a class="nav-link" href="/logs">Logs</a>
+            </li>
+          </ul>
+        </div>
+      </div>
+    </nav>
+
+    <!-- Main -->
+
+    <div class="container py-4">
+      {% for group_name, group_stats in system_statistics.items() %}
+      <div class="card mb-4">
+        <div class="card-header bg-white">
+          <div class="d-flex justify-content-between align-items-center">
+            <h5 class="mb-0">{{ group_name.replace('_', ' ') | title }}</h5>
+            <i class="fas fa-chart-bar text-primary"></i>
+          </div>
+        </div>
+        <div class="card-body">
+          {% for stat_name, content in group_stats.items() %}
+          <div class="d-flex justify-content-between border-bottom py-2">
+            <span>{{ stat_name.replace('_', ' ') | title }}</span>
+            <div class="d-flex justify-content-end align-items-center">
+              <strong>{{ content.value }}</strong>
+              {% if content.unit %}
+              <span class="text-muted ms-2">{{ content.unit }}</span>
+              {% endif %}
+            </div>
+          </div>
+          {% endfor %}
+        </div>
+      </div>
+      {% endfor %}
+    </div>
+
+    <!-- Scripts -->
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/bootstrap/5.3.0/js/bootstrap.bundle.min.js"></script>
+    <script></script>
+  </body>
+</html>

@@ -1,0 +1,10 @@
+{
+    "server.interface": "enp2s0",
+    "server.ip": "192.168.20.100",
+    "server.mac": "18:c0:4d:46:f4:11",
+    "server.cidr": "24",
+    "server.port.dns": 53,
+    "upstream.ip": "94.140.14.15",
+    "dns.cache.ttl": 300,
+    "dns.ncache.ttl": 60
+}

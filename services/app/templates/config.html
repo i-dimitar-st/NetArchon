@@ -1,0 +1,208 @@
+<!DOCTYPE html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>Configuration</title>
+    <link rel="icon" href="{{ url_for('static', filename='favicon.svg') }}" type="image/svg+xml" />
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/bootstrap/5.3.0/css/bootstrap.min.css" />
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css" />
+  </head>
+  <body class="bg-light">
+    <!-- Navigation -->
+    <nav class="navbar navbar-expand-lg navbar-dark bg-primary">
+      <div class="container">
+        <a class="navbar-brand d-flex align-items-center" href="/">
+          <i class="fas fa-cog me-2"></i>
+          <span>Configuration</span>
+        </a>
+        <button class="navbar-toggler" type="button" data-bs-toggle="collapse" data-bs-target="#navbarNav">
+          <span class="navbar-toggler-icon"></span>
+        </button>
+        <div class="collapse navbar-collapse" id="navbarNav">
+          <ul class="navbar-nav ms-auto">
+            <li class="nav-item">
+              <a class="nav-link" href="/">Dashboard</a>
+            </li>
+            <li class="nav-item">
+              <a class="nav-link" href="/info">Info</a>
+            </li>
+            <li class="nav-item">
+              <a class="nav-link" href="/dhcp">DHCP</a>
+            </li>
+            <li class="nav-item">
+              <a class="nav-link" href="/dns">DNS</a>
+            </li>
+            <li class="nav-item">
+              <a class="nav-link active" href="/config">Config</a>
+            </li>
+            <li class="nav-item">
+              <a class="nav-link" href="/logs">Logs</a>
+            </li>
+          </ul>
+        </div>
+      </div>
+    </nav>
+
+    <!-- Main Content -->
+    <div class="container py-4">
+      <div class="d-flex justify-content-between align-items-center mb-4">
+        <h2 class="mb-0">DHCP Configuration</h2>
+        <button id="editBtn" class="btn btn-primary"><i class="fas fa-edit me-2"></i>Edit Configuration</button>
+      </div>
+
+      <!-- DHCP Config Section -->
+      <div class="card mb-4">
+        <div class="card-header bg-white">
+          <div class="d-flex justify-content-between align-items-center">
+            <h5 class="mb-0">Current Settings</h5>
+            <i class="fas fa-network-wired text-primary"></i>
+          </div>
+        </div>
+        <div class="card-body">
+          <form id="dhcpForm">
+            <div class="row g-3">
+              <div class="col-md-6">
+                <label for="network_interface" class="form-label">Network Interface</label>
+                <input
+                  type="text"
+                  class="form-control"
+                  id="network_interface"
+                  value="{{ dhcp_config.interface }}"
+                  readonly
+                />
+              </div>
+              <div class="col-md-6">
+                <label for="router_ip" class="form-label">Server IP</label>
+                <input type="text" class="form-control" id="router_ip" value="{{ dhcp_config.server_ip }}" readonly />
+              </div>
+              <div class="col-md-6">
+                <label for="subnet_mask" class="form-label">Subnet</label>
+                <input
+                  type="text"
+                  class="form-control"
+                  id="subnet_mask"
+                  value="{{ dhcp_config.server_subnet_mask }}"
+                  readonly
+                />
+              </div>
+              <div class="col-md-6">
+                <label for="router_address" class="form-label">Router IP</label>
+                <input
+                  type="text"
+                  class="form-control"
+                  id="router_address"
+                  value="{{ dhcp_config.router_ip }}"
+                  readonly
+                />
+              </div>
+              <div class="col-md-6">
+                <label for="broadcast_address" class="form-label">Broadcast Address</label>
+                <input
+                  type="text"
+                  class="form-control"
+                  id="broadcast_address"
+                  value="{{ dhcp_config.server_broadcast }}"
+                  readonly
+                />
+              </div>
+              <div class="col-md-6">
+                <label for="ip_range_start" class="form-label">Dynamic Range Start</label>
+                <span class="form-control" id="ip_range_start">{{ dhcp_config.server_ip_range_start }}</span>
+              </div>
+              <div class="col-md-6">
+                <label for="ip_range_end" class="form-label">Dynamic Range End</label>
+                <span class="form-control" id="ip_range_end">{{ dhcp_config.server_ip_range_end }}</span>
+              </div>
+              <div class="col-md-6">
+                <label for="mac" class="form-label">MAC Address</label>
+                <span class="form-control" id="mac">{{ dhcp_config.server_mac }}</span>
+              </div>
+              <div class="col-md-6">
+                <label for="mtu" class="form-label">MTU (Maximum Transmission Unit)</label>
+                <input type="number" class="form-control" id="mtu" value="{{ dhcp_config.mtu }}" readonly />
+              </div>
+              <div class="col-md-6">
+                <label for="dns_server" class="form-label">DNS Server</label>
+                <input type="text" class="form-control" id="dns_server" value="{{ dhcp_config.dns_server }}" readonly />
+              </div>
+              <div class="col-md-6">
+                <label for="ntp_server" class="form-label">NTP Server</label>
+                <input type="text" class="form-control" id="ntp_server" value="{{ dhcp_config.ntp_server }}" readonly />
+              </div>
+              <div class="col-md-6">
+                <label for="lease_time" class="form-label">Lease Time (days)</label>
+                <input
+                  type="text"
+                  class="form-control"
+                  id="lease_time"
+                  value="{{ (dhcp_config.lease_time / 86400) | round(0) }}"
+                  readonly
+                />
+              </div>
+            </div>
+            <div class="mt-4 text-end d-none" id="actionButtons">
+              <button type="button" class="btn btn-secondary me-2" id="cancelBtn">Cancel</button>
+              <button type="submit" class="btn btn-success">Save Changes</button>
+            </div>
+          </form>
+        </div>
+      </div>
+
+      <!-- Available Network Interfaces Section -->
+      <div class="card mb-4">
+        <div class="card-header bg-white">
+          <div class="d-flex justify-content-between align-items-center">
+            <h5 class="mb-0">Available Network Interfaces</h5>
+            <i class="fas fa-server text-primary"></i>
+          </div>
+        </div>
+        <div class="card-body">
+          <table class="table table-striped">
+            <thead>
+              <tr>
+                <th>Name</th>
+                <th>Type</th>
+                <th>IP Address</th>
+                <th>Netmask</th>
+                <th>Broadcast</th>
+                <th>MAC Address</th>
+              </tr>
+            </thead>
+            <tbody>
+              {% for iface in network_interfaces %}
+              <tr>
+                <td>{{ iface.name }}</td>
+                <td>{{ iface.type }}</td>
+                <td>{{ iface.ip_address }}</td>
+                <td>{{ iface.netmask }}</td>
+                <td>{{ iface.broadcast }}</td>
+                <td>{{ iface.mac_address }}</td>
+              </tr>
+              {% endfor %}
+            </tbody>
+          </table>
+        </div>
+      </div>
+    </div>
+
+    <!-- Scripts -->
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/bootstrap/5.3.0/js/bootstrap.bundle.min.js"></script>
+    <script>
+      const editBtn = document.getElementById("editBtn");
+      const cancelBtn = document.getElementById("cancelBtn");
+      const actionButtons = document.getElementById("actionButtons");
+      const formElements = document.querySelectorAll("#dhcpForm input, #dhcpForm select");
+
+      editBtn.addEventListener("click", () => {
+        formElements.forEach((element) => (element.disabled = false));
+        actionButtons.classList.remove("d-none");
+      });
+
+      cancelBtn.addEventListener("click", () => {
+        formElements.forEach((element) => (element.disabled = true));
+        actionButtons.classList.add("d-none");
+      });
+    </script>
+  </body>
+</html>

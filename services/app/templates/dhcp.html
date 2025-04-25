@@ -1,0 +1,137 @@
+<!DOCTYPE html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>DHCP</title>
+    <link rel="icon" href="{{ url_for('static', filename='favicon.svg') }}" type="image/svg+xml" />
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/bootstrap/5.3.0/css/bootstrap.min.css" />
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css" />
+  </head>
+  <body class="bg-light">
+    <!-- Navigation -->
+    <nav class="navbar navbar-expand-lg navbar-dark bg-primary">
+      <div class="container">
+        <a class="navbar-brand d-flex align-items-center" href="/">
+          <i class="fas fa-network-wired me-2"></i>
+          <span>DHCP Service</span>
+        </a>
+        <button class="navbar-toggler" type="button" data-bs-toggle="collapse" data-bs-target="#navbarNav">
+          <span class="navbar-toggler-icon"></span>
+        </button>
+        <div class="collapse navbar-collapse" id="navbarNav">
+          <ul class="navbar-nav ms-auto">
+            <li class="nav-item">
+              <a class="nav-link" href="/">Dashboard</a>
+            </li>
+            <li class="nav-item">
+              <a class="nav-link" href="/info">Info</a>
+            </li>
+            <li class="nav-item">
+              <a class="nav-link active" href="/dhcp">DHCP</a>
+            </li>
+            <li class="nav-item">
+              <a class="nav-link" href="/dns">DNS</a>
+            </li>
+            <li class="nav-item">
+              <a class="nav-link" href="/config">Config</a>
+            </li>
+            <li class="nav-item">
+              <a class="nav-link" href="/logs">Logs</a>
+            </li>
+          </ul>
+        </div>
+      </div>
+    </nav>
+
+    <!-- Main Content -->
+    <div class="container py-4">
+      <!-- Current Leases Section -->
+      <div class="card mb-4">
+        <div class="card-header bg-white">
+          <div class="d-flex justify-content-between align-items-center">
+            <h5 class="mb-0">Current DHCP Leases</h5>
+            <i class="fas fa-list-alt text-primary"></i>
+          </div>
+        </div>
+        <div class="card-body">
+          <div class="table-responsive">
+            <table class="table table-striped table-hover" id="table_dhcp_leases">
+              <thead>
+                <tr>
+                  <th>MAC Address</th>
+                  <th>IP Address</th>
+                  <th>Hostname</th>
+                  <th>Lease Time</th>
+                  <th>Expiry Time</th>
+                </tr>
+              </thead>
+              <tbody>
+                {% for lease in dhcp_leases %}
+                <tr>
+                  <td id="{{ lease[0] }}_lease_mac">{{ lease[0] }}</td>
+                  <td id="{{ lease[0] }}_lease_ip">{{ lease[1] }}</td>
+                  <td id="{{ lease[0] }}_lease_hostname">{{ lease[2] }}</td>
+                  <td id="{{ lease[0] }}_lease_start">{{ lease[3] }}</td>
+                  <td id="{{ lease[0] }}_lease_expiry">{{ lease[4] }}</td>
+                </tr>
+                {% endfor %}
+              </tbody>
+            </table>
+          </div>
+        </div>
+      </div>
+
+      <!-- DHCP Stats Section -->
+      <div class="card mb-4">
+        <div class="card-header bg-white">
+          <div class="d-flex justify-content-between align-items-center">
+            <h5 class="mb-0">DHCP Statistics</h5>
+            <i class="fas fa-chart-bar text-primary"></i>
+          </div>
+        </div>
+        <div class="card-body">
+          {% for key, value in dhcp_statistics.items() %}
+          <div class="d-flex justify-content-between border-bottom py-2">
+            <strong>{{ key | upper }}:</strong>
+            <span>{{ value }}</span>
+          </div>
+          {% endfor %}
+        </div>
+      </div>
+    </div>
+
+    <!-- Scripts -->
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/bootstrap/5.3.0/js/bootstrap.bundle.min.js"></script>
+    <script>
+      function formatLeasesTimestamps() {
+        const rows = document.querySelectorAll("#table_dhcp_leases tbody tr");
+
+        rows.forEach((row) => {
+          const macAddress = row.querySelector('td[id*="_lease_mac"]').textContent.trim();
+
+          const leaseStartId = macAddress + "_lease_start";
+          const leaseExpiryId = macAddress + "_lease_expiry";
+
+          const leaseStartTimeElement = document.getElementById(leaseStartId);
+          const leaseExpiryTimeElement = document.getElementById(leaseExpiryId);
+
+          if (leaseStartTimeElement && leaseExpiryTimeElement) {
+            let leaseStartTime = parseFloat(leaseStartTimeElement.textContent.trim());
+            let leaseExpiryTime = parseFloat(leaseExpiryTimeElement.textContent.trim());
+
+            if (!isNaN(leaseStartTime)) {
+              leaseStartTimeElement.textContent = new Date(leaseStartTime * 1000).toLocaleString();
+            }
+
+            if (!isNaN(leaseExpiryTime)) {
+              leaseExpiryTimeElement.textContent = new Date(leaseExpiryTime * 1000).toLocaleString();
+            }
+          }
+        });
+      }
+
+      formatLeasesTimestamps();
+    </script>
+  </body>
+</html>

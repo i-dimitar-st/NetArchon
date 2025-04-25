@@ -1,0 +1,89 @@
+<!DOCTYPE html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>Page Not Found</title>
+    <link rel="icon" href="{{ url_for('static', filename='favicon.svg') }}" type="image/svg+xml" />
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/bootstrap/5.3.0/css/bootstrap.min.css" />
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css" />
+  </head>
+  <body class="bg-light">
+    <!-- Navigation -->
+    <nav class="navbar navbar-expand-lg navbar-dark bg-primary">
+      <div class="container">
+        <a class="navbar-brand d-flex align-items-center" href="/">
+          <i class="fas fa-network-wired me-2"></i>
+          <span>404 - Page Not Found</span>
+        </a>
+        <button class="navbar-toggler" type="button" data-bs-toggle="collapse" data-bs-target="#navbarNav">
+          <span class="navbar-toggler-icon"></span>
+        </button>
+        <div class="collapse navbar-collapse" id="navbarNav">
+          <ul class="navbar-nav ms-auto">
+            <li class="nav-item">
+              <a class="nav-link" href="/">Dashboard</a>
+            </li>
+            <li class="nav-item">
+              <a class="nav-link" href="/info">Info</a>
+            </li>
+            <li class="nav-item">
+              <a class="nav-link" href="/dhcp">DHCP</a>
+            </li>
+            <li class="nav-item">
+              <a class="nav-link" href="/dns">DNS</a>
+            </li>
+            <li class="nav-item">
+              <a class="nav-link" href="/config">Config</a>
+            </li>
+            <li class="nav-item">
+              <a class="nav-link" href="/logs">Logs</a>
+            </li>
+          </ul>
+          <div class="ms-3">
+            <a class="btn btn-outline-light btn-sm" href="/profile"> <i class="fas fa-user-circle me-2"></i>Admin </a>
+          </div>
+        </div>
+      </div>
+    </nav>
+
+    <!-- Main Content -->
+    <div class="container py-5">
+      <div class="row justify-content-center">
+        <div class="col-md-8 text-center">
+          <div class="card shadow-sm border-0">
+            <div class="card-body py-5">
+              <i class="fas fa-exclamation-triangle text-warning mb-4" style="font-size: 4rem"></i>
+              <h1 class="display-4 fw-bold text-primary mb-3">404</h1>
+              <h2 class="mb-4">Page Not Found</h2>
+              <p class="lead mb-4">
+                The resource you're looking for doesn't exist or has been moved to another location.
+              </p>
+              <div class="d-flex justify-content-center flex-wrap gap-3">
+                <a href="/" class="btn btn-primary"> <i class="fas fa-home me-2"></i>Return to Dashboard </a>
+                <button class="btn btn-outline-secondary" onclick="history.back()">
+                  <i class="fas fa-arrow-left me-2"></i>Go Back
+                </button>
+              </div>
+            </div>
+          </div>
+
+          <div class="card mt-4 bg-light border-0">
+            <div class="card-body">
+              <h5 class="mb-3"><i class="fas fa-info-circle text-primary me-2"></i>Troubleshooting Tips</h5>
+              <ul class="list-group list-group-flush text-start">
+                <li class="list-group-item bg-light">Check the URL for typos or errors</li>
+                <li class="list-group-item bg-light">Verify network connectivity to the server</li>
+                <li class="list-group-item bg-light">Check server logs for more information</li>
+                <li class="list-group-item bg-light">Contact system administrator if the problem persists</li>
+              </ul>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- Scripts -->
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/bootstrap/5.3.0/js/bootstrap.bundle.min.js"></script>
+  </body>
+</html>
