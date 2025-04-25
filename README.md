@@ -5,16 +5,11 @@
 Project to take control of your local network by using a machine(Pi or other).
 Main features:
 
-- Configurable NAT server => `nftables`
-- Configurable DHCP server => `scapy`
+- DHCP server => `scapy`
   - Configurable clients with time based access restriction
-- Configurable DNS server => `dnslib`
-  - With option to block unwanted IPs/Hosnames
-- Configurable Gateway
-- Configurable Firewall => `nftables`
+- DNS server => `dnslib`
+  - To block unwanted IPs/Hosnames/URLs
 - Network Statistics monitor => `scapy`
-- LocalDb => `InfluxDB`
-- Language => `Python`
 - Configuration and main Overview GUI => `Flask`
 - Visualization => `Grafana`
 
