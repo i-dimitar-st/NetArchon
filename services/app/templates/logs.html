@@ -9,7 +9,7 @@
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css" />
     <style>
       .log-window {
-        height: 65vh; /* Use viewport height instead of fixed pixels */
+        height: 70vh; /* Use viewport height instead of fixed pixels */
         min-height: 200px; /* Set a minimum height */
         max-height: 600px; /* Set a maximum height */
         overflow-y: auto;
@@ -17,35 +17,33 @@
         border: 1px solid #dee2e6;
         font-family: monospace;
         font-size: 0.85rem;
-      }
-      /* For smaller screens, adjust the height */
-      @media (max-width: 768px) {
-        .log-window {
-          height: 50vh;
-          min-height: 150px;
-        }
-      }
-      /* For very small screens */
-      @media (max-width: 576px) {
-        .log-window {
-          height: 40vh;
-          min-height: 120px;
-          font-size: 0.8rem;
-        }
+        position: relative; /* For floating scroll button positioning */
       }
       .log-entry {
         padding: 4px 10px;
         border-bottom: 1px solid #eee;
         word-break: break-word; /* Allow long lines to break */
+        display: flex;
+        flex-wrap: wrap;
+        align-items: baseline;
       }
       .log-timestamp {
         color: #6c757d;
         margin-right: 8px;
-        display: inline-block; /* Better control for smaller screens */
+        white-space: nowrap;
       }
       .log-level {
         margin-right: 8px;
-        display: inline-block; /* Better control for smaller screens */
+        white-space: nowrap;
+      }
+      .log-service {
+        margin-right: 8px;
+        white-space: nowrap;
+        font-weight: bold;
+      }
+      .log-message {
+        flex: 1;
+        min-width: 100px;
       }
       .log-level-debug {
         color: #0d6efd;
@@ -58,6 +56,126 @@
       }
       .log-level-error {
         color: #dc3545;
+      }
+
+      /* Floating scroll button */
+      .scroll-bottom-btn {
+        position: absolute;
+        bottom: 15px;
+        right: 15px;
+        z-index: 10;
+        width: 36px;
+        height: 36px;
+        border-radius: 50%;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        background-color: rgba(13, 110, 253, 0.8);
+        color: white;
+        border: none;
+        box-shadow: 0 2px 5px rgba(0, 0, 0, 0.2);
+        cursor: pointer;
+        opacity: 0.7;
+        transition: opacity 0.3s ease;
+      }
+
+      .scroll-bottom-btn:hover {
+        opacity: 1;
+      }
+
+      .scroll-bottom-btn.hidden {
+        display: none;
+      }
+
+      /* For medium screens */
+      @media (max-width: 768px) {
+        .log-window {
+          height: 55vh;
+          min-height: 150px;
+        }
+        .log-entry {
+          padding: 3px 8px;
+        }
+      }
+
+      /* For small screens */
+      @media (max-width: 576px) {
+        .log-window {
+          height: 45vh;
+          min-height: 120px;
+          font-size: 0.75rem;
+        }
+        .log-entry {
+          padding: 2px 6px;
+        }
+        /* Stack log entries vertically on very small screens */
+        .log-entry {
+          flex-direction: column;
+        }
+        .log-timestamp,
+        .log-level,
+        .log-service {
+          margin-right: 0;
+        }
+        .log-message {
+          width: 100%;
+          padding-left: 8px;
+          border-left: 3px solid #eee;
+          margin-top: 2px;
+        }
+        .scroll-bottom-btn {
+          bottom: 10px;
+          right: 10px;
+          width: 32px;
+          height: 32px;
+        }
+      }
+
+      /* For extra small screens */
+      @media (max-width: 375px) {
+        .log-window {
+          font-size: 0.7rem;
+        }
+        .card-header {
+          padding: 0.5rem;
+        }
+      }
+
+      /* Make the filter dropdowns more responsive */
+      .filter-controls {
+        display: flex;
+        align-items: center;
+        gap: 8px;
+        flex-wrap: wrap;
+      }
+
+      @media (max-width: 768px) {
+        .filter-controls {
+          flex-direction: column;
+          align-items: stretch;
+          width: 100%;
+          margin-top: 8px;
+        }
+        .filter-controls > * {
+          margin-bottom: 8px;
+          width: 100%;
+        }
+      }
+
+      /* Footer buttons layout */
+      .footer-buttons {
+        display: flex;
+        justify-content: space-between;
+        width: 100%;
+        flex-wrap: wrap;
+        gap: 8px;
+      }
+
+      @media (max-width: 576px) {
+        .footer-buttons .btn {
+          padding: 0.25rem 0.5rem;
+          font-size: 0.75rem;
+        }
       }
     </style>
   </head>
@@ -100,31 +218,48 @@
     <!-- Main Content -->
     <div class="container py-4">
       <!-- Logs Window -->
-      <div class="w-90">
+      <div class="w-100">
         <div class="card mb-4">
           <div class="card-header bg-white">
-            <div class="d-flex justify-content-between align-items-center flex-wrap">
-              <h5 class="mb-0">Main Logs ({{ system_logs | length }})</h5>
-              <div class="mt-2 mt-sm-0">
-                <select class="form-select form-select-sm d-inline-block" style="width: auto" id="log-level-filter">
-                  <option value="debug">DEBUG</option>
-                  <option value="info">INFO</option>
-                  <option value="warning">WARNING</option>
-                  <option value="error">ERROR</option>
-                  <option value="all" selected>ALL</option>
-                </select>
+            <div class="d-flex justify-content-between align-items-start flex-wrap">
+              <h5 class="mb-2 mb-md-0">Main Logs ({{ system_logs | length }})</h5>
+              <div class="filter-controls">
+                <div class="d-flex align-items-center">
+                  <label for="log-level-filter" class="d-none d-sm-inline me-2">Level:</label>
+                  <select class="form-select form-select-sm" id="log-level-filter">
+                    <option value="debug">DEBUG</option>
+                    <option value="info">INFO</option>
+                    <option value="warning">WARNING</option>
+                    <option value="error">ERROR</option>
+                    <option value="all" selected>ALL</option>
+                  </select>
+                </div>
+                <div class="d-flex align-items-center">
+                  <label for="log-service-filter" class="d-none d-sm-inline me-2">Service:</label>
+                  <select class="form-select form-select-sm" id="log-service-filter">
+                    <option value="all" selected>ALL</option>
+                    <!-- Services will be populated via JavaScript -->
+                  </select>
+                </div>
               </div>
             </div>
           </div>
-          <div class="card-body p-0">
+          <div class="card-body p-0 position-relative">
             <div class="log-window" id="log-window">
-              <!-- Mock log entries will be inserted here by JavaScript -->
+              <!-- Log entries will be inserted here by JavaScript -->
             </div>
+            <!-- Floating scroll button visible on all screens -->
+            <button class="scroll-bottom-btn hidden" id="floating-scroll-btn" title="Scroll to bottom">
+              <i class="fas fa-arrow-down"></i>
+            </button>
           </div>
           <div class="card-footer bg-white">
-            <div class="d-flex justify-content-between flex-wrap">
-              <button class="btn btn-sm btn-outline-secondary mb-2 mb-sm-0" id="btn-clear-logs">
+            <div class="footer-buttons">
+              <button class="btn btn-sm btn-outline-secondary" id="btn-clear-logs">
                 <i class="fas fa-eraser me-1"></i>Clear
+              </button>
+              <button class="btn btn-sm btn-outline-primary" id="btn-scroll-bottom">
+                <i class="fas fa-arrow-down me-1"></i>Scroll to Bottom
               </button>
             </div>
           </div>
@@ -135,54 +270,118 @@
     <!-- Scripts -->
     <script src="https://cdnjs.cloudflare.com/ajax/libs/bootstrap/5.3.0/js/bootstrap.bundle.min.js"></script>
     <script>
-      // eslint-disable-next-line
-      const logs = {{ system_logs | tojson | safe }}
-      // Function to display logs in the log window
-      function displayLogs(logs, filter = "all") {
+      // Using the system_logs from Jinja template
+      const logs = {{ system_logs | tojson | safe }};
+
+      // Extract unique services from logs
+      function getUniqueServices(logs) {
+        return [...new Set(logs.map(log => log.service))].sort();
+      }
+
+      function parseLogEntry(log) {
+        const timestamp = log.timestamp.trim()
+        const level = log.level.trim()
+        const service = log.service.trim()
+        const message = log.message.trim()
+
+        return {
+          timestamp,
+          level,
+          service,
+          message
+        };
+      }
+
+      function populateServiceFilter() {
+        const serviceFilter = document.getElementById("log-service-filter");
+        const services = getUniqueServices(logs);
+
+        services.forEach(service => {
+          const option = document.createElement("option");
+          option.value = service.toLowerCase();
+          option.textContent = service;
+          serviceFilter.appendChild(option);
+        });
+      }
+
+      function displayLogs(logs, levelFilter = "all", serviceFilter = "all") {
         const logWindow = document.getElementById("log-window");
         logWindow.innerHTML = "";
 
         logs.forEach((log) => {
-          if (filter === "all" || filter === log.level.toLowerCase()) {
-          const logEntry = document.createElement("div");
-          logEntry.className = `log-entry log-${log.level.toLowerCase()}`;
+          const parsedLog = parseLogEntry(log);
 
-          const logTimestamp = document.createElement("span");
-          logTimestamp.className = "log-timestamp";
-          logTimestamp.textContent = log.timestamp;
+          const matchesLevel = levelFilter === "all" || levelFilter === parsedLog.level.toLowerCase();
+          const matchesService = serviceFilter === "all" || serviceFilter === parsedLog.service.toLowerCase();
 
-          const logLevel = document.createElement("span");
-          logLevel.className = `log-level log-level-${log.level.toLowerCase()}`;
-          logLevel.textContent = log.level;
+          if (matchesLevel && matchesService) {
+            const logEntry = document.createElement("div");
+            logEntry.className = `log-entry log-${parsedLog.level.toLowerCase()}`;
 
-          const logMessage = document.createElement("span");
-          logMessage.className = `log-message`;
-          logMessage.textContent = log.message;
+            const logTimestamp = document.createElement("span");
+            logTimestamp.className = "log-timestamp";
+            logTimestamp.textContent = parsedLog.timestamp;
 
-          logEntry.appendChild(logTimestamp);
-          logEntry.appendChild(logLevel);
-          logEntry.appendChild(logMessage);
-          logWindow.appendChild(logEntry);
+            const logLevel = document.createElement("span");
+            logLevel.className = `log-level log-level-${parsedLog.level.toLowerCase()}`;
+            logLevel.textContent = parsedLog.level;
+
+            const logService = document.createElement("span");
+            logService.className = "log-service";
+            logService.textContent = parsedLog.service;
+
+            const logMessage = document.createElement("span");
+            logMessage.className = "log-message";
+            logMessage.textContent = parsedLog.message;
+
+            logEntry.appendChild(logTimestamp);
+            logEntry.appendChild(logLevel);
+            logEntry.appendChild(logService);
+            logEntry.appendChild(logMessage);
+            logWindow.appendChild(logEntry);
           }
         });
 
-        // Auto-scroll to bottom
+        scrollToBottom();
+      }
+
+      function scrollToBottom() {
+        const logWindow = document.getElementById("log-window");
         logWindow.scrollTop = logWindow.scrollHeight;
       }
 
-      // Initialize
+      function checkScrollPosition() {
+        const logWindow = document.getElementById("log-window");
+        const floatingBtn = document.getElementById("floating-scroll-btn");
+        const isScrolledToBottom = logWindow.scrollHeight - logWindow.clientHeight <= logWindow.scrollTop + 50;
+
+        if (isScrolledToBottom) {
+          floatingBtn.classList.add("hidden");
+        } else {
+          floatingBtn.classList.remove("hidden");
+        }
+      }
+
       document.addEventListener("DOMContentLoaded", function () {
+        populateServiceFilter();
         displayLogs(logs);
 
-        // Filter logs by level
-        document.getElementById("log-level-filter").addEventListener("change", function () {
-          displayLogs(logs, this.value);
-        });
+        const logWindow = document.getElementById("log-window");
+        const floatingScrollBtn = document.getElementById("floating-scroll-btn");
+        const levelFilter = document.getElementById("log-level-filter");
+        const serviceFilter = document.getElementById("log-service-filter");
 
-        // Clear logs button
-        document.getElementById("btn-clear-logs").addEventListener("click", function () {
-          document.getElementById("log-window").innerHTML = "";
-        });
+        levelFilter.addEventListener("change", function () { displayLogs(logs, levelFilter.value, serviceFilter.value); });
+        serviceFilter.addEventListener("change", function () { displayLogs(logs, levelFilter.value, serviceFilter.value); });
+
+        document.getElementById("btn-clear-logs").addEventListener("click", function () {document.getElementById("log-window").innerHTML = ""; });
+
+        document.getElementById("btn-scroll-bottom").addEventListener("click", scrollToBottom);
+        floatingScrollBtn.addEventListener("click", scrollToBottom);
+        logWindow.addEventListener("scroll", checkScrollPosition);
+        const resizeObserver = new ResizeObserver(() => { checkScrollPosition() });
+        resizeObserver.observe(document.body);
+        checkScrollPosition();
       });
     </script>
   </body>

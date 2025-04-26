@@ -43,7 +43,7 @@ DEFAULT_UNSUPPORTED_DNS_QUERY_TYPES = [12, 28, 65]
 
 DEFAULT_DNS_BUFFER_QUEUE_SIZE = 100
 DEFAULT_DNS_BUFFER_QUEUE_SIZE_SPEED_INCREASE = 50
-DEFAULT_DNS_REQUESTS_DEDUPLICATE_QUEUE_SIZE = 60
+DEFAULT_DNS_REQUESTS_DEDUPLICATE_QUEUE_SIZE = 100
 
 DEFAULT_CACHE_REMOVER_PERIOD = 60 * 60 * 1
 DEFAULT_CACHE_LOOKBACK_PERIOD = 60 * 60 * 3
@@ -54,7 +54,7 @@ DEFAULT_DNS_WORKER_SLEEP_TIMEOUT = 0.2
 DEFAULT_DNS_WORKER_SLEEP_TIMEOUT_FAST = 0.1
 DEFAULT_DNS_WORKER_QUEUE_GET_TIMEOUT = 0.2
 DEFAULT_DNS_WORKER_THROTTLE_TIMEOUT = 0.05
-DEFAULT_DNS_WORKER_THROTTLE_TIMEOUT_FAST = 0.025
+DEFAULT_DNS_WORKER_THROTTLE_TIMEOUT_FAST = 0.02
 
 ROOT_PATH = Path(__file__).resolve().parents[1]
 DNS_CONFIG_PATH = ROOT_PATH / 'config' / 'dns_config.json'
@@ -840,7 +840,7 @@ class DNSServer:
 
             increase_speed = bool(self.dns_packet_queue.qsize() > DEFAULT_DNS_BUFFER_QUEUE_SIZE_SPEED_INCREASE)
             if increase_speed:
-                dns_logger.debug(f"Queue is getting full increasing processing speed")
+                dns_logger.debug(f"Queue is getting full {self.dns_packet_queue.qsize()} increasing processing speed")
             try:
                 packet = self.dns_packet_queue.get(timeout=DEFAULT_DNS_WORKER_QUEUE_GET_TIMEOUT)
                 self._handle_dns_request(packet)

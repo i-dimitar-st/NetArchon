@@ -228,14 +228,14 @@ def get_system_logs() -> list:
             log_entries = []
             log_lines = file_handle.readlines()
             for line in log_lines:
-                line = line.strip()
                 if not line:
                     continue
-                line_array = line.split("|")
+                line_array = line.strip().split("|")
                 log_entries.append({
                     "timestamp": line_array[0].strip(),
                     "level": line_array[1].strip(),
-                    "message": line_array[2].strip() + " " + line_array[3].strip()
+                    "service": line_array[2].strip(),
+                    "message": line_array[3].strip()
                 })
             return log_entries
     except Exception as e:
