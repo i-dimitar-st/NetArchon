@@ -23,6 +23,8 @@ app_logger.info('Started APP')
 
 ROOT_PATH = Path(__file__).resolve().parents[2]
 DNS_DB_PATH = ROOT_PATH / "db" / "dns.sqlite3"
+DHCP_CONFIG_PATH = ROOT_PATH / "config" / "dhcp_config.json"
+DNS_CONFIG_PATH = ROOT_PATH / "config" / "dns_config.json"
 LOG_FILE_PATH = ROOT_PATH / "logs" / "main.log"
 ACTIVE_NETWORK_INTERFACE = 'enp2s0'
 DHCP_STATISTICS = {}
@@ -48,7 +50,7 @@ def generate_system_stats() -> dict:
             'usage': {'value': psutil.cpu_percent(interval=1), 'unit': '%'},
             'usage_per_core': {'value': psutil.cpu_percent(interval=1, percpu=True), 'unit': '%'},
             'frequency_per_core': {'value': [int(freq.current) for freq in psutil.cpu_freq(percpu=True)], 'unit': 'MHz'},
-            'count': {'value': psutil.cpu_count(logical=True), 'unit': 'cores'},
+            'cores': {'value': psutil.cpu_count(logical=True), 'unit': 'cores'},
             'load_1min': {'value': round(os.getloadavg()[0], 2)},
             'load_5min': {'value': round(os.getloadavg()[1], 2)},
             'load_15min': {'value': round(os.getloadavg()[2], 2)},
@@ -163,13 +165,21 @@ def get_network_interfaces():
 
 def get_dhcp_system_config() -> dict:
 
-    current_path = Path(__file__).resolve()
-    config_file_path = current_path.parents[2] / "config" / "dhcp_config.json"  # Going up 3 levels
     try:
-        with open(config_file_path, encoding="utf-8", mode="r") as file_handle:
+        with open(DHCP_CONFIG_PATH, encoding="utf-8", mode="r") as file_handle:
             return json.load(file_handle)
     except Exception as e:
-        print(f"Error: Failed to read {config_file_path} - {e}")
+        app_logger.error(f"Error: Failed to read {DHCP_CONFIG_PATH} - {e}")
+        return None
+
+
+def get_dns_system_config() -> dict:
+
+    try:
+        with open(DNS_CONFIG_PATH, encoding="utf-8", mode="r") as file_handle:
+            return json.load(file_handle)
+    except Exception as e:
+        app_logger.error(f"Error: Failed to read {DNS_CONFIG_PATH} - {e}")
         return None
 
 
@@ -193,7 +203,7 @@ def get_dns_history() -> list:
             return dns_records
 
     except Exception as e:
-        print(f"Error: Failed to read {DNS_DB_PATH} - {e}")
+        app_logger.error(f"Error: Failed to read {DNS_DB_PATH} - {e}")
         return []
 
 
@@ -239,8 +249,7 @@ def get_system_logs() -> list:
                 })
             return log_entries
     except Exception as e:
-        print(f"[get_system_logs] Failed to read {LOG_FILE_PATH} - {e}")
-
+        app_logger.error(f"Failed to read {LOG_FILE_PATH} - {e}")
         return []
 
 

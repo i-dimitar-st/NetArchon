@@ -50,7 +50,7 @@
       <div class="card mb-4">
         <div class="card-header bg-white">
           <div class="d-flex justify-content-between align-items-center">
-            <h5 class="mb-0">Statistics</h5>
+            <h5 class="mb-0">DNS Query Statistics</h5>
             <i class="fas fa-chart-bar text-primary"></i>
           </div>
         </div>
@@ -67,7 +67,7 @@
       <div class="card mb-4">
         <div class="card-header bg-white">
           <div class="d-flex justify-content-between align-items-center">
-            <h5 class="mb-0">Query History ({{ dns_history | length }})</h5>
+            <h5 class="mb-0">DNS Domain Requests ({{ dns_history | length }})</h5>
             <i class="fas fa-chart-bar text-primary"></i>
           </div>
         </div>
@@ -78,56 +78,65 @@
               <span class="input-group-text bg-primary text-white">
                 <i class="fas fa-search"></i>
               </span>
-              <input type="text" id="urlFilter" class="form-control" placeholder="Filter URLs..." autocomplete="off" />
+              <input
+                type="text"
+                id="urlFilter"
+                class="form-control"
+                placeholder="Filter History by URL ..."
+                autocomplete="off"
+              />
               <button id="clearFilter" class="btn btn-outline-secondary" type="button">
                 <i class="fas fa-times"></i>
               </button>
             </div>
           </div>
 
-          <div class="table-responsive">
-            <table id="dnsTable" class="table table-striped table-bordered mb-0">
-              <thead class="table-light">
-                <tr>
-                  <th
-                    id="queryHeader"
-                    class="text-primary"
-                    style="cursor: pointer"
-                    data-bs-toggle="tooltip"
-                    title="Click to sort"
-                  >
-                    URL <i class="fas fa-sort"></i>
-                  </th>
-                  <th
-                    id="countHeader"
-                    class="text-primary text-end"
-                    style="cursor: pointer"
-                    data-bs-toggle="tooltip"
-                    title="Click to sort"
-                  >
-                    Count <i class="fas fa-sort"></i>
-                  </th>
-                  <th
-                    id="activeHeader"
-                    class="text-primary text-end"
-                    style="cursor: pointer"
-                    data-bs-toggle="tooltip"
-                    title="Click to sort"
-                  >
-                    Status <i class="fas fa-sort"></i>
-                  </th>
-                </tr>
-              </thead>
-              <tbody>
-                {% for item in dns_history %}
-                <tr>
-                  <td>{{ item.query }}</td>
-                  <td class="text-end">{{ item.query_times }}</td>
-                  <td class="text-end">{{ "active" if item.active else "inactive" }}</td>
-                </tr>
-                {% endfor %}
-              </tbody>
-            </table>
+          <!-- Responsive scrollable window for table -->
+          <div style="max-height: 400px; overflow-y: auto" class="border rounded">
+            <div class="table-responsive">
+              <table id="dnsTable" class="table table-striped table-bordered mb-0">
+                <thead class="table-light sticky-top">
+                  <tr>
+                    <th
+                      id="queryHeader"
+                      class="text-primary"
+                      style="cursor: pointer; position: sticky; top: 0; background-color: #f8f9fa"
+                      data-bs-toggle="tooltip"
+                      title="Click to sort"
+                    >
+                      URL <i class="fas fa-sort"></i>
+                    </th>
+                    <th
+                      id="countHeader"
+                      class="text-primary text-end"
+                      style="cursor: pointer; position: sticky; top: 0; background-color: #f8f9fa"
+                      data-bs-toggle="tooltip"
+                      title="Click to sort"
+                    >
+                      Count <i class="fas fa-sort"></i>
+                    </th>
+                    <th
+                      id="activeHeader"
+                      class="text-primary text-end"
+                      style="cursor: pointer; position: sticky; top: 0; background-color: #f8f9fa"
+                      data-bs-toggle="tooltip"
+                      title="Click to sort"
+                    >
+                      Status <i class="fas fa-sort"></i>
+                    </th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {% for item in dns_history %}
+                  <tr>
+                    <td>{{ item.query }}</td>
+                    <td class="text-end">{{ item.query_counter }}</td>
+                    <td class="text-end">{{ "active" if item.active else "inactive" }}</td>
+                  </tr>
+                  {% endfor %}
+                </tbody>
+              </table>
+            </div>
           </div>
         </div>
       </div>
@@ -142,23 +151,86 @@
         const rows = Array.from(tbody.querySelectorAll("tr"));
         const filterInput = document.getElementById("urlFilter");
         const clearFilterBtn = document.getElementById("clearFilter");
-        const filterStats = document.getElementById("filterStats");
+        const totalRows = rows.length;
 
-        // Enable tooltips
         const tooltipTriggerList = [].slice.call(document.querySelectorAll('[data-bs-toggle="tooltip"]'));
         tooltipTriggerList.map(function (tooltipTriggerEl) {
           return new bootstrap.Tooltip(tooltipTriggerEl);
         });
 
-        // Table sorting
         let tableSortState = {
-          column: "count",
-          direction: "desc",
+          column: "query",
+          direction: "asc",
         };
 
         function sortTable(column, type = "text") {
           const direction = tableSortState.column === column && tableSortState.direction === "asc" ? "desc" : "asc";
           tableSortState = { column, direction };
+
+          document.querySelectorAll("th i.fas").forEach((icon) => {
+            icon.className = "fas fa-sort";
+          });
+
+          const headerElement = document.getElementById(`${column}Header`);
+          if (headerElement) {
+            const sortIcon = headerElement.querySelector("i");
+            sortIcon.className = `fas fa-sort-${direction === "asc" ? "up" : "down"}`;
+          }
+
+          rows.sort((a, b) => {
+            let columnIndex;
+            switch (column) {
+              case "query":
+                columnIndex = 0;
+                break;
+              case "count":
+                columnIndex = 1;
+                break;
+              case "active":
+                columnIndex = 2;
+                break;
+            }
+            let valA = a.children[columnIndex].innerText.trim();
+            let valB = b.children[columnIndex].innerText.trim();
+
+            if (type === "number") {
+              valA = parseInt(valA);
+              valB = parseInt(valB);
+            }
+
+            if (valA < valB) return direction === "asc" ? -1 : 1;
+            if (valA > valB) return direction === "asc" ? 1 : -1;
+            return 0;
+          });
+
+          // Only append visible rows that aren't hidden by the filter
+          const visibleRows = rows.filter((row) => !row.classList.contains("d-none"));
+          visibleRows.forEach((row) => tbody.appendChild(row));
+        }
+
+        function filterTable() {
+          const filterValue = filterInput.value.toLowerCase();
+          let visibleCount = 0;
+
+          rows.forEach((row) => {
+            const url = row.cells[0].textContent.toLowerCase();
+            const shouldShow = url.includes(filterValue);
+
+            if (shouldShow) {
+              row.classList.remove("d-none");
+              visibleCount++;
+            } else {
+              row.classList.add("d-none");
+            }
+          });
+
+          // Apply the current sort after filtering without changing the sort column
+          applyCurrentSort();
+        }
+
+        function applyCurrentSort() {
+          const { column, direction } = tableSortState;
+          const type = column === "count" ? "number" : "text";
 
           rows.sort((a, b) => {
             let columnIndex;
@@ -191,27 +263,6 @@
           visibleRows.forEach((row) => tbody.appendChild(row));
         }
 
-        // URL filtering function
-        function filterTable() {
-          const filterValue = filterInput.value.toLowerCase();
-          let visibleCount = 0;
-
-          rows.forEach((row) => {
-            const url = row.cells[0].textContent.toLowerCase();
-            const shouldShow = url.includes(filterValue);
-
-            if (shouldShow) {
-              row.classList.remove("d-none");
-              visibleCount++;
-            } else {
-              row.classList.add("d-none");
-            }
-          });
-
-          // Maintain current sort
-          sortTable(tableSortState.column, tableSortState.column === "count" ? "number" : "text");
-        }
-
         // Add event listeners
         filterInput.addEventListener("input", filterTable);
 
@@ -225,8 +276,8 @@
         document.getElementById("countHeader").addEventListener("click", () => sortTable("count", "number"));
         document.getElementById("activeHeader").addEventListener("click", () => sortTable("active", "text"));
 
-        // Initial default sort by count DESC
-        sortTable("count", "number");
+        // Initial sort by URL (query)
+        sortTable("query", "text");
       });
     </script>
   </body>
