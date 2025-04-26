@@ -6,7 +6,7 @@ class MainLogger:
     LOG_DIR = "logs"
     LOG_FILE = os.path.join(LOG_DIR, "main.log")
     LOG_PATH = os.path.join(LOG_DIR, LOG_FILE)
-    LOG_FORMAT = '%(asctime)s | %(levelname)s | %(name)s | %(message)s'
+    LOG_FORMAT = '%(asctime)s.%(msecs)03d | %(levelname)s | %(name)s | %(message)s'
 
     @classmethod
     def get_logger(cls, service_name="MAIN", log_level=logging.DEBUG):
