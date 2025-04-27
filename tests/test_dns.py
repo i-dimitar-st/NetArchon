@@ -5,25 +5,30 @@ import subprocess
 
 def ping_ip(ip):
     start_time = time.time()
+    timeout = 1
     try:
-        response = subprocess.run(
-            ["ping", "-c", "1", ip], capture_output=True, text=True
-        )
+        response = subprocess.run(["ping", "-c", str(timeout), ip], capture_output=True, text=False)
         end_time = time.time()
         if response.returncode == 0:
-            return f"{ip}=>{int((end_time - start_time)*1000)}"
+            return end_time - start_time
         else:
-            return f"{ip}:failed"
+            return timeout
     except Exception as e:
         return f"Error pinging {ip}: {e}"
 
 
 def main():
-    ips = ["94.140.14.15", "8.8.8.8", "1.1.1.1", "9.9.9.9"]
-    while True:
-        ping_results = [ping_ip(ip) for ip in ips]
-        print(time.strftime('%Y-%m-%d %H:%M:%S'), " | ".join(ping_results))
-        time.sleep(10)
+    dns_servers_list = ["94.140.14.15", "8.8.8.8", "1.1.1.1", "9.9.9.9"]
+    results = {}
+    for each in dns_servers_list:
+        results[each] = []
+    for i in range(60-1):
+        for ip in dns_servers_list:
+            results[ip].append(ping_ip(ip))
+            print(f"Counter:{i} Delay:{ping_ip(ip)} IP:{ip}")
+        time.sleep(1)
+    for key, value in results.items():
+        print(f"IP:{key} has average delay of {round(sum(value)/len(value)), 3} sec")
 
 
 if __name__ == "__main__":
