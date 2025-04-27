@@ -122,7 +122,7 @@
                       data-bs-toggle="tooltip"
                       title="Click to sort"
                     >
-                      Status <i class="fas fa-sort"></i>
+                      Created <i class="fas fa-sort"></i>
                     </th>
                   </tr>
                 </thead>
@@ -131,9 +131,7 @@
                   <tr>
                     <td>{{ item.query }}</td>
                     <td class="text-end">{{ item.query_counter }}</td>
-                    <td class="text-end {{ 'text-success fw-medium' if item.active else '' }}">
-                      {{ "active" if item.active else "inactive" }}
-                    </td>
+                    <td class="text-end" data-timestamp="{{ item.created }}"></td>
                   </tr>
                   {% endfor %}
                 </tbody>
@@ -274,6 +272,27 @@
           filterInput.focus();
         });
 
+        function formatTimestamps() {
+          const timestampCells = document.querySelectorAll("td[data-timestamp]");
+          timestampCells.forEach((cell) => {
+            const timestamp = cell.getAttribute("data-timestamp") * 1000;
+            if (!isNaN(timestamp)) {
+              const localDate = new Date(timestamp);
+              const options = {
+                year: "numeric",
+                month: "2-digit",
+                day: "2-digit",
+                hour: "2-digit",
+                minute: "2-digit",
+                second: "2-digit",
+                timeZoneName: "short",
+              };
+              cell.textContent = localDate.toLocaleString("en-GB", options);
+            }
+          });
+        }
+
+        formatTimestamps();
         document.getElementById("queryHeader").addEventListener("click", () => sortTable("query", "text"));
         document.getElementById("countHeader").addEventListener("click", () => sortTable("count", "number"));
         document.getElementById("activeHeader").addEventListener("click", () => sortTable("active", "text"));

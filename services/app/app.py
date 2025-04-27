@@ -7,6 +7,7 @@ import sqlite3
 import time
 import os
 import copy
+from datetime import datetime, timezone
 from pathlib import Path
 from flask import Flask, render_template, request, jsonify
 from services.service_logger import MainLogger
@@ -267,14 +268,8 @@ def queue_processor_dns(message: bytes) -> None:
     _message_dict = json.loads(message.decode('utf-8'))
     message_type = _message_dict.get("type", None)
     message_payload = _message_dict.get("payload", None)
-    if message_payload and message_type == 'statistics':
-        update_dns_statistics(message_payload)
     if message_payload and message_type == 'history':
         update_dns_history(message_payload)
-
-
-def update_dns_statistics(_stats: dict = {}):
-    pass
 
 
 def update_dns_history(payload: list = []):
