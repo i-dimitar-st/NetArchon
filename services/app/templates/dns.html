@@ -131,7 +131,9 @@
                   <tr>
                     <td>{{ item.query }}</td>
                     <td class="text-end">{{ item.query_counter }}</td>
-                    <td class="text-end">{{ "active" if item.active else "inactive" }}</td>
+                    <td class="text-end {{ 'text-success fw-medium' if item.active else '' }}">
+                      {{ "active" if item.active else "inactive" }}
+                    </td>
                   </tr>
                   {% endfor %}
                 </tbody>
