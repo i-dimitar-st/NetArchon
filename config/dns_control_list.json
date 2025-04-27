@@ -1,5 +1,5 @@
 {
-    "timestamp": "",
+    "timestamp": "2025-04-27",
     "whitelist": [],
     "blacklist": [
         "*ads.com",
@@ -19,6 +19,7 @@
         "*iadsdk.apple.com",
         "*netseer-ipaddr-assoc.xy.fbcdn.net",
         "*pub.3gppnetwork.org",
+        "*ads.tv",
         "*stickyadstv.com",
         "*adnxs.com",
         "*adxpremium.services",

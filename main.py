@@ -3,16 +3,18 @@ import threading
 import logging
 import os
 import time
+import sys
 from services import MainLogger
 from services import DHCPServer
 from services import DNSServer
 from services import RabbitMqConsumer
 from services import app
 
-main_logger = MainLogger.get_logger(service_name="MAIN", log_level=logging.INFO)
 
 CERT_PEM_PATH = './services/app/certificates/cert.pem'
 CERT_KEY_PATH = './services/app/certificates/key.pem'
+
+main_logger = MainLogger.get_logger(service_name="MAIN", log_level=logging.INFO)
 
 
 def run_gui():
@@ -42,7 +44,7 @@ def run_dns():
 
 
 if __name__ == "__main__":
-    main_logger.info("Starting MAIN")
+    main_logger.info("starting")
 
     dhcp_thread = threading.Thread(target=run_dhcp, name="DHCP-Thread", daemon=True)
     dhcp_thread.start()

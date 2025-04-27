@@ -11,6 +11,7 @@ import logging
 import signal
 import ipaddress
 import re
+import random
 import scapy.all as scapy
 from collections import deque
 from scapy.layers.inet import IP, UDP, Ether
@@ -24,16 +25,17 @@ DB_CONN_TIMEOUT = 10
 DB_CONN_CHECK_SAME_THREAD = False
 DB_CONN_ISOLATION_LEVEL = None
 DB_CONN_CACHED_STATEMENTS = 100
+
 DB_JOURNAL_MODE = "WAL"
 DB_SYNC_MODE = "NORMAL"
-DB_CACHE_SIZE = -4*1024
+DB_CACHE_SIZE = -8*1024
 DB_MMAP_SIZE = 24*1024*1024
 DB_AUTO_VACCUM = 'INCREMENTAL'
 
 DEFAULT_CACHE_TTL = 10*60
 DEFAULT_NEGATIVE_CACHE_TTL = 3*60
 DEFAULT_CACHE_EXPIRY_GRACE = 60 * 60 * 3
-DEFAULT_CACHE_REMOVER_PERIOD = 60 * 60 * 1
+DEFAULT_REMOVER_PERIOD = 60 * 60 * 1
 
 DEFAULT_DNS_PORT = 53
 DEFAULT_MAC = '00:00:00:00:00:00'
@@ -42,20 +44,19 @@ DEFAULT_CIDR = '24'
 DEFAULT_INTERFACE = 'eth0'
 DEFAULT_DNS_SERVER = '94.140.14.15'
 DEFAULT_DNS_SERVER_SECONDARY = '9.9.9.9'
-DEFAULT_UNSUPPORTED_DNS_QUERY_TYPES = [12, 28, 65]
 
 DEFAULT_DNS_BUFFER_QUEUE_SIZE = 100
 DEFAULT_DNS_BUFFER_QUEUE_SIZE_SPEED_INCREASE = 50
-DEFAULT_DNS_REQUESTS_DEDUPLICATE_QUEUE_SIZE = 100
+DEFAULT_DNS_REQUESTS_DEDUPLICATE_QUEUE_SIZE = 50
 
 DEFAULT_BLOCKED_LISTS_LOADING_PERIOD = 5 * 60
+DEFAULT_UNSUPPORTED_DNS_QUERY_TYPES = [12, 28, 65]
+DEFAULT_PACKET_PER_SEC_HIGH_LIMIT = 75
 
-DEFAULT_PACKET_PER_SEC_HIGH_LIMIT = 50
-DEFAULT_DNS_WORKER_SLEEP_TIMEOUT = 0.2
-DEFAULT_DNS_WORKER_SLEEP_TIMEOUT_FAST = 0.1
-DEFAULT_DNS_WORKER_QUEUE_GET_TIMEOUT = 0.2
-DEFAULT_DNS_WORKER_THROTTLE_TIMEOUT = 0.05
-DEFAULT_DNS_WORKER_THROTTLE_TIMEOUT_FAST = 0.02
+DEFAULT_DNS_WORKER_SLEEP_TIMEOUT = 0.5
+DEFAULT_DNS_WORKER_QUEUE_GET_TIMEOUT = 0.3
+DEFAULT_DNS_WORKER_THROTTLE_TIMEOUT = 0.02
+DEFAULT_DNS_WORKER_THROTTLE_MULTIPLIER = 0.50
 
 ROOT_PATH = Path(__file__).resolve().parents[1]
 DNS_CONFIG_PATH = ROOT_PATH / 'config' / 'dns_config.json'
@@ -152,7 +153,7 @@ class DNSUtilities:
         return random.randint(1024, 65535)
 
     @staticmethod
-    def get_query_mapping(request_type: int = 1):
+    def convert_request_type(request_type: int = 1):
         query_type_map = {
             1: 'request_type_a',
             2: 'request_type_ns',
@@ -326,10 +327,9 @@ class DNSCacheStorage:
     # @classmethod
     # def delete_stale_caches(cls):
     #     while True:
-    #         time.sleep(DEFAULT_CACHE_REMOVER_PERIOD)
+    #         time.sleep(DEFAULT_REMOVER_PERIOD)
     #         try:
     #             with cls._lock:
-
     #                 lookback = int(time.time() - DEFAULT_CACHE_EXPIRY_GRACE)
     #                 cls._cursor.execute(
     #                     """
@@ -338,7 +338,6 @@ class DNSCacheStorage:
     #                     WHERE expiration < ?
     #                     """, (lookback,))
     #                 cache_deleted = cls._cursor.rowcount
-
     #                 cls._cursor.execute(
     #                     """
     #                     DELETE
@@ -346,9 +345,7 @@ class DNSCacheStorage:
     #                     WHERE expiration < ?
     #                     """, (lookback,))
     #                 negative_deleted = cls._cursor.rowcount
-
     #                 cls._conn.commit()
-
     #                 dns_logger.debug(
     #                     f"[{threading.current_thread().name}] cache_cleaned:{cache_deleted} negative_cache_cleaned:{negative_deleted}")
 
@@ -413,7 +410,7 @@ class DNSHistoryStorage:
     @classmethod
     def service_delete_stale_history_entries(cls):
         while True:
-            time.sleep(DEFAULT_CACHE_REMOVER_PERIOD)
+            time.sleep(DEFAULT_REMOVER_PERIOD)
             try:
                 with cls._lock:
 
@@ -433,8 +430,8 @@ class DNSHistoryStorage:
                         cls._conn.commit()
                         dns_logger.debug(f"[{threading.current_thread().name}] Deleted {row_count - 1000} stale entries from history")
 
-            except Exception as e:
-                dns_logger.debug(f"[Stale Cache Cleaner ERROR] {e}")
+            except Exception as err:
+                dns_logger.error(f"[stale_history_remover] {str(err)}")
 
     @classmethod
     def close(cls):
@@ -566,8 +563,9 @@ class DNSServer:
         self.cursor = None
         self.dns_packet_queue = queue.Queue(maxsize=DEFAULT_DNS_BUFFER_QUEUE_SIZE)
         self._dns_deduplication_queue = deque(maxlen=DEFAULT_DNS_REQUESTS_DEDUPLICATE_QUEUE_SIZE)
-        self._packet_hit_rate = deque(maxlen=DEFAULT_DNS_REQUESTS_DEDUPLICATE_QUEUE_SIZE)
+        self._packet_arrival_timestamps = deque(maxlen=DEFAULT_DNS_REQUESTS_DEDUPLICATE_QUEUE_SIZE)
         self.threads = {}
+        self._max_worker_threads = 20
         self._initialize_config()
         self._load_control_list()
 
@@ -738,8 +736,8 @@ class DNSServer:
             dns_logger.error(f"{self.UPSTREAM_DNS} timedout {str(err)}")
             return None
 
-    def _is_query_blacklisted(self, query: bytes) -> bool:
-        decoded_query = query.decode('utf-8').rstrip('.').lower()
+    def _is_query_blacklisted(self, packet: Ether) -> bool:
+        decoded_query = packet[DNS].qd.qname.decode('utf-8').rstrip('.').lower()
         for blacklist_rule_raw in self.BLACKLIST:
             blacklist_rule = f"^{blacklist_rule_raw.strip().lower().replace('*', '.*')}$"
             if re.search(blacklist_rule, decoded_query):
@@ -812,14 +810,14 @@ class DNSServer:
 
         DNSStatsStorage.increment(key='request_total')
 
-        if self._is_query_blacklisted(packet[DNS].qd.qname):
+        if self._is_query_blacklisted(packet):
             DNSStatsStorage.increment(key='request_blacklisted')
 
         if DNSUtilities.is_query_type_not_supported(packet):
             DNSStatsStorage.increment(key='request_not_supported')
 
-        if DNSUtilities.get_query_mapping(qtype):
-            DNSStatsStorage.increment(key=DNSUtilities.get_query_mapping(qtype))
+        if DNSUtilities.convert_request_type(qtype):
+            DNSStatsStorage.increment(key=DNSUtilities.convert_request_type(qtype))
 
     def _track_response_stats(self, packet: Ether) -> None:
 
@@ -840,41 +838,39 @@ class DNSServer:
         If the query is valid, processes it and sends a response back to the client.
         """
 
+        self._track_received_query_stats(packet)
         reply = None
         is_query_active = 0
-        query_name = packet[DNS].qd.qname
-        self._track_received_query_stats(packet)
 
         if DNSUtilities.is_query_type_not_supported(packet):
             reply = self._build_notimp_response(packet)
 
-        if self._is_query_blacklisted(query_name):
+        if self._is_query_blacklisted(packet):
             reply = self._build_nxdomain_response(packet)
 
         if reply is None:
             response: DNS | None = self._process_query(packet)
-            response_rcode = response[DNS].rcode if response[DNS].rcode is not None else None
 
             if not response:
                 reply = self._build_dns_servfail_response(packet)
-            elif response_rcode == 0:
+            elif response[DNS].rcode == 0:
                 is_query_active = 1
                 reply = self._build_noerror_response(packet, response)
-            elif response_rcode == 3:
+            elif response[DNS].rcode == 3:
                 reply = self._build_nxdomain_response(packet)
-            elif response_rcode == 4:
+            elif response[DNS].rcode == 4:
                 reply = self._build_notimp_response(packet)
 
-        DNSHistoryStorage.add_query(query_name, is_query_active)
+        DNSHistoryStorage.add_query(packet[DNS].qd.qname, is_query_active)
 
         if reply:
             self._send_packet(reply)
             return
         else:
-            dns_logger.error(f"DNS response was not matched this should not happen query:{query_name}")
+            dns_logger.error(f"DNS response was not matched this should not happen query:{packet[DNS].qd.qname}")
             return
 
-    def service_worker_processor(self) -> None:
+    def service_queue_worker_processor(self) -> None:
         """
         Continuously processes DNS packets from the queue in a dedicated worker thread.
 
@@ -890,22 +886,30 @@ class DNSServer:
 
         while self._running:
 
-            increase_speed = bool(self.dns_packet_queue.qsize() > DEFAULT_DNS_BUFFER_QUEUE_SIZE_SPEED_INCREASE)
+            queue_size = self.dns_packet_queue.qsize()
+            increase_speed = bool(queue_size > DEFAULT_DNS_BUFFER_QUEUE_SIZE_SPEED_INCREASE)
             if increase_speed:
-                dns_logger.debug(f"Queue is getting full {self.dns_packet_queue.qsize()} increasing processing speed")
+                dns_logger.debug(f"Queue getting full {queue_size}, reducing sleep timeouts")
+
             try:
-                packet = self.dns_packet_queue.get(timeout=DEFAULT_DNS_WORKER_QUEUE_GET_TIMEOUT)
+
+                packet = self.dns_packet_queue.get(
+                    timeout=DEFAULT_DNS_WORKER_QUEUE_GET_TIMEOUT*DEFAULT_DNS_WORKER_THROTTLE_MULTIPLIER if increase_speed else DEFAULT_DNS_WORKER_QUEUE_GET_TIMEOUT)
+                if not packet or not packet.haslayer(DNS):
+                    raise Exception("Invalid packet received check Queue input")
+
                 self._handle_dns_request(packet)
                 self.dns_packet_queue.task_done()
-
-                # print(f"{thread_name} Processed DNS_id:{packet[DNS].id}")
-                time.sleep(DEFAULT_DNS_WORKER_THROTTLE_TIMEOUT_FAST if increase_speed else DEFAULT_DNS_WORKER_THROTTLE_TIMEOUT)
+                time.sleep(DEFAULT_DNS_WORKER_THROTTLE_TIMEOUT *
+                           DEFAULT_DNS_WORKER_THROTTLE_MULTIPLIER if increase_speed else DEFAULT_DNS_WORKER_THROTTLE_TIMEOUT)
 
             except queue.Empty:
-                time.sleep(DEFAULT_DNS_WORKER_SLEEP_TIMEOUT_FAST if increase_speed else DEFAULT_DNS_WORKER_SLEEP_TIMEOUT)
+                time.sleep(DEFAULT_DNS_WORKER_SLEEP_TIMEOUT *
+                           DEFAULT_DNS_WORKER_THROTTLE_MULTIPLIER if increase_speed else DEFAULT_DNS_WORKER_SLEEP_TIMEOUT)
 
             except Exception as err:
                 dns_logger.error(f"{thread_name} processing DNS packet:{str(err)}")
+                self.dns_packet_queue.task_done()
                 time.sleep(DEFAULT_DNS_WORKER_SLEEP_TIMEOUT)
 
     def _is_incoming_packet_congestable(self, packet: Ether) -> bool:
@@ -927,14 +931,15 @@ class DNSServer:
 
         return True
 
-    def _enqueue_dns_packet(self, packet: Ether) -> None:
+    def _add_packet_to_processing_queue_if_valid(self, packet: Ether) -> None:
         """Enqueue a sniffed DNS packet for processing"""
 
         try:
+
+            self._packet_arrival_timestamps.appendleft(time.time())
+
             if not self._is_incoming_packet_congestable(packet):
                 return
-
-            self._packet_hit_rate.appendleft(packet.time)
 
             if self.dns_packet_queue.full():
                 raise queue.Full("DNS packet queue is full")
@@ -952,15 +957,11 @@ class DNSServer:
             self._dns_deduplication_queue.appendleft(key)
             self.dns_packet_queue.put(packet)
 
-            average_per_sec = 0
-            if len(self._packet_hit_rate) > 1:
-                time_delta = abs(self._packet_hit_rate[-1] - self._packet_hit_rate[0])
-                average_per_sec = len(self._packet_hit_rate) / time_delta
-
-            if average_per_sec > DEFAULT_PACKET_PER_SEC_HIGH_LIMIT:
-                dns_logger.warning(f"Average packet per sec > {average_per_sec}")
-
-            # print(f"received {round(average_per_min, 2)} id:{packet[DNS].id} src:{packet[IP].src} dst:{packet[IP].dst} queue:{self.dns_packet_queue.qsize()}")
+            if len(self._packet_arrival_timestamps) > 1:
+                per_sec_hitrate = len(self._packet_arrival_timestamps) / \
+                    (self._packet_arrival_timestamps[0]-self._packet_arrival_timestamps[-1])
+                if per_sec_hitrate and per_sec_hitrate > DEFAULT_PACKET_PER_SEC_HIGH_LIMIT:
+                    dns_logger.warning(f"Average package hitrate: {round(per_sec_hitrate, 2)}")
 
         except queue.Full:
             dns_logger.warning(f"packet queue is full")
@@ -974,7 +975,7 @@ class DNSServer:
             scapy.sniff(
                 iface=self.INTERFACE,
                 filter="ip and udp dst port 53",
-                prn=self._enqueue_dns_packet,
+                prn=self._add_packet_to_processing_queue_if_valid,
                 store=False
             )
 
@@ -997,23 +998,23 @@ class DNSServer:
         DNSStatsStorage.init()
         DNSCacheStorage.init()
 
-        dns_service_listener = threading.Thread(target=self.service_traffic_listener, name="listener", daemon=True)
-        dns_service_listener.start()
-        self.threads["listener"] = dns_service_listener
+        traffic_listener = threading.Thread(target=self.service_traffic_listener, name="traffic_listener", daemon=True)
+        traffic_listener.start()
+        self.threads["traffic_listener"] = traffic_listener
 
         control_lists_loader = threading.Thread(target=self.service_control_lists_loader, name="control_lists_loader", daemon=True)
         control_lists_loader.start()
-        self.threads["control_lists_loader"] = dns_service_listener
+        self.threads["control_lists_loader"] = control_lists_loader
 
-        for i in range(5):
-            queue_worker = threading.Thread(target=self.service_worker_processor, name=f"queue_worker_{i}", daemon=True)
+        for i in range(10):
+            queue_worker = threading.Thread(target=self.service_queue_worker_processor, name=f"queue_worker_{i}", daemon=True)
             queue_worker.start()
             self.threads[f"queue_worker_{i}"] = queue_worker
 
-        dns_history_remover = threading.Thread(target=DNSHistoryStorage.service_delete_stale_history_entries,
-                                               name="stale_history_remover", daemon=True)
-        dns_history_remover.start()
-        self.threads[f"stale_history_remover"] = dns_history_remover
+        stale_history_remover = threading.Thread(target=DNSHistoryStorage.service_delete_stale_history_entries,
+                                                 name="stale_history_remover", daemon=True)
+        stale_history_remover.start()
+        self.threads[f"stale_history_remover"] = stale_history_remover
 
         dns_logger.info("Service started")
 
