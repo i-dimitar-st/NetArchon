@@ -28,7 +28,7 @@ def main():
             print(f"Counter:{i} Delay:{ping_ip(ip)} IP:{ip}")
         time.sleep(1)
     for key, value in results.items():
-        print(f"IP:{key} has average delay of {round(sum(value)/len(value)), 3} sec")
+        print(f"IP:{key} has average delay of {round(sum(value)/len(value), 3)} sec")
 
 
 if __name__ == "__main__":
