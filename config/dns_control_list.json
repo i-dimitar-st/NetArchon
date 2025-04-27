@@ -23,6 +23,8 @@
         "*stickyadstv.com",
         "*adnxs.com",
         "*adxpremium.services",
+        "ade.*.com",
+        "*googlesyndication.com",
         "ogads*google.com",
         "ad-host*amazonaws.com",
         "ad.*.net",

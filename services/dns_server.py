@@ -59,8 +59,9 @@ DEFAULT_DNS_WORKER_THROTTLE_TIMEOUT = 0.02
 DEFAULT_DNS_WORKER_THROTTLE_MULTIPLIER = 0.50
 
 ROOT_PATH = Path(__file__).resolve().parents[1]
-DNS_CONFIG_PATH = ROOT_PATH / 'config' / 'dns_config.json'
-DNS_CONTROL_LIST = ROOT_PATH / 'config' / 'dns_control_list.json'
+CONFIG_PATH = ROOT_PATH / 'config'
+DNS_CONFIG_PATH = CONFIG_PATH / 'dns_config.json'
+DNS_CONTROL_LIST = CONFIG_PATH / 'dns_control_list.json'
 DB_PATH = ROOT_PATH / 'db'
 DB_DNS_FILENAME = 'dns.sqlite3'
 DB_DNS = DB_PATH / DB_DNS_FILENAME
@@ -591,10 +592,11 @@ class DNSServer:
         """Loads control list from a JSON file."""
         with self.lock:
             try:
-                with open(DNS_CONTROL_LIST, "r") as file_handle:
+                with open(DNS_CONTROL_LIST, mode="r", encoding="utf-8") as file_handle:
                     _control_list = json.load(file_handle)
                     self.BLACKLIST = _control_list.get("blacklist", [])
                     self.WHITELIST = _control_list.get("whitelist", [])
+                    dns_logger.debug(f'Loded blacklist:{len(self.BLACKLIST)} whitelist:{len(self.WHITELIST)}')
 
             except Exception as err:
                 dns_logger.error(f'Error processing control lists file: {str(err)}')
@@ -787,7 +789,7 @@ class DNSServer:
                 dns_logger.warning(f"[DNSQUERY] {query_name} rcode:{rcode}")
                 return external_response[DNS]
 
-        DNSCacheStorage.add_to_negative_cache(query_name)
+        # DNSCacheStorage.add_to_negative_cache(query_name)
         DNSStatsStorage.increment(key='external_failure')
         dns_logger.warning(f"[DNSQUERY] {query_name} timeout")
         return None
@@ -944,12 +946,7 @@ class DNSServer:
             if self.dns_packet_queue.full():
                 raise queue.Full("DNS packet queue is full")
 
-            key = (
-                packet[IP].src,
-                packet[DNS].id,
-                packet[DNS].qd.qtype,
-                str(packet[DNS].qd.qname)
-            )
+            key = (packet[IP].src, packet[DNS].id)
 
             if key in self._dns_deduplication_queue:
                 return
@@ -1018,7 +1015,7 @@ class DNSServer:
 
         dns_logger.info("Service started")
 
-    def stop_server(self):
+    def stop_service(self):
         """Sets running to False to stop the DNS server gracefully."""
         self._running = False
 
@@ -1032,7 +1029,7 @@ class DNSServer:
     def handle_signal(self, signal, frame):
         """Handles termination signals to stop the server gracefully."""
         dns_logger.info(f"Received {signal} stopping server")
-        self.stop_server()
+        self.stop_service()
         sys.exit(0)
 
 

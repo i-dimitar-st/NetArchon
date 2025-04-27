@@ -59,4 +59,4 @@ if __name__ == "__main__":
         while True:
             time.sleep(1)
     except KeyboardInterrupt:
-        main_logger.info("Shutting down Network Gateway Services gracefully.")
+        main_logger.info("Stopping services")
