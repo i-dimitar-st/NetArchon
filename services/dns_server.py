@@ -566,7 +566,6 @@ class DNSServer:
         self._dns_deduplication_queue = deque(maxlen=DEFAULT_DNS_REQUESTS_DEDUPLICATE_QUEUE_SIZE)
         self._packet_arrival_timestamps = deque(maxlen=DEFAULT_DNS_REQUESTS_DEDUPLICATE_QUEUE_SIZE)
         self.threads = {}
-        self._max_worker_threads = 20
         self._initialize_config()
         self._load_control_list()
 
