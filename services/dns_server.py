@@ -54,12 +54,12 @@ CACHE_EXPIRY_GRACE = 60 * 60 * 3
 REMOVER_PERIOD = 60 * 60 * 1
 UNSUPPORTED_QUERY_TYPES = [12, 28, 65]
 BLOCKED_LISTS_LOADING_PERIOD = 5 * 60
-DB_MAX_HISTORY_SIZE = 1000
+DB_MAX_HISTORY_SIZE = 100
 
 INBOUND_QUEUE_BUFFER_SIZE = 100
 INBOUND_QUEUE_BUFFER_LIMIT = 50
 INBOUND_REQUESTS_DEDUPLICATE_QUEUE_SIZE = 50
-INBOUND_PACKET_HIGH_LIMIT = 75
+INBOUND_PACKET_HIGH_LIMIT = 100
 
 WORKER_THROTTLE_TIMEOUT = 0.02
 WORKER_QUEUE_GET_TIMEOUT = 0.3
@@ -340,18 +340,26 @@ class DNSHistoryStorage:
     _lock = threading.RLock()
     _conn = None
     _cursor = None
+    _running = False
 
     @classmethod
     def init(cls):
         """Initializes the class-level SQLite connection and cursor."""
 
+        if cls._running:
+            return
+
         cls._conn = sqlite3.connect(**Utiltities.get_connection_settings())
         cls._cursor = cls._conn.cursor()
         cls._create_table()
+        cls._running = True
 
     @classmethod
     def _create_table(cls):
         """Creates the history table if it doesn't already exist."""
+
+        if cls._running:
+            return
 
         with cls._lock:
             cls._cursor.execute("""
@@ -369,6 +377,9 @@ class DNSHistoryStorage:
     def add_query(cls, query: bytes, active: int = 1):
         """Adds a query to the history or increments its counter if it already exists, and updates the active status."""
 
+        if not cls._running:
+            return
+
         decoded_query = query.decode('utf-8', errors='ignore').rstrip('.').lower()
         with cls._lock:
             cls._cursor.execute("""
@@ -383,30 +394,30 @@ class DNSHistoryStorage:
 
     @classmethod
     def service_delete_stale_history_entries(cls):
-        while True:
-            time.sleep(REMOVER_PERIOD)
+        while cls._running:
             try:
                 with cls._lock:
 
-                    cls._cursor.execute("SELECT COUNT(*) FROM history")
-                    row_count = cls._cursor.fetchone()[0]
-                    if row_count > DB_MAX_HISTORY_SIZE:
-                        cls._cursor.execute("""
-                            DELETE FROM history
-                            WHERE query IN (
-                                SELECT query
-                                FROM history
-                                ORDER BY query_counter ASC
-                                LIMIT ?
-                            )
-                        """, (row_count - DB_MAX_HISTORY_SIZE,))
+                    dns_logger.debug(f"Running history cleaner")
 
+                    cls._cursor.execute("""
+                                        DELETE FROM history
+                                        WHERE created IN (
+                                            SELECT created
+                                            FROM history
+                                            ORDER BY created ASC
+                                            LIMIT (SELECT COUNT(*) FROM history) - ?
+                                        )
+                                        """, (DB_MAX_HISTORY_SIZE,))
+                    records_to_be_deleted = cls._cursor.rowcount
+                    if records_to_be_deleted > 0:
                         cls._conn.commit()
-                        dns_logger.debug(
-                            f"[{threading.current_thread().name}] Deleted {row_count - DB_MAX_HISTORY_SIZE} stale entries from history")
+                        dns_logger.debug(f"[{threading.current_thread().name}] Deleted {records_to_be_deleted} stale entries from history")
 
             except Exception as err:
                 dns_logger.error(f"[stale_history_remover] {str(err)}")
+
+            time.sleep(REMOVER_PERIOD)
 
     @classmethod
     def close(cls):
@@ -416,6 +427,7 @@ class DNSHistoryStorage:
                 cls._conn.close()
                 cls._cursor = None
                 cls._conn = None
+                cls._running = False
 
 
 class DNSStatsStorage:
@@ -555,20 +567,27 @@ class DNSServer:
                     self.UPSTREAM_DNS = _config.get("upstream.ip", DEFAULT_DNS_SERVER)
                     self.CACHE_TTL = _config.get("dns.cache.ttl", CACHE_TTL)
                     self.NEGATIVE_TTL = _config.get("dns.ncache.ttl", NEGATIVE_CACHE_TTL)
+                    self.BLACKLIST = set()
+                    self.WHITELIST = set()
 
             except Exception as err:
                 dns_logger.error(f'Error processing config file: {str(err)}')
 
     def _load_control_list(self):
         """Loads control list from a JSON file."""
+
         with self._lock:
+
             try:
                 with open(DNS_CONTROL_LIST_FULL_PATH, mode="r", encoding="utf-8") as file_handle:
+
                     _control_list = json.load(file_handle)
-                    self.BLACKLIST = _control_list.get("blacklist", [])
-                    self.WHITELIST = _control_list.get("whitelist", [])
-                    if len(self.BLACKLIST) != _control_list.get("blacklist", []) or len(self.WHITELIST) != _control_list.get("whitelist", []):
-                        dns_logger.debug(f'Loded blacklist:{len(self.BLACKLIST)} whitelist:{len(self.WHITELIST)}')
+                    blacklist_new = set(_control_list.get("blacklist", []))
+                    whitelist_new = set(_control_list.get("whitelist", []))
+                    if blacklist_new != self.BLACKLIST or whitelist_new != self.WHITELIST:
+                        self.BLACKLIST = blacklist_new
+                        self.WHITELIST = whitelist_new
+                        dns_logger.debug(f'Loaded blacklist:{len(self.BLACKLIST)} whitelist:{len(self.WHITELIST)}')
 
             except Exception as err:
                 dns_logger.error(f'Error processing control lists file: {str(err)}')
@@ -839,7 +858,7 @@ class DNSServer:
                     self._send_packet(self._build_servfail_response(packet))
             return
 
-        dns_logger.error(f"Failed for query: {packet[DNS].qd.qname}")
+        dns_logger.error(f"Query: {packet[DNS].qd.qname} failed, likely timedout")
         self._send_packet(self._build_servfail_response(packet))
 
     def _validate_inbound_packet(self, packet: Ether) -> bool:
@@ -885,7 +904,7 @@ class DNSServer:
             if len(self._inbound_packet_timestamps) > 1:
                 per_sec_hitrate = len(self._inbound_packet_timestamps) / \
                     (self._inbound_packet_timestamps[0]-self._inbound_packet_timestamps[-1])
-                if per_sec_hitrate and per_sec_hitrate > INBOUND_PACKET_HIGH_LIMIT:
+                if per_sec_hitrate > INBOUND_PACKET_HIGH_LIMIT:
                     dns_logger.warning(f"Average package hitrate: {round(per_sec_hitrate, 2)}")
 
         except queue.Full:

@@ -57,8 +57,8 @@
         <div class="card-body">
           {% for key, value in dns_statistics.items() %} {% if value %}
           <div class="d-flex justify-content-between border-bottom py-2">
-            <strong>{{ key | replace('_', ' ') | title }}:</strong>
-            <span>{{ value }}</span>
+            <span>{{ key | replace('_', ' ') | title }}:</span>
+            <strong>{{ value }}</strong>
           </div>
           {% endif %} {% endfor %}
         </div>

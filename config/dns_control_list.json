@@ -20,6 +20,8 @@
         "prod.adjoe*.com",
         "*netseer-ipaddr-assoc.xy.fbcdn.net",
         "*pub.3gppnetwork.org",
+        "ads*mozilla.org",
+        ".ads*mozgcp.net",
         "*ads.tv",
         "*stickyadstv.com",
         "*adnxs.com",
