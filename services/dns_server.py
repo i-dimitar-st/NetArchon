@@ -44,17 +44,17 @@ DB_CONN_CACHED_STATEMENTS = 100
 
 DB_JOURNAL_MODE = "WAL"
 DB_SYNC_MODE = "NORMAL"
-DB_CACHE_SIZE = -8*1024
-DB_MMAP_SIZE = 24*1024*1024
+DB_CACHE_SIZE = -8192   # 8KB
+DB_MMAP_SIZE = 25165824  # 24MB
 DB_AUTO_VACCUM = 'INCREMENTAL'
 
 CACHE_TTL = 10*60
-NEGATIVE_CACHE_TTL = 3*60
+NEGATIVE_CACHE_TTL = 10*60
 CACHE_EXPIRY_GRACE = 60 * 60 * 3
-REMOVER_PERIOD = 60 * 60 * 1
+REMOVER_PERIOD = 60 * 30 * 1
 UNSUPPORTED_QUERY_TYPES = [12, 28, 65]
 BLOCKED_LISTS_LOADING_PERIOD = 5 * 60
-DB_MAX_HISTORY_SIZE = 100
+DB_MAX_HISTORY_SIZE = 500
 
 INBOUND_QUEUE_BUFFER_SIZE = 100
 INBOUND_QUEUE_BUFFER_LIMIT = 50
@@ -100,15 +100,17 @@ class Utiltities:
 
     @staticmethod
     def create_db():
-
         DNS_DB_PATH.mkdir(parents=True, exist_ok=True)
+        sqlite3.connect(DNS_DB_FULLPATH).close()
 
-        with sqlite3.connect(DNS_DB_FULLPATH) as conn:
-            conn.execute(f"PRAGMA journal_mode = {DB_JOURNAL_MODE}")
-            conn.execute(f"PRAGMA synchronous = {DB_SYNC_MODE}")
-            conn.execute(f"PRAGMA cache_size = {DB_CACHE_SIZE}")
-            conn.execute(f"PRAGMA mmap_size = {DB_MMAP_SIZE}")
-            conn.execute(f"PRAGMA auto_vacuum = {DB_AUTO_VACCUM}")
+    @staticmethod
+    def enrich_connection(connection: sqlite3.Connection):
+        connection.execute(f"PRAGMA journal_mode = {DB_JOURNAL_MODE}")
+        connection.execute(f"PRAGMA synchronous = {DB_SYNC_MODE}")
+        connection.execute(f"PRAGMA cache_size = {DB_CACHE_SIZE}")
+        connection.execute(f"PRAGMA mmap_size = {DB_MMAP_SIZE}")
+        connection.execute(f"PRAGMA auto_vacuum = {DB_AUTO_VACCUM}")
+        return connection
 
 
 class DNSUtilities:
@@ -184,7 +186,7 @@ class DNSCacheStorage:
         if cls._is_initialised:
             return
 
-        cls._conn = sqlite3.connect(**Utiltities.get_connection_settings())
+        cls._conn = Utiltities.enrich_connection(sqlite3.connect(**Utiltities.get_connection_settings()))
         cls._cursor = cls._conn.cursor()
         cls._create_tables()
         cls._create_triggers()
@@ -349,7 +351,7 @@ class DNSHistoryStorage:
         if cls._running:
             return
 
-        cls._conn = sqlite3.connect(**Utiltities.get_connection_settings())
+        cls._conn = Utiltities.enrich_connection(sqlite3.connect(**Utiltities.get_connection_settings()))
         cls._cursor = cls._conn.cursor()
         cls._create_table()
         cls._running = True
@@ -398,21 +400,23 @@ class DNSHistoryStorage:
             try:
                 with cls._lock:
 
-                    dns_logger.debug(f"Running history cleaner")
+                    cls._cursor.execute("SELECT COUNT(*) FROM history")
+                    _records_number = cls._cursor.fetchone()[0]
 
-                    cls._cursor.execute("""
-                                        DELETE FROM history
-                                        WHERE created IN (
-                                            SELECT created
-                                            FROM history
-                                            ORDER BY created ASC
-                                            LIMIT (SELECT COUNT(*) FROM history) - ?
-                                        )
-                                        """, (DB_MAX_HISTORY_SIZE,))
-                    records_to_be_deleted = cls._cursor.rowcount
-                    if records_to_be_deleted > 0:
+                    if _records_number > DB_MAX_HISTORY_SIZE:
+                        dns_logger.debug(f"Attempting to clean")
+                        cls._cursor.execute("""
+                                            DELETE FROM history
+                                            WHERE created IN (
+                                                SELECT created
+                                                FROM history
+                                                ORDER BY created ASC
+                                                LIMIT ?
+                                            )
+                                            """, (_records_number - DB_MAX_HISTORY_SIZE,))
+                        _deleted_recoreds = cls._cursor.rowcount
                         cls._conn.commit()
-                        dns_logger.debug(f"[{threading.current_thread().name}] Deleted {records_to_be_deleted} stale entries from history")
+                        dns_logger.info(f"Max history size reached deleted:{_deleted_recoreds} entries")
 
             except Exception as err:
                 dns_logger.error(f"[stale_history_remover] {str(err)}")
@@ -444,7 +448,7 @@ class DNSStatsStorage:
         if cls._is_initialised:
             return
 
-        cls._conn = sqlite3.connect(**Utiltities.get_connection_settings())
+        cls._conn = Utiltities.enrich_connection(sqlite3.connect(**Utiltities.get_connection_settings()))
         cls._cursor = cls._conn.cursor()
         cls._create_table()
         cls._init_table()
@@ -580,13 +584,12 @@ class DNSServer:
 
             try:
                 with open(DNS_CONTROL_LIST_FULL_PATH, mode="r", encoding="utf-8") as file_handle:
-
                     _control_list = json.load(file_handle)
-                    blacklist_new = set(_control_list.get("blacklist", []))
-                    whitelist_new = set(_control_list.get("whitelist", []))
-                    if blacklist_new != self.BLACKLIST or whitelist_new != self.WHITELIST:
-                        self.BLACKLIST = blacklist_new
-                        self.WHITELIST = whitelist_new
+                    _blacklist_new = set(_control_list.get("blacklist", []))
+                    _whitelist_new = set(_control_list.get("whitelist", []))
+                    if _blacklist_new != self.BLACKLIST or _whitelist_new != self.WHITELIST:
+                        self.BLACKLIST = _blacklist_new
+                        self.WHITELIST = _whitelist_new
                         dns_logger.debug(f'Loaded blacklist:{len(self.BLACKLIST)} whitelist:{len(self.WHITELIST)}')
 
             except Exception as err:

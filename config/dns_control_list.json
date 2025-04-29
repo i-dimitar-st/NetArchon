@@ -9,13 +9,16 @@
         "*ads.unity3d.com",
         "*ads.vidaahub.com",
         "*ads.vungle.com",
+        "*adspixel.net",
         "*adsmoloco.com",
         "*amazon-adsystem.com",
         "*applvn.com",
         "*adsrv.com",
         "*adserver.com",
         "*g.doubleclick.net",
+        "xgapromo*googleapis.com",
         "*googleadservices.com",
+        "pagead*.syndication.com",
         "*iadsdk.apple.com",
         "ade.*.com",
         "api.bidmachine.io",
@@ -41,6 +44,11 @@
         "ad.*.net",
         "ads*.com",
         "ads*.mk",
-        "ads*.press"
+        "ads*.press",
+        "x.thecatmachine.com",
+        "x.blueduckredapple.com",
+        "x.everestop.io",
+        "*connatix.com",
+        "*demdex.net"
     ]
 }
