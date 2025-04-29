@@ -563,14 +563,14 @@ class DNSServer:
             try:
                 with open(DNS_CONFIG_FULLPATH, "r") as file_handle:
                     _config = json.load(file_handle)
-                    self.INTERFACE = _config.get("server.interface", DEFAULT_INTERFACE)
-                    self.OWN_IP = _config.get("server.ip", DEFAULT_IP)
-                    self.OWN_MAC = _config.get("server.mac", DEFAULT_MAC)
-                    self.OWN_CIDR = _config.get("server.subnet", DEFAULT_CIDR)
-                    self.DNS_PORT = _config.get("server.port.dns", DEFAULT_DNS_PORT)
-                    self.UPSTREAM_DNS = _config.get("upstream.ip", DEFAULT_DNS_SERVER)
-                    self.CACHE_TTL = _config.get("dns.cache.ttl", CACHE_TTL)
-                    self.NEGATIVE_TTL = _config.get("dns.ncache.ttl", NEGATIVE_CACHE_TTL)
+                    self.INTERFACE = _config.get("server_interface", DEFAULT_INTERFACE)
+                    self.OWN_IP = _config.get("server_ip", DEFAULT_IP)
+                    self.OWN_MAC = _config.get("server_mac", DEFAULT_MAC)
+                    self.OWN_CIDR = _config.get("server_subnet", DEFAULT_CIDR)
+                    self.DNS_PORT = _config.get("server_port_dns", DEFAULT_DNS_PORT)
+                    self.UPSTREAM_DNS = _config.get("upstream_ip", DEFAULT_DNS_SERVER)
+                    self.CACHE_TTL = _config.get("dns_cache_ttl", CACHE_TTL)
+                    self.NEGATIVE_TTL = _config.get("dns_ncache_ttl", NEGATIVE_CACHE_TTL)
                     self.BLACKLIST = set()
                     self.WHITELIST = set()
 

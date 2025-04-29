@@ -26,6 +26,7 @@ ROOT_PATH = Path(__file__).resolve().parents[2]
 DNS_DB_PATH = ROOT_PATH / "db" / "dns.sqlite3"
 DHCP_CONFIG_PATH = ROOT_PATH / "config" / "dhcp_config.json"
 DNS_CONFIG_PATH = ROOT_PATH / "config" / "dns_config.json"
+DNS_CONTROL_LIST = ROOT_PATH / "config" / "dns_control_list.json"
 LOG_FILE_PATH = ROOT_PATH / "logs" / "main.log"
 ACTIVE_NETWORK_INTERFACE = 'enp2s0'
 DHCP_STATISTICS = {}
@@ -230,6 +231,16 @@ def get_dns_statistics() -> dict:
     except Exception as e:
         app_logger.error(f"[get_dns_statistics]  Failed to read {DNS_DB_PATH} - {e}")
         return {}
+
+
+def get_control_list() -> dict:
+
+    try:
+        with open(DNS_CONTROL_LIST, encoding="utf-8", mode="r") as file_handle:
+            return json.load(file_handle)
+    except Exception as e:
+        app_logger.error(f"Error: Failed to read {DNS_CONTROL_LIST} - {e}")
+        return None
 
 
 def get_system_logs() -> list:
@@ -443,6 +454,8 @@ def config():
     return render_template(
         'config.html',
         dhcp_config=get_dhcp_system_config(),
+        dns_config=get_dns_system_config(),
+        dns_control_list=get_control_list(),
         network_interfaces=get_network_interfaces()
     )
 

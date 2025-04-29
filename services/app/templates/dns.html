@@ -57,8 +57,8 @@
         <div class="card-body">
           {% for key, value in dns_statistics.items() %} {% if value %}
           <div class="d-flex justify-content-between border-bottom py-2">
-            <span>{{ key | replace('_', ' ') | title }}:</span>
-            <strong>{{ value }}</strong>
+            <span class="text-muted small text-uppercase text-start align-middle">{{ key | replace('_', ' ') }}:</span>
+            <span class="text-end align-middle">{{ value }}</span>
           </div>
           {% endif %} {% endfor %}
         </div>
@@ -94,21 +94,21 @@
           <!-- Responsive scrollable window for table -->
           <div style="max-height: 400px; overflow-y: auto" class="border rounded">
             <div class="table-responsive">
-              <table id="dnsTable" class="table table-striped table-bordered mb-0">
+              <table id="dnsTable" class="table table-bordered mb-0">
                 <thead class="table-light sticky-top">
                   <tr>
                     <th
-                      id="queryHeader"
-                      class="text-primary"
+                      id="activeHeader"
+                      class="text-primary text-center align-middle"
                       style="cursor: pointer; position: sticky; top: 0; background-color: #f8f9fa"
                       data-bs-toggle="tooltip"
                       title="Click to sort"
                     >
-                      URL <i class="fas fa-sort"></i>
+                      Created <i class="fas fa-sort"></i>
                     </th>
                     <th
                       id="countHeader"
-                      class="text-primary text-end"
+                      class="text-primary text-center align-middle"
                       style="cursor: pointer; position: sticky; top: 0; background-color: #f8f9fa"
                       data-bs-toggle="tooltip"
                       title="Click to sort"
@@ -116,22 +116,22 @@
                       Count <i class="fas fa-sort"></i>
                     </th>
                     <th
-                      id="activeHeader"
-                      class="text-primary text-end"
+                      id="queryHeader"
+                      class="text-primary text-center align-middle"
                       style="cursor: pointer; position: sticky; top: 0; background-color: #f8f9fa"
                       data-bs-toggle="tooltip"
                       title="Click to sort"
                     >
-                      Created <i class="fas fa-sort"></i>
+                      URL <i class="fas fa-sort"></i>
                     </th>
                   </tr>
                 </thead>
                 <tbody>
                   {% for item in dns_history %}
                   <tr>
-                    <td>{{ item.query }}</td>
-                    <td class="text-end">{{ item.query_counter }}</td>
-                    <td class="text-end" data-timestamp="{{ item.created }}"></td>
+                    <td class="col-3 text-center align-middle" data-timestamp="{{ item.created }}"></td>
+                    <td class="col-1 text-center align-middle">{{ item.query_counter }}</td>
+                    <td class="col-9 text-center align-middle text-uppercase">{{ item.query }}</td>
                   </tr>
                   {% endfor %}
                 </tbody>

@@ -46,109 +46,58 @@
 
     <!-- Main Content -->
     <div class="container py-4">
-      <div class="d-flex justify-content-between align-items-center mb-4">
-        <h2 class="mb-0">DHCP Configuration</h2>
-        <button id="editBtn" class="btn btn-primary"><i class="fas fa-edit me-2"></i>Edit Configuration</button>
-      </div>
-
-      <!-- DHCP Config Section -->
+      <!-- DHCP Config -->
       <div class="card mb-4">
         <div class="card-header bg-white">
           <div class="d-flex justify-content-between align-items-center">
-            <h5 class="mb-0">Current Settings</h5>
-            <i class="fas fa-network-wired text-primary"></i>
+            <h5 class="mb-0">DHCP Config</h5>
+            <i class="fas fa-wrench text-primary"></i>
           </div>
         </div>
         <div class="card-body">
-          <form id="dhcpForm">
-            <div class="row g-3">
-              <div class="col-md-6">
-                <label for="network_interface" class="form-label">Network Interface</label>
-                <input
-                  type="text"
-                  class="form-control"
-                  id="network_interface"
-                  value="{{ dhcp_config.interface }}"
-                  readonly
-                />
-              </div>
-              <div class="col-md-6">
-                <label for="router_ip" class="form-label">Server IP</label>
-                <input type="text" class="form-control" id="router_ip" value="{{ dhcp_config.server_ip }}" readonly />
-              </div>
-              <div class="col-md-6">
-                <label for="subnet_mask" class="form-label">Subnet</label>
-                <input
-                  type="text"
-                  class="form-control"
-                  id="subnet_mask"
-                  value="{{ dhcp_config.server_subnet_mask }}"
-                  readonly
-                />
-              </div>
-              <div class="col-md-6">
-                <label for="router_address" class="form-label">Router IP</label>
-                <input
-                  type="text"
-                  class="form-control"
-                  id="router_address"
-                  value="{{ dhcp_config.router_ip }}"
-                  readonly
-                />
-              </div>
-              <div class="col-md-6">
-                <label for="broadcast_address" class="form-label">Broadcast Address</label>
-                <input
-                  type="text"
-                  class="form-control"
-                  id="broadcast_address"
-                  value="{{ dhcp_config.server_broadcast }}"
-                  readonly
-                />
-              </div>
-              <div class="col-md-6">
-                <label for="ip_range_start" class="form-label">Dynamic Range Start</label>
-                <span class="form-control" id="ip_range_start">{{ dhcp_config.server_ip_range_start }}</span>
-              </div>
-              <div class="col-md-6">
-                <label for="ip_range_end" class="form-label">Dynamic Range End</label>
-                <span class="form-control" id="ip_range_end">{{ dhcp_config.server_ip_range_end }}</span>
-              </div>
-              <div class="col-md-6">
-                <label for="mac" class="form-label">MAC Address</label>
-                <span class="form-control" id="mac">{{ dhcp_config.server_mac }}</span>
-              </div>
-              <div class="col-md-6">
-                <label for="mtu" class="form-label">MTU (Maximum Transmission Unit)</label>
-                <input type="number" class="form-control" id="mtu" value="{{ dhcp_config.mtu }}" readonly />
-              </div>
-              <div class="col-md-6">
-                <label for="dns_server" class="form-label">DNS Server</label>
-                <input type="text" class="form-control" id="dns_server" value="{{ dhcp_config.dns_server }}" readonly />
-              </div>
-              <div class="col-md-6">
-                <label for="ntp_server" class="form-label">NTP Server</label>
-                <input type="text" class="form-control" id="ntp_server" value="{{ dhcp_config.ntp_server }}" readonly />
-              </div>
-              <div class="col-md-6">
-                <label for="lease_time" class="form-label">Lease Time (days)</label>
-                <input
-                  type="text"
-                  class="form-control"
-                  id="lease_time"
-                  value="{{ (dhcp_config.lease_time / 86400) | round(0) }}"
-                  readonly
-                />
-              </div>
-            </div>
-            <div class="mt-4 text-end d-none" id="actionButtons">
-              <button type="button" class="btn btn-secondary me-2" id="cancelBtn">Cancel</button>
-              <button type="submit" class="btn btn-success">Save Changes</button>
-            </div>
-          </form>
+          {% for key, value in dhcp_config.items() %} {% if value %}
+          <div class="d-flex justify-content-between border-bottom py-2">
+            <span class="text-muted small text-start align-middle">{{ key | replace('_', ' ') | upper }}</span>
+            <span class="text-end align-middle">{{ value | upper }}</span>
+          </div>
+          {% endif %} {% endfor %}
+        </div>
+      </div>
+      <!-- DNS Config -->
+      <div class="card mb-4">
+        <div class="card-header bg-white">
+          <div class="d-flex justify-content-between align-items-center">
+            <h5 class="mb-0">DNS Config</h5>
+            <i class="fas fa-wrench text-primary"></i>
+          </div>
+        </div>
+        <div class="card-body">
+          {% for key, value in dns_config.items() %} {% if value %}
+          <div class="d-flex justify-content-between border-bottom py-2">
+            <span class="text-muted small text-start align-middle">{{ key | replace('_', ' ') | upper }}</span>
+            <span class="text-end align-middle">{{ value | upper }}</span>
+          </div>
+          {% endif %} {% endfor %}
         </div>
       </div>
 
+      <!-- BLACKLIST -->
+      <div class="card mb-4">
+        <div class="card-header bg-white">
+          <div class="d-flex justify-content-between align-items-center">
+            <h5 class="mb-0">Blacklisted</h5>
+            <i class="fas fa-wrench text-primary"></i>
+          </div>
+        </div>
+        <div class="card-body">
+          {% for value in dns_control_list.get("blacklist") | sort %} {% if value %}
+          <div class="d-flex justify-content-between border-bottom py-2">
+            <span class="text-muted small text-start align-middle">RULE {{ loop.index }}</span>
+            <span class="badge bg-primary text-uppercase text-end align-middle">{{ value }}</span>
+          </div>
+          {% endif %} {% endfor %}
+        </div>
+      </div>
       <!-- Available Network Interfaces Section -->
       <div class="card mb-4">
         <div class="card-header bg-white">
@@ -158,26 +107,26 @@
           </div>
         </div>
         <div class="card-body">
-          <table class="table table-striped">
+          <table class="table">
             <thead>
               <tr>
-                <th>Name</th>
-                <th>Type</th>
-                <th>IP Address</th>
-                <th>Netmask</th>
-                <th>Broadcast</th>
-                <th>MAC Address</th>
+                <th class="text-muted">Name</th>
+                <th class="text-muted">Type</th>
+                <th class="text-muted">IP Address</th>
+                <th class="text-muted">Netmask</th>
+                <th class="text-muted">Broadcast</th>
+                <th class="text-muted">MAC Address</th>
               </tr>
             </thead>
             <tbody>
               {% for iface in network_interfaces %}
               <tr>
-                <td>{{ iface.name }}</td>
+                <td>{{ iface.name | title }}</td>
                 <td>{{ iface.type }}</td>
                 <td>{{ iface.ip_address }}</td>
                 <td>{{ iface.netmask }}</td>
                 <td>{{ iface.broadcast }}</td>
-                <td>{{ iface.mac_address }}</td>
+                <td>{{ iface.mac_address | upper }}</td>
               </tr>
               {% endfor %}
             </tbody>

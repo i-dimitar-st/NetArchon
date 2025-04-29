@@ -58,11 +58,13 @@
         <div class="card-body">
           {% for stat_name, content in group_stats.items() %}
           <div class="d-flex justify-content-between border-bottom py-2">
-            <span>{{ stat_name.replace('_', ' ') | title }}</span>
+            <span class="text-muted small text-uppercase text-start align-middle"
+              >{{ stat_name.replace('_', ' ')}}</span
+            >
             <div class="d-flex justify-content-end align-items-center">
-              <strong>{{ content.value }}</strong>
+              <span class="align-middle">{{ content.value }}</span>
               {% if content.unit %}
-              <span class="text-muted ms-2">{{ content.unit }}</span>
+              <span class="text-muted align-middle ms-2">{{ content.unit }}</span>
               {% endif %}
             </div>
           </div>
