@@ -64,13 +64,17 @@
       }
 
       .stats-label {
+        font-size: 0.85rem;
         font-weight: 500;
         color: #6c757d;
+        text-transform: uppercase;
+        text-align: center;
       }
 
       .stats-value {
         font-weight: 600;
         color: #495057;
+        text-align: center;
       }
 
       .search-container {
@@ -244,7 +248,7 @@
             <div class="card-body">
               {% for key, value in dns_statistics.items() %} {% if value %}
               <div class="stats-item d-flex justify-content-between p-2">
-                <span class="stats-label">{{ key | replace('_', ' ') | title }}</span>
+                <span class="stats-label">{{ key | replace('_', ' ') }}</span>
                 <span class="stats-value">{{ value }}</span>
               </div>
               {% endif %} {% endfor %}

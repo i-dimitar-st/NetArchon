@@ -491,28 +491,18 @@ class DHCPUtilities:
 
     @staticmethod
     def discover_client_via_arp(ip: str = '', iface: str = "eth0", source_ip: str = '', source_mac: str = '', timeout: float = 1.5) -> bool:
-        """Send an ARP request to check if the IP is still active."""
+        """Send an ARP request to check if the IP is still busy."""
 
         try:
-
-            # dhcp_logger.debug(f"Sending ARP probe to IP:{ip} ...")
-            arp_request = ARP(pdst=ip, psrc=source_ip, op=1)
-            ether = Ether(dst="ff:ff:ff:ff:ff:ff", src=source_mac)
-            packet = ether / arp_request
-
-            request_start = time.time()
+            packet = (
+                Ether(dst="ff:ff:ff:ff:ff:ff", src=source_mac) /
+                ARP(pdst=ip, psrc=source_ip, op=1)
+            )
             answered, unanswered = scapy.srp(packet, timeout=timeout, verbose=False, iface=iface)
-            request_responded = time.time()-request_start
-
             if answered:
                 source_mac_response = answered[0][1].hwsrc
-                source_ip_response = answered[0][1].psrc
-                # dhcp_logger.debug(f"ARP probe successful MAC:{source_mac_response} IP:{source_ip_response} response time: {request_responded:.2f} sec")
+                # source_ip_response = answered[0][1].psrc
                 return True, source_mac_response
-
-            if unanswered:
-                # dhcp_logger.debug(f"ARP probe failed")
-                pass
 
         except Exception as e:
             dhcp_logger.error(f"Unexpected error sending ARP request to {ip}: {e}")
@@ -893,7 +883,7 @@ class DHCPServer:
                 "rebinding_time": int(config.get("lease_time", 86400) * 0.875),
                 "renewal_time": int(config.get("lease_time", 86400) * 0.5),
             }
-            dhcp_logger.info(
+            dhcp_logger.debug(
                 f"Serving from {self._own_ip}:{self._dns_ports["server"]} {self._own_subnet} {self._own_mac}")
         except Exception as e:
             dhcp_logger.error(f"Failed to load DHCP config: {e}")
