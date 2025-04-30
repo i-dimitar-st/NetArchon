@@ -428,7 +428,8 @@ def index():
 def info_and_statistics():
     return render_template(
         'info.html',
-        system_statistics=generate_system_stats()
+        system_statistics=generate_system_stats(),
+        network_interfaces=get_network_interfaces()
     )
 
 
