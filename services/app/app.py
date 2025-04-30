@@ -456,8 +456,7 @@ def config():
         'config.html',
         dhcp_config=get_dhcp_system_config(),
         dns_config=get_dns_system_config(),
-        dns_control_list=get_control_list(),
-        network_interfaces=get_network_interfaces()
+        dns_control_list=get_control_list()
     )
 
 
