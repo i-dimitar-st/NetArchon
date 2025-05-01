@@ -1,0 +1,52 @@
+
+import sys
+# fmt: off
+sys.path.append('/projects/gitlab/netarchon/venv/lib/python3.12/site-packages')
+import torch                   # type: ignore
+import torch.nn as nn          # type: ignore
+import torch.optim as optim    # type: ignore
+# fmt: on
+
+# Define the neural network model
+
+
+class DNSQueryClassifier(nn.Module):
+    def __init__(self, input_size):
+        super(DNSQueryClassifier, self).__init__()
+        self.fc1 = nn.Linear(input_size, 32)  # First hidden layer with 32 neurons
+        self.fc2 = nn.Linear(32, 16)          # Second hidden layer with 16 neurons
+        self.fc3 = nn.Linear(16, 1)           # Output layer (binary classification)
+        self.sigmoid = nn.Sigmoid()           # Sigmoid activation for output between 0 and 1
+
+    def forward(self, x):
+        x = torch.relu(self.fc1(x))  # ReLU activation after first layer
+        x = torch.relu(self.fc2(x))  # ReLU activation after second layer
+        x = self.sigmoid(self.fc3(x))  # Sigmoid for binary classification
+        return x
+
+
+def incremental_train(model, new_features, new_labels, num_epochs=5):
+    # Convert new data to tensors
+    new_features_tensor = torch.tensor(new_features, dtype=torch.float32)
+    new_labels_tensor = torch.tensor(new_labels, dtype=torch.float32).view(-1, 1)
+
+    # Optimizer and loss function for incremental training
+    optimizer = optim.Adam(model.parameters(), lr=0.001)
+    criterion = nn.BCELoss()
+
+    # Incremental training loop
+    for epoch in range(num_epochs):
+        model.train()  # Set the model to training mode
+
+        # Forward pass
+        outputs = model(new_features_tensor)
+
+        # Calculate loss
+        loss = criterion(outputs, new_labels_tensor)
+
+        # Backward pass and optimization
+        optimizer.zero_grad()
+        loss.backward()
+        optimizer.step()
+
+        print(f'Incremental Epoch [{epoch+1}/{num_epochs}], Loss: {loss.item():.4f}')
