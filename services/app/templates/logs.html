@@ -8,52 +8,112 @@
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/bootstrap/5.3.0/css/bootstrap.min.css" />
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css" />
     <style>
-      .log-window {
-        height: 70vh; /* Use viewport height instead of fixed pixels */
-        min-height: 200px; /* Set a minimum height */
-        max-height: 600px; /* Set a maximum height */
-        overflow-y: auto;
-        background-color: #f8f9fa;
-        border: 1px solid #dee2e6;
-        font-family: monospace;
-        font-size: 0.85rem;
-        position: relative; /* For floating scroll button positioning */
+      :root {
+        --primary-color: #4361ee;
+        --secondary-color: #3f37c9;
+        --accent-color: #4895ef;
+        --light-bg: #f8f9fa;
+        --card-shadow: 0 4px 6px rgba(0, 0, 0, 0.05);
+        --hover-bg: rgba(67, 97, 238, 0.05);
       }
+
+      body {
+        background-color: #f0f2f5;
+        font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Oxygen, Ubuntu, Cantarell, sans-serif;
+      }
+
+      .navbar {
+        box-shadow: 0 2px 4px rgba(0, 0, 0, 0.08);
+        background: linear-gradient(135deg, var(--primary-color), var(--secondary-color));
+      }
+
+      .navbar-brand i {
+        font-size: 1.2rem;
+      }
+
+      .card {
+        border: none;
+        border-radius: 10px;
+        box-shadow: var(--card-shadow);
+        transition: all 0.3s ease;
+        overflow: hidden;
+      }
+
+      .card:hover {
+        box-shadow: 0 10px 20px rgba(0, 0, 0, 0.08);
+      }
+
+      .card-header {
+        border-bottom: 1px solid rgba(0, 0, 0, 0.05);
+        padding: 1rem 1.5rem;
+      }
+
+      .card-header i {
+        font-size: 1.2rem;
+        opacity: 0.8;
+      }
+
+      .log-window {
+        height: 70vh;
+        min-height: 200px;
+        max-height: 600px;
+        overflow-y: auto;
+        background-color: var(--light-bg);
+        border: 1px solid rgba(0, 0, 0, 0.05);
+        font-family: "Roboto Mono", monospace, sans-serif;
+        font-size: 0.85rem;
+        position: relative;
+      }
+
       .log-entry {
         padding: 4px 10px;
-        border-bottom: 1px solid #eee;
-        word-break: break-word; /* Allow long lines to break */
+        border-bottom: 1px solid rgba(0, 0, 0, 0.03);
+        word-break: break-word;
         display: flex;
         flex-wrap: wrap;
         align-items: baseline;
+        transition: background-color 0.15s ease;
       }
+
+      .log-entry:hover {
+        background-color: var(--hover-bg);
+      }
+
       .log-timestamp {
         color: #6c757d;
         margin-right: 8px;
         white-space: nowrap;
       }
+
       .log-level {
         margin-right: 8px;
         white-space: nowrap;
       }
+
       .log-service {
         margin-right: 8px;
         white-space: nowrap;
-        font-weight: bold;
+        font-weight: 600;
       }
+
       .log-message {
         flex: 1;
         min-width: 100px;
+        color: #212529;
       }
+
       .log-level-debug {
-        color: #0d6efd;
+        color: var(--accent-color);
       }
+
       .log-level-info {
-        color: #17a2b8;
+        color: var(--primary-color);
       }
+
       .log-level-warning {
         color: #ffc107;
       }
+
       .log-level-error {
         color: #dc3545;
       }
@@ -70,7 +130,7 @@
         display: flex;
         align-items: center;
         justify-content: center;
-        background-color: rgba(13, 110, 253, 0.8);
+        background-color: var(--primary-color);
         color: white;
         border: none;
         box-shadow: 0 2px 5px rgba(0, 0, 0, 0.2);
@@ -87,82 +147,38 @@
         display: none;
       }
 
-      /* For medium screens */
-      @media (max-width: 768px) {
-        .log-window {
-          height: 55vh;
-          min-height: 150px;
-        }
-        .log-entry {
-          padding: 3px 8px;
-        }
-      }
-
-      /* For small screens */
-      @media (max-width: 576px) {
-        .log-window {
-          height: 45vh;
-          min-height: 120px;
-          font-size: 0.75rem;
-        }
-        .log-entry {
-          padding: 2px 6px;
-        }
-        /* Stack log entries vertically on very small screens */
-        .log-entry {
-          flex-direction: column;
-        }
-        .log-timestamp,
-        .log-level,
-        .log-service {
-          margin-right: 0;
-        }
-        .log-message {
-          width: 100%;
-          padding-left: 8px;
-          border-left: 3px solid #eee;
-          margin-top: 2px;
-        }
-        .scroll-bottom-btn {
-          bottom: 10px;
-          right: 10px;
-          width: 32px;
-          height: 32px;
-        }
-      }
-
-      /* For extra small screens */
-      @media (max-width: 375px) {
-        .log-window {
-          font-size: 0.7rem;
-        }
-        .card-header {
-          padding: 0.5rem;
-        }
-      }
-
-      /* Make the filter dropdowns more responsive */
+      /* Filter controls */
       .filter-controls {
         display: flex;
         align-items: center;
-        gap: 8px;
+        gap: 12px;
         flex-wrap: wrap;
       }
 
-      @media (max-width: 768px) {
-        .filter-controls {
-          flex-direction: column;
-          align-items: stretch;
-          width: 100%;
-          margin-top: 8px;
-        }
-        .filter-controls > * {
-          margin-bottom: 8px;
-          width: 100%;
-        }
+      .filter-group {
+        display: flex;
+        align-items: center;
       }
 
-      /* Footer buttons layout */
+      .filter-group label {
+        font-weight: 500;
+        color: #6c757d;
+        margin-right: 8px;
+      }
+
+      .form-select {
+        border-radius: 8px;
+        border: 1px solid rgba(0, 0, 0, 0.1);
+        box-shadow: none;
+        padding: 0.375rem 2.25rem 0.375rem 0.75rem;
+      }
+
+      .form-select:focus {
+        border-color: var(--primary-color);
+        box-shadow: 0 0 0 0.2rem rgba(67, 97, 238, 0.25);
+      }
+
+      /* Footer buttons */
       .footer-buttons {
         display: flex;
         justify-content: space-between;
@@ -171,7 +187,92 @@
         gap: 8px;
       }
 
+      .btn-outline-primary {
+        color: var(--primary-color);
+        border-color: var(--primary-color);
+      }
+
+      .btn-outline-primary:hover {
+        background-color: var(--primary-color);
+        color: white;
+      }
+
+      .btn-outline-secondary {
+        color: #6c757d;
+        border-color: #6c757d;
+      }
+
+      /* Responsive adjustments */
+      @media (max-width: 992px) {
+        .log-entry {
+          padding: 8px 10px;
+        }
+
+        .log-timestamp {
+          font-size: 0.8rem;
+        }
+      }
+
+      @media (max-width: 768px) {
+        .log-window {
+          height: 55vh;
+          min-height: 150px;
+        }
+
+        .filter-controls {
+          flex-direction: column;
+          align-items: stretch;
+          width: 100%;
+          margin-top: 8px;
+        }
+
+        .filter-controls > * {
+          margin-bottom: 8px;
+          width: 100%;
+        }
+      }
+
       @media (max-width: 576px) {
+        .log-window {
+          height: 45vh;
+          min-height: 120px;
+          font-size: 0.75rem;
+        }
+
+        .card-header {
+          padding: 0.75rem 1rem;
+        }
+
+        .card-body {
+          padding: 0;
+        }
+
+        /* Stack log entries vertically on very small screens */
+        .log-entry {
+          flex-direction: column;
+          padding: 6px 8px;
+        }
+
+        .log-timestamp,
+        .log-level,
+        .log-service {
+          margin-right: 0;
+        }
+
+        .log-message {
+          width: 100%;
+          padding-left: 8px;
+          border-left: 3px solid rgba(67, 97, 238, 0.2);
+          margin-top: 2px;
+        }
+
+        .scroll-bottom-btn {
+          bottom: 10px;
+          right: 10px;
+          width: 32px;
+          height: 32px;
+        }
+
         .footer-buttons .btn {
           padding: 0.25rem 0.5rem;
           font-size: 0.75rem;
@@ -179,13 +280,13 @@
       }
     </style>
   </head>
-  <body class="bg-light">
+  <body>
     <!-- Navigation -->
-    <nav class="navbar navbar-expand-lg navbar-dark bg-primary">
+    <nav class="navbar navbar-expand-lg navbar-dark">
       <div class="container">
         <a class="navbar-brand d-flex align-items-center" href="/">
           <i class="fas fa-network-wired me-2"></i>
-          <span>Logs</span>
+          <span>System Logs</span>
         </a>
         <button class="navbar-toggler" type="button" data-bs-toggle="collapse" data-bs-target="#navbarNav">
           <span class="navbar-toggler-icon"></span>
@@ -218,50 +319,54 @@
     <!-- Main Content -->
     <div class="container py-4">
       <!-- Logs Window -->
-      <div class="w-100">
-        <div class="card mb-4">
-          <div class="card-header bg-white">
-            <div class="d-flex justify-content-between align-items-start flex-wrap">
-              <h5 class="mb-2 mb-md-0">Main Logs ({{ system_logs | length }})</h5>
-              <div class="filter-controls">
-                <div class="d-flex align-items-center">
-                  <label for="log-level-filter" class="d-none d-sm-inline me-2">Level:</label>
-                  <select class="form-select form-select-sm" id="log-level-filter">
-                    <option value="debug">DEBUG</option>
-                    <option value="info">INFO</option>
-                    <option value="warning">WARNING</option>
-                    <option value="error">ERROR</option>
-                    <option value="all" selected>ALL</option>
-                  </select>
-                </div>
-                <div class="d-flex align-items-center">
-                  <label for="log-service-filter" class="d-none d-sm-inline me-2">Service:</label>
-                  <select class="form-select form-select-sm" id="log-service-filter">
-                    <option value="all" selected>ALL</option>
-                    <!-- Services will be populated via JavaScript -->
-                  </select>
-                </div>
+      <div class="card">
+        <div class="card-header bg-white">
+          <div class="d-flex justify-content-between align-items-center flex-wrap">
+            <h5 class="mb-0">
+              System Logs
+              <span class="badge bg-primary ms-2">{{ system_logs | length }}</span>
+            </h5>
+            <i class="fas fa-file-alt text-primary"></i>
+          </div>
+        </div>
+        <div class="card-body p-0">
+          <div class="p-3">
+            <div class="filter-controls">
+              <div class="filter-group">
+                <label for="log-level-filter">Level:</label>
+                <select class="form-select" id="log-level-filter">
+                  <option value="all" selected>All Levels</option>
+                  <option value="debug">Debug</option>
+                  <option value="info">Info</option>
+                  <option value="warning">Warning</option>
+                  <option value="error">Error</option>
+                </select>
+              </div>
+              <div class="filter-group">
+                <label for="log-service-filter">Service:</label>
+                <select class="form-select" id="log-service-filter">
+                  <option value="all" selected>All Services</option>
+                  <!-- Services will be populated via JavaScript -->
+                </select>
               </div>
             </div>
           </div>
-          <div class="card-body p-0 position-relative">
-            <div class="log-window" id="log-window">
-              <!-- Log entries will be inserted here by JavaScript -->
-            </div>
-            <!-- Floating scroll button visible on all screens -->
-            <button class="scroll-bottom-btn hidden" id="floating-scroll-btn" title="Scroll to bottom">
-              <i class="fas fa-arrow-down"></i>
-            </button>
+          <div class="log-window" id="log-window">
+            <!-- Log entries will be inserted here by JavaScript -->
           </div>
-          <div class="card-footer bg-white">
-            <div class="footer-buttons">
-              <button class="btn btn-sm btn-outline-secondary" id="btn-clear-logs">
-                <i class="fas fa-eraser me-1"></i>Clear
-              </button>
-              <button class="btn btn-sm btn-outline-primary" id="btn-scroll-bottom">
-                <i class="fas fa-arrow-down me-1"></i>Scroll to Bottom
-              </button>
-            </div>
+          <!-- Floating scroll button -->
+          <button class="scroll-bottom-btn hidden" id="floating-scroll-btn" title="Scroll to bottom">
+            <i class="fas fa-arrow-down"></i>
+          </button>
+        </div>
+        <div class="card-footer bg-white">
+          <div class="footer-buttons">
+            <button class="btn btn-outline-secondary" id="btn-clear-logs">
+              <i class="fas fa-eraser me-2"></i>Clear Logs
+            </button>
+            <button class="btn btn-outline-primary" id="btn-scroll-bottom">
+              <i class="fas fa-arrow-down me-2"></i>Scroll to Bottom
+            </button>
           </div>
         </div>
       </div>
@@ -279,10 +384,10 @@
       }
 
       function parseLogEntry(log) {
-        const timestamp = log.timestamp.trim()
-        const level = log.level.trim()
-        const service = log.service.trim()
-        const message = log.message.trim()
+        const timestamp = log.timestamp.trim();
+        const level = log.level.trim();
+        const service = log.service.trim();
+        const message = log.message.trim();
 
         return {
           timestamp,
@@ -363,6 +468,12 @@
       }
 
       document.addEventListener("DOMContentLoaded", function () {
+        // Initialize tooltips
+        const tooltipTriggerList = [].slice.call(document.querySelectorAll('[data-bs-toggle="tooltip"]'));
+        tooltipTriggerList.map(function (tooltipTriggerEl) {
+          return new bootstrap.Tooltip(tooltipTriggerEl);
+        });
+
         populateServiceFilter();
         displayLogs(logs);
 
@@ -371,16 +482,28 @@
         const levelFilter = document.getElementById("log-level-filter");
         const serviceFilter = document.getElementById("log-service-filter");
 
-        levelFilter.addEventListener("change", function () { displayLogs(logs, levelFilter.value, serviceFilter.value); });
-        serviceFilter.addEventListener("change", function () { displayLogs(logs, levelFilter.value, serviceFilter.value); });
+        levelFilter.addEventListener("change", function () {
+          displayLogs(logs, levelFilter.value, serviceFilter.value);
+        });
 
-        document.getElementById("btn-clear-logs").addEventListener("click", function () {document.getElementById("log-window").innerHTML = ""; });
+        serviceFilter.addEventListener("change", function () {
+          displayLogs(logs, levelFilter.value, serviceFilter.value);
+        });
+
+        document.getElementById("btn-clear-logs").addEventListener("click", function () {
+          document.getElementById("log-window").innerHTML = "";
+        });
 
         document.getElementById("btn-scroll-bottom").addEventListener("click", scrollToBottom);
         floatingScrollBtn.addEventListener("click", scrollToBottom);
         logWindow.addEventListener("scroll", checkScrollPosition);
-        const resizeObserver = new ResizeObserver(() => { checkScrollPosition() });
+
+        // Handle resize events for responsive design
+        const resizeObserver = new ResizeObserver(() => {
+          checkScrollPosition()
+        });
         resizeObserver.observe(document.body);
+
         checkScrollPosition();
       });
     </script>

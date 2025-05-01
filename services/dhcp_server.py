@@ -10,6 +10,7 @@ import subprocess
 import sys
 import re
 import queue
+import threading
 from typing import Callable
 from collections import deque
 import scapy.all as scapy
@@ -17,7 +18,8 @@ from scapy.layers.dhcp import DHCP, BOOTP
 from scapy.layers.l2 import Ether, ARP
 from scapy.layers.inet import IP, UDP
 from scapy.layers.inet6 import IPv6
-from threading import Thread, Lock
+from threading import Thread, RLock
+from pathlib import Path
 from services import MainLogger
 
 # fmt: off
@@ -25,7 +27,12 @@ sys.path.append('/projects/gitlab/netarchon/venv/lib/python3.12/site-packages')
 import pika # type: ignore
 # fmt: on
 
+ARP_DICOVERY_TIMEOUT = 3
 INBOUND_REQUESTS_DEDUPLICATE_QUEUE_SIZE = 30
+
+ROOT_PATH = Path(__file__).resolve().parents[1]
+CONFIG_PATH = ROOT_PATH / 'config'
+DHCP_CONFIG_FULLPATH = CONFIG_PATH / 'dhcp_config.json'
 
 dhcp_logger = MainLogger.get_logger(service_name="DHCP", log_level=logging.DEBUG)
 
@@ -108,29 +115,20 @@ class Scheduler:
 
 
 class Stats:
-    _stats = {
-        'DHCP_TOTAL': 0,
-        'DHCP_DISCOVER': 0,
-        'DHCP_REQUEST': 0,
-        'DHCP_RELEASE': 0,
-        'DHCP_DECLINE': 0,
-        'DHCP_INFORM': 0
-    }
-    _lock = Lock()
+    _stats = {}
+    _lock = RLock()
 
     @classmethod
     def increment(cls, key: str, value: int = 1) -> None:
         """Increment a specific statistic counter."""
         with cls._lock:
-            if key in cls._stats:
-                cls._stats[key] += value
+            cls._stats[key] = cls._stats.get(key, 0) + value
 
     @classmethod
     def decrement(cls, key: str, value: int = 1) -> None:
         """Decrement a specific statistic counter."""
         with cls._lock:
-            if key in cls._stats and cls._stats[key] > 0:
-                cls._stats[key] -= value
+            cls._stats[key] = cls._stats.get(key, 0) - value
 
     @classmethod
     def get_all_statistics(cls) -> dict:
@@ -448,48 +446,6 @@ class DHCPUtilities:
         return data_to_convert.decode('utf-8', errors='ignore')
 
     @staticmethod
-    def get_network_details(interface_name: str = None):
-        """Retrieve network details (IP, netmask, broadcast, MAC) for a specified interface or all interfaces."""
-
-        try:
-            result = subprocess.check_output("ifconfig -a", shell=True).decode("utf-8")
-            interfaces = result.split("\n\n")
-
-            for interface in interfaces:
-                if 'inet ' in interface:
-                    iface_name = interface.split(":")[0].strip()
-                    ip = re.search(
-                        r"inet (\d{1,3}\.\d{1,3}\.\d{1,3}\.\d{1,3})",
-                        interface
-                    )
-                    netmask = re.search(
-                        r"netmask (\d{1,3}\.\d{1,3}\.\d{1,3}\.\d{1,3})",
-                        interface
-                    )
-                    broadcast = re.search(
-                        r"broadcast (\d{1,3}\.\d{1,3}\.\d{1,3}\.\d{1,3})",
-                        interface
-                    )
-                    mac = re.search(
-                        r"ether ([A-Za-z0-9]{2}(:[A-Za-z0-9]{2}){5})",
-                        interface
-                    )
-
-                    if ip and netmask and broadcast and mac:
-                        if interface_name == iface_name:
-                            return {
-                                'ip': ip.group(1),
-                                'netmask': netmask.group(1),
-                                'broadcast': broadcast.group(1),
-                                'mac': mac.group(1)
-                            }
-
-        except Exception as e:
-            print(f"Error: {e}")
-
-        return None
-
-    @staticmethod
     def discover_client_via_arp(ip: str = '', iface: str = "eth0", source_ip: str = '', source_mac: str = '', timeout: float = 1.5) -> bool:
         """Send an ARP request to check if the IP is still busy."""
 
@@ -498,7 +454,7 @@ class DHCPUtilities:
                 Ether(dst="ff:ff:ff:ff:ff:ff", src=source_mac) /
                 ARP(pdst=ip, psrc=source_ip, op=1)
             )
-            answered, unanswered = scapy.srp(packet, timeout=timeout, verbose=False, iface=iface)
+            answered, unanswered = scapy.srp(packet, timeout=ARP_DICOVERY_TIMEOUT, verbose=False, iface=iface)
             if answered:
                 source_mac_response = answered[0][1].hwsrc
                 # source_ip_response = answered[0][1].psrc
@@ -510,39 +466,32 @@ class DHCPUtilities:
         return False, None
 
     @staticmethod
-    def discover_clients_via_arp(interface: str = "enp2s0", source_ip: str = "", source_mac: str = "", timeout: float = 2) -> dict:
+    def discover_clients_via_arp(interface: str = "enp2s0", source_ip: str = "", source_mac: str = "") -> dict:
         """Send a broadcast ARP request to discover all active clients on the network."""
 
+        discovered_clients = {}
         try:
+            if not source_ip or not source_mac:
+                return discovered_clients
 
             network = ipaddress.IPv4Network(f"{source_ip}/24", strict=False)
             subnet = str(network.network_address) + '/24'
+            packet = (
+                Ether(src=source_mac, dst="ff:ff:ff:ff:ff:ff") /
+                ARP(psrc=source_ip, pdst=subnet, op=1)
+            )
 
-            arp_request = ARP(pdst=subnet, psrc=source_ip, op=1)
-            ether = Ether(dst="ff:ff:ff:ff:ff:ff", src=source_mac)
-            packet = ether / arp_request
+            answered, unanswered = scapy.srp(packet, timeout=ARP_DICOVERY_TIMEOUT, verbose=False, iface=interface)
 
-            request_start = time.time()
-            answered, unanswered = scapy.srp(packet, timeout=timeout, verbose=False, iface=interface)
-            request_duration = time.time() - request_start
-
-            discovered_clients = {}
             for sent, received in answered:
                 discovered_clients[received.hwsrc] = received.psrc
 
-            dhcp_logger.debug(f"ARP discovery complete in {request_duration:.2f} sec, {len(discovered_clients)} clients found")
+            dhcp_logger.debug(f"ARP discovery found {discovered_clients}")
             return discovered_clients
 
-        except Exception as e:
-            dhcp_logger.error(f"Unexpected error during ARP discovery: {e}")
+        except Exception as err:
+            dhcp_logger.error(f"Unexpected error during ARP discovery: {str(err)}")
             return {}
-
-    @staticmethod
-    def print_all_clients_on_subnet(interface: str = 'enp2s0', source_ip: str = '192.168.20.100', source_mac: str = '18:c0:4d:46:f4:11') -> dict:
-        """Discover all active clients on the given subnet via ARP."""
-        dhcp_logger.debug(f"Starting subnet discovery for active clients ...")
-        active_clients = DHCPUtilities.discover_clients_via_arp(interface=interface, source_ip=source_ip, source_mac=source_mac)
-        dhcp_logger.debug(f"Discovery complete => {active_clients}")
 
     @staticmethod
     def _is_ip_in_subnet(ip_to_validate, subnet: str = "192.168.20.0/24"):
@@ -563,7 +512,8 @@ class DHCPStorage:
 
     def __init__(self):
         """Initialize the database connection and create tables on startup."""
-        self.lock = Lock()
+        self._running = True
+        self.lock = RLock()
         self.db_connection = self._get_connection()
         self.db_cursor = self.db_connection.cursor()
         self._create_tables()
@@ -835,88 +785,40 @@ class DHCPStorage:
 
 class DHCPServer:
     def __init__(self) -> None:
-        dhcp_logger.info("Initialized")
+        self._running = True
+        self.lock = RLock()
         self.leased_ips = {}
-        self.config = {}
         self.lease_db = DHCPStorage()
         self.denied_ips = {}
-        self.lock = Lock()
-        self.shutdown_flag = False
+        self._threads = {}
+        self._inbound_packet_buffer_queue = queue.Queue(maxsize=100)
         self._inbound_packet_deduplication_queue = deque(maxlen=INBOUND_REQUESTS_DEDUPLICATE_QUEUE_SIZE)
         self._initialize_config()
 
     def _initialize_config(self) -> None:
         """Load DHCP configuration from the config file."""
         try:
-            config = Config.get_config()
-            hosting_interface = DHCPUtilities.get_network_details(interface_name=config["interface"])
-
-            self._interface = config.get("interface")
-            self._own_ip = config.get("server_ip")
-            self._own_mac = config.get("server_mac")
-            self._own_subnet = config.get("server_subnet_mask")
-            self._server_ip_range_start = config.get("server_ip_range_start")
-            self._server_ip_range_end = config.get("server_ip_range_end")
-            self._broadcast = config.get("server_broadcast")
-            self._router_ip = config.get("router_ip")
-            self._dns_server = config.get("dns_server")
-            self._ntr_server = config.get("ntp_server")
-            self._lease_time = config.get("lease_time")
-            self._rebinding_time = int(self._lease_time * 0.875)
-            self._renewal_time = int(self._lease_time * 0.5)
-            self._mtu = int(config.get("mtu"))
-            self._dns_ports = config.get("dns_ports")
-
-            self.config = {
-                "interface": config.get("interface", "eth0"),
-                "server_ip": hosting_interface.get("server_ip", "192.168.20.100"),
-                "server_subnet_mask": hosting_interface.get("server_subnet_mask", "255.255.255.0"),
-                "server_broadcast": hosting_interface.get("server_broadcast", "192.168.20.255"),
-                "server_mac": hosting_interface.get("server_mac", "00:00:00:00:00:00"),
-                "server_ip_range_start": config.get("server_ip_range_start", "192.168.20.101"),
-                "server_ip_range_end": config.get("server_ip_range_end", "192.168.20.254"),
-                "router_ip": config.get("router_ip", "192.168.20.1"),
-                "dns_server": config.get("dns_server", "9.9.9.9"),
-                "ntp_server": config.get("ntp_server", "9.9.9.9"),
-                "lease_time": int(config.get("lease_time", 86400)),
-                "mtu": config.get("mtu", 1500),
-                "rebinding_time": int(config.get("lease_time", 86400) * 0.875),
-                "renewal_time": int(config.get("lease_time", 86400) * 0.5),
-            }
-            dhcp_logger.debug(
-                f"Serving from {self._own_ip}:{self._dns_ports["server"]} {self._own_subnet} {self._own_mac}")
-        except Exception as e:
-            dhcp_logger.error(f"Failed to load DHCP config: {e}")
-
-    def _get_candidate_ip(self, declined_ips: set = set()) -> str:
-        """Find the next available IP, avoiding specified exclusions"""
-
-        with self.lock:
-
-            start_ip = ipaddress.IPv4Address(self._server_ip_range_start)
-            end_ip = ipaddress.IPv4Address(self._server_ip_range_end)
-            leased_ips = self.lease_db.get_all_leased_ips()
-
-            for _ip in range(int(start_ip), int(end_ip) + 1):
-
-                _proposed_ip = str(ipaddress.IPv4Address(_ip))
-                if _proposed_ip in leased_ips or _proposed_ip in declined_ips:
-                    continue
-
-                is_lease_active_status, is_lease_active_mac = DHCPUtilities.discover_client_via_arp(ip=_proposed_ip,
-                                                                                                    iface=self._interface,
-                                                                                                    source_ip=self._own_ip,
-                                                                                                    source_mac=self._own_mac
-                                                                                                    )
-
-                if is_lease_active_status:
-                    continue
-
-                dhcp_logger.debug(f"Proposing IP:{_proposed_ip}, {'Leased IPs: ' + str(leased_ips) if leased_ips else ''}")
-                return _proposed_ip
-
-        dhcp_logger.warning("No available IPs in the range.")
-        return None
+            with open(DHCP_CONFIG_FULLPATH, "r") as file_handle:
+                _config = json.load(file_handle)
+                self._interface = _config.get("interface")
+                self._own_ip = _config.get("server_ip")
+                self._own_mac = _config.get("server_mac")
+                self._own_subnet = _config.get("server_subnet_mask")
+                self._server_ip_range_start = _config.get("server_ip_range_start")
+                self._server_ip_range_end = _config.get("server_ip_range_end")
+                self._broadcast = _config.get("server_broadcast")
+                self._router_ip = _config.get("router_ip")
+                self._dns_server = _config.get("dns_server")
+                self._ntr_server = _config.get("ntp_server")
+                self._lease_time = _config.get("lease_time")
+                self._rebinding_time = int(self._lease_time * 0.875)
+                self._renewal_time = int(self._lease_time * 0.5)
+                self._mtu = int(_config.get("mtu"))
+                self._dhcp_ports = _config.get("dhcp_ports")
+                dhcp_logger.debug(
+                    f"Serving from {self._own_ip}:{self._dhcp_ports["server"]} {self._own_subnet} {self._own_mac}")
+        except Exception as err:
+            dhcp_logger.error(f"Failed to load DHCP config: {str(err)}")
 
     def _helper_init_denied_ips_of_client_mac_if_required(self, source_mac: str):
         if source_mac not in self.denied_ips:
@@ -1007,89 +909,54 @@ class DHCPServer:
 
     def _send_dhcp_packet(self, packet: Ether, dhcp_type: str = ''):
         """Send a DHCP packet on the configured interface."""
+
+        dhcp_type = DHCPUtilities.extract_dhcp_type_from_packet(packet)
+        dhcp_type_string = DHCPUtilities.convert_dhcp_lease_to_string(dhcp_type)
+        Stats.increment("sent_total")
+        Stats.increment(f"sent_{dhcp_type_string}")
+
         dhcp_logger.debug(
-            f"[{dhcp_type}] sent to XID {packet[BOOTP].xid} CHADDR {":".join([f"{_each_char:02x}" for _each_char in packet[BOOTP].chaddr[:6]])}")
-        scapy.sendp(packet, iface=self.config.get('interface'), verbose=False)
-
-    def _is_received_packet_valid(self, packet: scapy.Packet) -> bool:
-
-        if not packet.haslayer(IP):
-            return False
-
-        if packet.haslayer(IPv6):
-            return False
-
-        if not packet.haslayer(DHCP):
-            return False
-
-        key = (packet[Ether].src, packet[BOOTP].xid)
-        if key in self._inbound_packet_deduplication_queue:
-            return False
-
-        self._inbound_packet_deduplication_queue.appendleft(key)
-
-        return True
+            f"Send {dhcp_type_string} XID {packet[BOOTP].xid} CHADDR {":".join([f"{_each_char:02x}" for _each_char in packet[BOOTP].chaddr[:6]])}")
+        scapy.sendp(packet, iface=self._interface, verbose=False)
 
     def _log_dhcp_packet_details(self, packet: Ether) -> None:
         """Logs details of a DHCP packet."""
 
-        source_mac = DHCPUtilities.extract_source_mac_from_ethernet_packet(packet)
-        source_ip = DHCPUtilities.extract_source_ip_from_ethernet_packet(packet)
-
         dhcp_type = DHCPUtilities.extract_dhcp_type_from_packet(packet)
-        transaction_id = DHCPUtilities.extract_transaction_id_from_dhcp_packet(packet)
-        client_ip = DHCPUtilities.extract_client_ip_address_from_dhcp_packet(packet)
-        client_hostname = DHCPUtilities.extract_hostname_from_dhcp_packet(packet)
-        client_secs = DHCPUtilities.extract_secs_from_dhcp_packet(packet)
-        your_ip = DHCPUtilities.extract_your_ip_address_from_dhcp_packet(packet)
-        vendor_cid = DHCPUtilities.extract_vendor_cid_from_dhcp_packet(packet)
-        client_FQDN = DHCPUtilities.extract_client_FQDN(packet)
-        param_req_list = DHCPUtilities.extract_client_param_req_list_from_dhcp_packet(packet)
+        dhcp_type_string = DHCPUtilities.convert_dhcp_lease_to_string(dhcp_type)
 
         Stats.increment("received_total")
-        if DHCPUtilities.is_dhcp_discover(packet=packet):
-            Stats.increment("received_discover")
+        Stats.increment(f"received_{dhcp_type_string}")
 
-        elif DHCPUtilities.is_dhcp_request(packet):
-            Stats.increment("received_request")
-
-        elif DHCPUtilities.is_dhcp_decline(packet):
-            Stats.increment("received_decline")
-
-        elif DHCPUtilities.is_dhcp_release(packet):
-            Stats.increment("received_release")
-
-        elif DHCPUtilities.is_dhcp_inform(packet):
-            Stats.increment("received_inform")
-
-        dhcp_logger.debug(
-            f"Received DHCPTYPE:{dhcp_type} XID:{transaction_id} MAC:{source_mac} SIP:{source_ip} CIP:{client_ip} HOSTNAME:{client_hostname}")
-        return
-
-    def _handle_dhcp_discover(self, packet: Ether) -> None:
-        """Handles DHCPDISCOVER messages (RFC 2131, Section 4.1) sent by clients to discover DHCP servers."""
-
-        proposed_ip = self._get_candidate_ip(self.denied_ips[packet[Ether].src])
-        dhcp_logger.debug(f"[DHCPDISCOVER] XID:{packet[BOOTP].xid} MAC:{packet[Ether].src} IP_proposed:{proposed_ip}")
-
-        if not proposed_ip:
-            dhcp_logger.warning(f"No available IPs for DHCPDISCOVER from {packet[Ether].src}. Ignoring request.")
-            return
+    def _find_available_ip(self, packet: Ether) -> str:
+        """Find the next available IP, avoiding specified exclusions"""
 
         with self.lock:
 
-            dhcp_type = "DHCPOFFER"
-            message = "Offering IP Address"
-            server_response = self._build_dhcp_response(
-                dhcp_type=dhcp_type,
-                your_ip=proposed_ip,
-                message=message,
-                request_packet=packet
+            start_ip = ipaddress.IPv4Address(self._server_ip_range_start)
+            end_ip = ipaddress.IPv4Address(self._server_ip_range_end)
+            leased_ips = self.lease_db.get_all_leased_ips()
+
+            discovered_clients = DHCPUtilities.discover_clients_via_arp(
+                interface=self._interface,
+                source_ip=self._own_ip,
+                source_mac=self._own_mac
             )
 
-            self._send_dhcp_packet(packet=server_response, dhcp_type=dhcp_type)
+            for _ip in range(int(start_ip), int(end_ip) + 1):
+                _proposed_ip = str(ipaddress.IPv4Address(_ip))
+                if (
+                    _proposed_ip in leased_ips or
+                    _proposed_ip in self.denied_ips[packet[Ether].src] or
+                    _proposed_ip in discovered_clients.values()
+                ):
+                    continue
 
-        return
+                dhcp_logger.debug(f"Proposing IP:{_proposed_ip}, {'Leased IPs: ' + str(leased_ips) if leased_ips else ''}")
+                return _proposed_ip
+
+        dhcp_logger.warning(f"No available IPs found")
+        return None
 
     def _handle_dhcp_request(self, packet: DHCP) -> None:
         """Handles DHCP Request messages (RFC 2131, Section 4.3)"""
@@ -1098,9 +965,9 @@ class DHCPServer:
         transaction_id = packet[BOOTP].xid
         client_hostname = DHCPUtilities.extract_hostname_from_dhcp_packet(packet)
         requested_ip = DHCPUtilities.extract_requested_addr_from_dhcp_packet(packet)
-        client_ip = DHCPUtilities.extract_client_ip_address_from_dhcp_packet(packet)  # Extract 'ciaddr'
+        client_ip = DHCPUtilities.extract_client_ip_address_from_dhcp_packet(packet)
 
-        dhcp_logger.info(f"[DHCPREQUEST] XID:{transaction_id} MAC:{source_mac} IP_requested:{requested_ip} CIP:{client_ip}")
+        dhcp_logger.info(f"DHCPREQUEST XID:{transaction_id} MAC:{source_mac} IP_requested:{requested_ip}")
 
         with self.lock:
             dhcp_type = None
@@ -1115,9 +982,9 @@ class DHCPServer:
                 ip_to_validate = requested_ip if requested_ip else client_ip
                 is_ip_active, active_mac = DHCPUtilities.discover_client_via_arp(
                     ip=ip_to_validate,
-                    iface=self.config['interface'],
-                    source_ip=self.config['server_ip'],
-                    source_mac=self.config['server_mac']
+                    iface=self._interface,
+                    source_ip=self._own_ip,
+                    source_mac=self._own_mac
                 )
 
                 # Case 1: Requested IP is already assigned to another MAC
@@ -1133,7 +1000,7 @@ class DHCPServer:
                         mac=source_mac,
                         ip=ip_to_validate,
                         hostname=client_hostname,
-                        lease_time=self.config['lease_time'])
+                        lease_time=self._lease_time)
                     dhcp_type, message, your_ip = "DHCPACK", "Existing lease reassigned", ip_to_validate
 
                 # Case 3: Client in RENEWING/REBINDING requesting the same IP
@@ -1143,7 +1010,7 @@ class DHCPServer:
                         mac=source_mac,
                         ip=ip_to_validate,
                         hostname=client_hostname,
-                        lease_time=self.config['lease_time'])
+                        lease_time=self._lease_time)
                     dhcp_type, message, your_ip = "DHCPACK", "Lease renewed", ip_to_validate
 
                 # Case 4: No existing lease, and IP is free
@@ -1153,7 +1020,7 @@ class DHCPServer:
                         mac=source_mac,
                         ip=ip_to_validate,
                         hostname=client_hostname,
-                        lease_time=self.config['lease_time'])
+                        lease_time=self._lease_time)
                     dhcp_type, message, your_ip = "DHCPACK", "New lease assigned", ip_to_validate
 
                 # Case 5: Client Requests an IP Outside the Subnet
@@ -1270,45 +1137,106 @@ class DHCPServer:
             )
             self._send_dhcp_packet(packet=server_response, dhcp_type=dhcp_type)
 
-    def main_dhcp_handler(self, packet: Ether) -> None:
-        """Provides centralized point for processing DHCP packets"""
+    def _handle_dhcp_discover(self, packet: Ether) -> None:
+        """Handles DHCPDISCOVER messages (RFC 2131, Section 4.1) sent by clients to discover DHCP servers."""
 
-        if not self._is_received_packet_valid(packet=packet):
+        proposed_ip = self._find_available_ip(packet)
+        if not proposed_ip:
+            dhcp_logger.warning(f"No available IPs, ignoring request")
             return
 
-        if packet[Ether].src == self._own_mac:
-            return
+        dhcp_logger.debug(f"DHCPDISCOVER XID:{packet[BOOTP].xid} MAC:{packet[Ether].src} IP_proposed:{proposed_ip}")
 
-        self._log_dhcp_packet_details(packet=packet)
+        with self.lock:
+            dhcp_type = "DHCPOFFER"
+            message = "offer_ip"
+            server_response = self._build_dhcp_response(
+                dhcp_type=dhcp_type,
+                your_ip=proposed_ip,
+                message=message,
+                request_packet=packet
+            )
+
+            self._send_dhcp_packet(packet=server_response, dhcp_type=dhcp_type)
+
+    def _main_handler(self, packet: Ether):
+
+        self._log_dhcp_packet_details(packet)
         self._helper_init_denied_ips_of_client_mac_if_required(source_mac=packet[Ether].src)
 
-        if DHCPUtilities.is_dhcp_discover(packet=packet):
+        if DHCPUtilities.is_dhcp_discover(packet):
             self._handle_dhcp_discover(packet)
-
         elif DHCPUtilities.is_dhcp_request(packet):
             self._handle_dhcp_request(packet)
-
         elif DHCPUtilities.is_dhcp_decline(packet):
             self._handle_dhcp_decline(packet)
-
         elif DHCPUtilities.is_dhcp_release(packet):
             self._handle_dhcp_release(packet)
-
         elif DHCPUtilities.is_dhcp_inform(packet):
             self._handle_dhcp_inform(packet)
-
         else:
-            dhcp_logger.warning(f'This DHCP packet type is not handled yet')
+            dhcp_logger.warning(f'DHCP type unknown')
 
         RabbitMqProducer.send_message({'timestamp': time.time(), 'type': 'statistics', 'payload': Stats.get_all_statistics()})
         RabbitMqProducer.send_message({'timestamp': time.time(), 'type': 'dhcp-leases', 'payload': self.lease_db.get_all_leases()})
 
-    def listen_dhcp(self) -> None:
+    def service_queue_worker_processor(self) -> None:
+
+        thread_name = threading.current_thread().name
+        while self._running:
+            try:
+                packet = self._inbound_packet_buffer_queue.get(timeout=0.5)
+                dhcp_logger.debug(f"{thread_name} processing XID {packet[BOOTP].xid}")
+
+                self._main_handler(packet)
+                self._inbound_packet_buffer_queue.task_done()
+                dhcp_logger.debug(f"{thread_name} processing done")
+                time.sleep(0.1)
+
+            except queue.Empty:
+                time.sleep(0.1)
+
+            except Exception as err:
+                dhcp_logger.error(f"{thread_name} processing DHCP packet:{str(err)}")
+                # self._inbound_packet_buffer_queue.task_done()
+                time.sleep(0.1)
+
+    def _is_received_packet_valid(self, packet: Ether) -> bool:
+        return bool(
+            packet.haslayer(IP) and
+            packet.haslayer(DHCP) and
+            packet[Ether].src != self._own_mac
+        )
+
+    def main_processor(self, packet: Ether) -> None:
+        """Provides centralized point for processing DHCP packets"""
+        try:
+
+            if not self._is_received_packet_valid(packet=packet):
+                return
+
+            if self._inbound_packet_buffer_queue.full():
+                raise queue.Full
+
+            key = (packet[Ether].src, packet[BOOTP].xid, int(time.time() // 10))
+            if key in self._inbound_packet_deduplication_queue:
+                return
+
+            self._inbound_packet_deduplication_queue.appendleft(key)
+            self._inbound_packet_buffer_queue.put(packet)
+
+        except queue.Full:
+            dhcp_logger.warning(f"packet queue is full")
+
+        except Exception as err:
+            dhcp_logger.warning(f"failed to enqueue DNS packet: {str(err)}")
+
+    def service_traffic_listener(self) -> None:
         """ Start sniffing for DHCP packets on the interface """
         scapy.sniff(
             iface='enp2s0',
-            filter="ip and udp and (port 67 or 68)",
-            prn=self.main_dhcp_handler,
+            filter="ip and udp and port 67",
+            prn=self.main_processor,
             count=0,
             timeout=None,
             store=False,
@@ -1318,14 +1246,16 @@ class DHCPServer:
     def start(self):
         """ Start all necessary threads """
 
-        listen_thread = Thread(
-            target=self.listen_dhcp,
-            name="dhcp-service-listener",
-            daemon=True)
-        listen_thread.start()
+        self._running = True
 
-        schedule_discover_all_leases = Scheduler(interval=1*30*60, function=DHCPUtilities.print_all_clients_on_subnet)
-        schedule_discover_all_leases.start_schedule()
+        traffic_listener = threading.Thread(target=self.service_traffic_listener, name="traffic_listener", daemon=True)
+        traffic_listener.start()
+        self._threads["traffic_listener"] = traffic_listener
+
+        for i in range(5):
+            queue_worker = threading.Thread(target=self.service_queue_worker_processor, name=f"queue_worker_{i}", daemon=True)
+            queue_worker.start()
+            self._threads[f"queue_worker_{i}"] = queue_worker
 
         schedule_cleanup_dead_leases = Scheduler(interval=1*60*60, function=self.lease_db.remove_inactive_leases)
         schedule_cleanup_dead_leases.start_schedule()
@@ -1335,14 +1265,19 @@ class DHCPServer:
 
         dhcp_logger.info("Started")
 
+    def stop_service(self):
+
+        self._running = False
+
+        for thread_name, thread in self._threads.items():
+            if thread.is_alive():
+                dhcp_logger.info(f"Stopping thread: {thread_name}")
+                thread.join()
+
+        dhcp_logger.info("All threads stopped, stopping the DNS server")
+
 
 if __name__ == "__main__":
-
-    # server = DHCPServer()
-    # server.start()
-
-    # keep_running_event = threading.Event()
-    # keep_running_event.wait()  # This keeps the main thread alive indefinitely
 
     while True:
         time.sleep(1)

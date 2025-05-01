@@ -49,8 +49,8 @@ def generate_system_stats() -> dict:
             'python_executable': {'value': sys.executable},
         },
         'cpu': {
-            'usage': {'value': psutil.cpu_percent(interval=1), 'unit': '%'},
-            'usage_per_core': {'value': psutil.cpu_percent(interval=1, percpu=True), 'unit': '%'},
+            'usage': {'value': psutil.cpu_percent(interval=0.5), 'unit': '%'},
+            'usage_per_core': {'value': psutil.cpu_percent(interval=0.5, percpu=True), 'unit': '%'},
             'frequency_per_core': {'value': [int(freq.current) for freq in psutil.cpu_freq(percpu=True)], 'unit': 'MHz'},
             'cores': {'value': psutil.cpu_count(logical=True), 'unit': 'cores'},
             'load_1min': {'value': round(os.getloadavg()[0], 2)},
@@ -288,8 +288,9 @@ def update_dns_history(payload: list = []):
 
 
 def update_dhcp_statistics(payload: dict = {}):
-    for key in payload:
-        DHCP_STATISTICS[key] = payload[key]
+    if not payload:
+        return
+    DHCP_STATISTICS.update(payload)
 
 
 def update_dhcp_leases(_leases: list = None):
