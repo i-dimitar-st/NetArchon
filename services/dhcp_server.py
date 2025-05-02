@@ -785,7 +785,7 @@ class DHCPServer:
                     iface=self._interface,
                     source_ip=self._own_ip,
                     source_mac=self._own_mac,
-                    timeout=0.75
+                    timeout=1
                 )
                 dhcp_logger.debug(f"{_proposed_ip} available")
 

@@ -271,10 +271,9 @@ def get_control_list() -> dict:
 def get_system_logs() -> list:
 
     try:
-        with open(LOG_FILE_PATH, "r") as file_handle:
+        with open(LOG_FILE_PATH, mode="r", encoding="utf-8") as file_handle:
             log_entries = []
-            log_lines = file_handle.readlines()
-            for line in log_lines:
+            for line in file_handle:
                 if not line:
                     continue
                 line_array = line.strip().split("|")
