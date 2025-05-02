@@ -110,6 +110,14 @@
         border-color: rgba(0, 0, 0, 0.03);
       }
 
+      .badge-dynamic {
+        background-color: var(--accent-color);
+      }
+
+      .badge-static {
+        background-color: var(--secondary-color);
+      }
+
       /* Responsive adjustments */
       @media (max-width: 992px) {
         .dhcp-table td,
@@ -209,6 +217,7 @@
                         <th style="cursor: pointer" id="macHeader">MAC Address <i class="fas fa-sort"></i></th>
                         <th style="cursor: pointer" id="ipHeader">IP Address <i class="fas fa-sort"></i></th>
                         <th style="cursor: pointer" id="hostnameHeader">Hostname <i class="fas fa-sort"></i></th>
+                        <th style="cursor: pointer" id="typeHeader">Type <i class="fas fa-sort"></i></th>
                         <th style="cursor: pointer" id="leaseTimeHeader">Lease Time <i class="fas fa-sort"></i></th>
                         <th style="cursor: pointer" id="expiryTimeHeader">Expiry Time <i class="fas fa-sort"></i></th>
                       </tr>
@@ -216,11 +225,18 @@
                     <tbody>
                       {% for lease in dhcp_leases %}
                       <tr>
-                        <td id="{{ lease[0] }}_lease_mac">{{ lease[0] }}</td>
-                        <td id="{{ lease[0] }}_lease_ip">{{ lease[1] }}</td>
-                        <td id="{{ lease[0] }}_lease_hostname">{{ lease[2] }}</td>
-                        <td id="{{ lease[0] }}_lease_start" data-timestamp="{{ lease[3] }}"></td>
-                        <td id="{{ lease[0] }}_lease_expiry" data-timestamp="{{ lease[4] }}"></td>
+                        <td id="{{ lease.mac }}_lease_mac">{{ lease.mac }}</td>
+                        <td id="{{ lease.mac }}_lease_ip">{{ lease.ip }}</td>
+                        <td id="{{ lease.mac }}_lease_hostname">{{ lease.hostname }}</td>
+                        <td id="{{ lease.mac }}_lease_type">
+                          <span
+                            class="badge {% if lease.type == 'static' %}badge-static{% else %}badge-dynamic{% endif %}"
+                          >
+                            {{ lease.type if lease.type else 'dynamic' }}
+                          </span>
+                        </td>
+                        <td id="{{ lease.mac }}_lease_start" data-timestamp="{{ lease.timestamp }}"></td>
+                        <td id="{{ lease.mac }}_lease_expiry" data-timestamp="{{ lease.expiry_time }}"></td>
                       </tr>
                       {% endfor %}
                     </tbody>
@@ -291,13 +307,17 @@
                 valA = a.cells[2].innerText.trim();
                 valB = b.cells[2].innerText.trim();
                 break;
-              case "leaseTime":
-                valA = a.cells[3].getAttribute("data-timestamp");
-                valB = b.cells[3].getAttribute("data-timestamp");
+              case "type":
+                valA = a.cells[3].innerText.trim();
+                valB = b.cells[3].innerText.trim();
                 break;
-              case "expiryTime":
+              case "leaseTime":
                 valA = a.cells[4].getAttribute("data-timestamp");
                 valB = b.cells[4].getAttribute("data-timestamp");
+                break;
+              case "expiryTime":
+                valA = a.cells[5].getAttribute("data-timestamp");
+                valB = b.cells[5].getAttribute("data-timestamp");
                 break;
             }
 
@@ -370,6 +390,7 @@
         document.getElementById("macHeader").addEventListener("click", () => sortTable("mac", "text"));
         document.getElementById("ipHeader").addEventListener("click", () => sortTable("ip", "ip"));
         document.getElementById("hostnameHeader").addEventListener("click", () => sortTable("hostname", "text"));
+        document.getElementById("typeHeader").addEventListener("click", () => sortTable("type", "text"));
         document.getElementById("leaseTimeHeader").addEventListener("click", () => sortTable("leaseTime", "number"));
         document.getElementById("expiryTimeHeader").addEventListener("click", () => sortTable("expiryTime", "number"));
 

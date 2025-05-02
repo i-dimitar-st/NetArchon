@@ -1,24 +1,19 @@
-import os
+
 import time
-import sched
 import sqlite3
 import logging
 import socket
 import json
 import ipaddress
-import subprocess
 import sys
-import re
 import queue
 import threading
-from typing import Callable
 from collections import deque
 import scapy.all as scapy
 from scapy.layers.dhcp import DHCP, BOOTP
 from scapy.layers.l2 import Ether, ARP
 from scapy.layers.inet import IP, UDP
-from scapy.layers.inet6 import IPv6
-from threading import Thread, RLock
+from threading import RLock
 from pathlib import Path
 from services import MainLogger
 
@@ -27,91 +22,90 @@ sys.path.append('/projects/gitlab/netarchon/venv/lib/python3.12/site-packages')
 import pika # type: ignore
 # fmt: on
 
-ARP_DICOVERY_TIMEOUT = 3
-INBOUND_REQUESTS_DEDUPLICATE_QUEUE_SIZE = 30
-
 ROOT_PATH = Path(__file__).resolve().parents[1]
 CONFIG_PATH = ROOT_PATH / 'config'
-DHCP_CONFIG_FULLPATH = CONFIG_PATH / 'dhcp_config.json'
+CONFIG_FULLPATH = CONFIG_PATH / 'dhcp_config.json'
+
+DB_PATH = ROOT_PATH / 'db'
+DB_FILENAME = 'dhcp.sqlite3'
+DB_FULLPATH = DB_PATH / DB_FILENAME
+
+DB_CONN_TIMEOUT = 10
+DB_CONN_CHECK_SAME_THREAD = False
+DB_CONN_ISOLATION_LEVEL = None
+DB_CONN_CACHED_STATEMENTS = 100
+
+DB_JOURNAL_MODE = "WAL"
+DB_SYNC_MODE = "NORMAL"
+DB_CACHE_SIZE = -8192   # 8KB
+DB_MMAP_SIZE = 25165824  # 24MB
+DB_AUTO_VACCUM = 'INCREMENTAL'
+
+NETWORK_IFACE = "enp2s0",
+SERVER_IP = "192.168.20.100"
+SERVER_MAC = "18:c0:4d:46:f4:11"
+BROADCAST_IP = "255.255.255.255"
+BROADCAST_MAC = "ff:ff:ff:ff:ff:ff"
+UNASSIGNED_IP = "0.0.0.0"
+
+
+INBOUND_REQUESTS_DEDUPLICATE_QUEUE_SIZE = 30
+DHCP_DISCOVER = 1
+DHCP_OFFER = 2
+DHCP_REQUEST = 3
+DHCP_DECLINE = 4
+DHCP_ACK = 5
+DHCP_NAK = 6
+DHCP_INFORM = 8
+DEFAULT_LEASE_TIME = 14*24*60*60
+BOOTP_FLAG_BROADCAST = 0x8000
+DHCP_PARAMS_REQUEST = [12, 43, 60, 61, 81]
+
+ARP_DICOVERY_TIMEOUT = 3
+LEASE_CLEANER_PERIOD = 1*60*60
+
 
 dhcp_logger = MainLogger.get_logger(service_name="DHCP", log_level=logging.DEBUG)
 
 
-class Config:
-    """Configuration manager for DHCP settings and paths."""
-    config_file = 'config/dhcp_config.json'
-    _config = {}
+class Utilities:
 
-    @classmethod
-    def initialize(cls):
-        """Ensure required directories exist and load config."""
-        os.makedirs(os.path.dirname(cls.config_file), exist_ok=True)
-        cls._load_config()
+    @staticmethod
+    def create_db():
+        DB_PATH.mkdir(parents=True, exist_ok=True)
+        sqlite3.connect(DB_FULLPATH).close()
 
-    @classmethod
-    def _load_config(cls):
-        """Load the configuration file as a dictionary."""
-        try:
-            with open(cls.config_file, "r") as file_handle:
-                cls._config = json.load(file_handle)
-        except Exception as e:
-            print(f'Error loading config file {cls.config_file}: {str(e)}')
-            cls._config = {}  # Ensure _config is always initialized
+    @staticmethod
+    def delete_dns_db_files() -> None:
+        """Deletes files with given suffixes from the base path."""
 
-    @classmethod
-    def get_config(cls) -> dict:
-        """Return the loaded config."""
-        return cls._config
+        dhcp_logger.debug(f"Deleting DHCP DB files ...")
+        for file in DB_PATH.iterdir():
+            if file.is_file() and file.name.startswith(DB_FILENAME):
+                try:
+                    file.unlink()
+                    dhcp_logger.debug(f"{file} deleted.")
+                except FileNotFoundError:
+                    dhcp_logger.error(f"{file} does not exist.")
 
+    @staticmethod
+    def get_connection_settings() -> dict:
+        return {
+            'database': DB_FULLPATH,
+            'check_same_thread': DB_CONN_CHECK_SAME_THREAD,
+            'timeout': DB_CONN_TIMEOUT,
+            'isolation_level': DB_CONN_ISOLATION_LEVEL,
+            'cached_statements': DB_CONN_CACHED_STATEMENTS
+        }
 
-Config.initialize()
-
-
-class Scheduler:
-    def __init__(self: "Scheduler", interval: int = 60, function: Callable = None, function_arguments: list = None) -> None:
-        """Initialize the Scheduler."""
-        if function is None:
-            raise ValueError("Function missing")
-        self._scheduler = sched.scheduler(timefunc=time.monotonic, delayfunc=time.sleep)
-        self._schedule_interval = interval
-        self._schedule_function = function
-        self._schedule_arguments = function_arguments or []
-        self._schedule_status_running = False
-
-    def start_schedule(self: "Scheduler") -> None:
-        """Start the scheduler."""
-        self._schedule_status_running = True
-        self._enter_task()
-        scheduler_thread = Thread(
-            target=self._scheduler.run,
-            daemon=True,
-            name=f"scheduler-{str(self._schedule_function.__name__)}")
-        scheduler_thread.start()
-
-    def _enter_task(self: "Scheduler") -> None:
-        """Queue next task for scheduling."""
-        if self._schedule_status_running:  # Check if the scheduler is still running
-            self._scheduler.enter(delay=self._schedule_interval,
-                                  priority=1,
-                                  action=self.task_runner,
-                                  argument=self._schedule_arguments)
-
-    def task_runner(self: "Scheduler") -> None:
-        """Execute the scheduled function with its arguments."""
-        if self._schedule_function:
-            try:
-                self._schedule_function(*self._schedule_arguments)
-            except Exception as e:
-                dhcp_logger.error(f"Error while executing the scheduled function: {e}")
-
-        # This is what schedules the next taks
-        if self._schedule_status_running:
-            self._enter_task()
-
-    def stop_schedule(self: "Scheduler") -> None:
-        """Stop the scheduler."""
-        self._schedule_status_running = False
-        dhcp_logger.info("Scheduler stopped.")
+    @staticmethod
+    def enrich_connection(connection: sqlite3.Connection):
+        connection.execute(f"PRAGMA journal_mode = {DB_JOURNAL_MODE}")
+        connection.execute(f"PRAGMA synchronous = {DB_SYNC_MODE}")
+        connection.execute(f"PRAGMA cache_size = {DB_CACHE_SIZE}")
+        connection.execute(f"PRAGMA mmap_size = {DB_MMAP_SIZE}")
+        connection.execute(f"PRAGMA auto_vacuum = {DB_AUTO_VACCUM}")
+        return connection
 
 
 class Stats:
@@ -125,21 +119,9 @@ class Stats:
             cls._stats[key] = cls._stats.get(key, 0) + value
 
     @classmethod
-    def decrement(cls, key: str, value: int = 1) -> None:
-        """Decrement a specific statistic counter."""
-        with cls._lock:
-            cls._stats[key] = cls._stats.get(key, 0) - value
-
-    @classmethod
     def get_all_statistics(cls) -> dict:
         """Retrieve all statistics."""
         return cls._stats.copy()
-
-    @classmethod
-    def print_all_statistics(cls) -> None:
-        """Print all statistics."""
-        stats = ','.join([f"{key}:{value}" for key, value in cls.get_all_statistics().items()])
-        dhcp_logger.debug(f"Statistics: {stats}")
 
 
 class RabbitMqProducer:
@@ -267,46 +249,9 @@ class DHCPUtilities:
         return None
 
     @staticmethod
-    def extract_source_mac_from_ethernet_packet(packet: Ether) -> str:
-        """Extract the source MAC address from the Ethernet layer of the packet."""
-        return packet[Ether].src
-
-    @staticmethod
     def extract_client_mac_from_dhcp_packet(packet: DHCP) -> str:
         """Extract the first 6 bytes of the MAC address from the packet."""
         return DHCPUtilities.format_mac(packet[BOOTP].chaddr[:6])
-
-    @staticmethod
-    def extract_client_ip_address_from_dhcp_packet(packet: DHCP) -> str:
-        """Extract the 'Client IP Address' (ciaddr) from a DHCP request packet (renewal)."""
-        return packet[BOOTP].ciaddr
-
-    @staticmethod
-    def extract_your_ip_address_from_dhcp_packet(packet: DHCP) -> str:
-        """Extract the 'Your IP Address' (yiaddr) from the DHCP offer packet."""
-        return packet[BOOTP].yiaddr
-
-    @staticmethod
-    def extract_secs_from_dhcp_packet(packet: DHCP) -> str:
-        """Extract the 'Seconds Elapsed' (secs) from the DHCP packet."""
-        return packet[BOOTP].secs
-
-    @staticmethod
-    def is_packet_from_server(packet: Ether) -> bool:
-        return packet[Ether].src == '18:c0:4d:46:f4:11'
-
-    @staticmethod
-    def extract_source_ip_from_ethernet_packet(packet: Ether) -> str:
-        """Extract the client IP address from the Ethernet frame."""
-        if packet.haslayer(IP):
-            return packet[IP].src
-        else:
-            raise ValueError("No IP layer found in the Ethernet frame")
-
-    @staticmethod
-    def extract_transaction_id_from_dhcp_packet(packet: DHCP) -> str:
-        """Extract the XID from packet."""
-        return packet[BOOTP].xid
 
     @staticmethod
     def extract_lease_time_from_offer(offer: DHCP) -> int:
@@ -324,51 +269,12 @@ class DHCPUtilities:
         return 'unknown'
 
     @staticmethod
-    def extract_vendor_cid_from_dhcp_packet(packet: DHCP) -> str:
-        for option in packet[scapy.DHCP].options:
-            if option[0] == "vendor_class_id":
-                return DHCPUtilities.convert_binary_to_string(option[1])
-        return 'unknown'
-
-    @staticmethod
-    def extract_client_FQDN(packet: DHCP) -> str:
-        for option in packet[scapy.DHCP].options:
-            if option[0] == "client_FQDN":
-                return DHCPUtilities.convert_binary_to_string(option[1])
-        return 'unknown'
-
-    @staticmethod
     def extract_client_param_req_list_from_dhcp_packet(packet: DHCP) -> str:
         """Extracts the 'param_req_list' from the DHCP packet."""
         for option in packet[scapy.DHCP].options:
             if option[0] == "param_req_list":
                 return option[1]
         return []
-
-    @staticmethod
-    def is_packet_ethernet(packet: scapy.Packet) -> bool:
-        """Check if the packet is an Ethernet packet."""
-        return bool(packet.haslayer(Ether))
-
-    @staticmethod
-    def is_packet_ip(packet: Ether) -> bool:
-        """Check if the packet is a DHCP packet."""
-        return bool(packet.haslayer(IP))
-
-    @staticmethod
-    def is_packet_ipv6(packet: Ether) -> bool:
-        """Check if the packet is an IPv6 packet."""
-        return bool(packet.haslayer(IPv6))
-
-    @staticmethod
-    def is_packet_dhcp(packet: Ether) -> bool:
-        """Check if the packet is a DHCP packet."""
-        return bool(packet.haslayer(DHCP))
-
-    @staticmethod
-    def is_packet_bootp(packet: scapy.Packet) -> bool:
-        """Check if the packet is a BOOTP packet."""
-        return bool(packet.haslayer(BOOTP))
 
     @staticmethod
     def is_dhcp_discover(packet: scapy.Packet) -> bool:
@@ -391,16 +297,6 @@ class DHCPUtilities:
         return DHCPUtilities.extract_dhcp_type_from_packet(packet) == 4
 
     @staticmethod
-    def is_dhcp_ack(packet: scapy.Packet) -> bool:
-        """Check if the given DHCP packet is a DHCP ACK message."""
-        return DHCPUtilities.extract_dhcp_type_from_packet(packet) == 5
-
-    @staticmethod
-    def is_dhcp_nack(packet: scapy.Packet) -> bool:
-        """Check if the given DHCP packet is a DHCP NACK message."""
-        return DHCPUtilities.extract_dhcp_type_from_packet(packet) == 6
-
-    @staticmethod
     def is_dhcp_release(packet: scapy.Packet) -> bool:
         """Check if the given DHCP packet is a DHCP Release message."""
         return DHCPUtilities.extract_dhcp_type_from_packet(packet) == 7
@@ -409,31 +305,6 @@ class DHCPUtilities:
     def is_dhcp_inform(packet: scapy.Packet) -> bool:
         """Check if the given DHCP packet is a DHCP Discover message."""
         return DHCPUtilities.extract_dhcp_type_from_packet(packet) == 8
-
-    @staticmethod
-    def is_dhcp_force_renew(packet: scapy.Packet) -> bool:
-        """Check if the given DHCP packet is a DHCP Force Renew message."""
-        return DHCPUtilities.extract_dhcp_type_from_packet(packet) == 9
-
-    @staticmethod
-    def is_dhcp_lease_query(packet: scapy.Packet) -> bool:
-        """Check if the given DHCP packet is a DHCP Lease query message."""
-        return DHCPUtilities.extract_dhcp_type_from_packet(packet) == 10
-
-    @staticmethod
-    def is_dhcp_lease_unassigned(packet: scapy.Packet) -> bool:
-        """Check if the given DHCP packet is a DHCP Lease unassigned message."""
-        return DHCPUtilities.extract_dhcp_type_from_packet(packet) == 11
-
-    @staticmethod
-    def is_dhcp_lease_unknown(packet: scapy.Packet) -> bool:
-        """Check if the given DHCP packet is a DHCP Lease Unknown message."""
-        return DHCPUtilities.extract_dhcp_type_from_packet(packet) == 12
-
-    @staticmethod
-    def is_dhcp_lease_active(packet: scapy.Packet) -> bool:
-        """Check if the given DHCP packet is a DHCP Lease Active message."""
-        return DHCPUtilities.extract_dhcp_type_from_packet(packet) == 13
 
     @staticmethod
     def format_mac(raw_mac: bytes) -> str:
@@ -446,7 +317,7 @@ class DHCPUtilities:
         return data_to_convert.decode('utf-8', errors='ignore')
 
     @staticmethod
-    def discover_client_via_arp(ip: str = '', iface: str = "eth0", source_ip: str = '', source_mac: str = '', timeout: float = 1.5) -> bool:
+    def discover_client_via_arp(ip: str = '', iface: str = NETWORK_IFACE, source_ip: str = SERVER_IP, source_mac: str = SERVER_MAC, timeout: float = ARP_DICOVERY_TIMEOUT) -> bool:
         """Send an ARP request to check if the IP is still busy."""
 
         try:
@@ -454,7 +325,7 @@ class DHCPUtilities:
                 Ether(dst="ff:ff:ff:ff:ff:ff", src=source_mac) /
                 ARP(pdst=ip, psrc=source_ip, op=1)
             )
-            answered, unanswered = scapy.srp(packet, timeout=ARP_DICOVERY_TIMEOUT, verbose=False, iface=iface)
+            answered, unanswered = scapy.srp(packet, timeout=timeout, verbose=False, iface=iface)
             if answered:
                 source_mac_response = answered[0][1].hwsrc
                 # source_ip_response = answered[0][1].psrc
@@ -466,27 +337,21 @@ class DHCPUtilities:
         return False, None
 
     @staticmethod
-    def discover_clients_via_arp(interface: str = "enp2s0", source_ip: str = "", source_mac: str = "") -> dict:
+    def discover_clients_via_arp() -> dict:
         """Send a broadcast ARP request to discover all active clients on the network."""
 
         discovered_clients = {}
+
         try:
-            if not source_ip or not source_mac:
-                return discovered_clients
-
-            network = ipaddress.IPv4Network(f"{source_ip}/24", strict=False)
+            network = ipaddress.IPv4Network(f"{SERVER_IP}/24", strict=False)
             subnet = str(network.network_address) + '/24'
-            packet = (
-                Ether(src=source_mac, dst="ff:ff:ff:ff:ff:ff") /
-                ARP(psrc=source_ip, pdst=subnet, op=1)
-            )
 
-            answered, unanswered = scapy.srp(packet, timeout=ARP_DICOVERY_TIMEOUT, verbose=False, iface=interface)
+            packet = Ether(dst=BROADCAST_MAC, src=SERVER_MAC) / ARP(pdst=subnet, psrc=SERVER_IP, op=1)
+            answered, unanswered = scapy.srp(packet, timeout=ARP_DICOVERY_TIMEOUT, verbose=False, iface="enp2s0")
 
             for sent, received in answered:
                 discovered_clients[received.hwsrc] = received.psrc
 
-            dhcp_logger.debug(f"ARP discovery found {discovered_clients}")
             return discovered_clients
 
         except Exception as err:
@@ -494,7 +359,7 @@ class DHCPUtilities:
             return {}
 
     @staticmethod
-    def _is_ip_in_subnet(ip_to_validate, subnet: str = "192.168.20.0/24"):
+    def is_ip_in_subnet(ip_to_validate: str = None, subnet: str = "192.168.20.0/24"):
         """
         Checks if an IP address is in the specified subnet.
 
@@ -510,94 +375,89 @@ class DHCPUtilities:
 
 class DHCPStorage:
 
-    def __init__(self):
-        """Initialize the database connection and create tables on startup."""
-        self._running = True
-        self.lock = RLock()
-        self.db_connection = self._get_connection()
-        self.db_cursor = self.db_connection.cursor()
-        self._create_tables()
+    _lock = threading.RLock()
+    _conn = None
+    _cursor = None
+    _running = False
+    _is_initialised = False
 
-    def _get_connection(self):
-        """Return a new SQLite connection."""
-        return sqlite3.connect(':memory:', check_same_thread=False)
+    @classmethod
+    def init(cls):
 
-    def _create_tables(self) -> None:
+        if cls._is_initialised:
+            return
+
+        with cls._lock:
+            cls._running = True
+            cls._conn = Utilities.enrich_connection(sqlite3.connect(**Utilities.get_connection_settings()))
+            cls._cursor = cls._conn.cursor()
+            cls._create_tables()
+            cls._is_initialised = True
+
+    @classmethod
+    def _create_tables(cls) -> None:
         """Initialize the database tables only once."""
-        try:
-            with self.lock, self.db_connection:
-                sql_statement_create_table_leases = '''
-                    CREATE TABLE IF NOT EXISTS leases (
-                        mac TEXT PRIMARY KEY,
-                        ip TEXT NOT NULL,
-                        hostname TEXT DEFAULT 'unknown',
-                        timestamp INTEGER NOT NULL,
-                        expiry_time INTEGER NOT NULL,
-                        type TEXT DEFAULT 'dynamic'
-                    )'''
-                sql_statement_create_table_client_interactions = '''
-                    CREATE TABLE IF NOT EXISTS client_interactions (
-                    id INTEGER PRIMARY KEY AUTOINCREMENT,
-                    timestamp INTEGER NOT NULL,
-                    mac TEXT NOT NULL,
-                    ip TEXT NOT NULL,
-                    hostname TEXT DEFAULT 'unknown',
-                    interaction_type TEXT NOT NULL,
-                    failed_attempts INTEGER DEFAULT 0,
-                    last_failed_attempt INTEGER,
-                    blacklisted BOOLEAN DEFAULT 0,
-                    blacklist_reason TEXT,
-                    additional_info TEXT
-                    )'''
+        with cls._lock:
+            try:
+                _create_table_leases_statement = f"""
+                        CREATE TABLE IF NOT EXISTS leases (
+                            mac TEXT PRIMARY KEY,
+                            ip TEXT NOT NULL,
+                            hostname TEXT DEFAULT 'unknown',
+                            timestamp INTEGER NOT NULL,
+                            expiry_time INTEGER NOT NULL,
+                            type TEXT DEFAULT 'dynamic')
+                        """
+                cls._cursor.execute(_create_table_leases_statement)
+                cls._conn.commit()
+                dhcp_logger.debug("Leases DB initialized")
 
-                self.db_cursor.execute(sql_statement_create_table_leases)
-                self.db_cursor.execute(sql_statement_create_table_client_interactions)
-                self.db_connection.commit()
-                dhcp_logger.debug("SQLite database for leases initialized.")
+            except Exception as err:
+                dhcp_logger.error(f"Failed to initialize in-memory SQLite database: {str(err)}")
 
-        except Exception as e:
-            dhcp_logger.error(f"Failed to initialize in-memory SQLite database: {e}")
-
-    def add_lease(self, mac: str, ip: str, hostname: str, lease_time: int = 14*24*60*60, lease_type: str = 'dynamic') -> None:
+    @classmethod
+    def add_lease(cls, mac: str, ip: str, hostname: str = 'unknown', lease_time: int = DEFAULT_LEASE_TIME, lease_type: str = 'dynamic') -> None:
         """Insert a new lease into the database."""
 
         try:
-            with self.lock, self.db_connection:
+            with cls._lock:
 
                 current_time = int(time.time())
                 expiry_time = int(current_time + lease_time)
 
-                sql_statement = '''
-                    INSERT OR REPLACE INTO leases (mac, ip, hostname, timestamp, expiry_time, type)
+                _statement = """
+                    INSERT OR REPLACE INTO
+                    leases (mac, ip, hostname, timestamp, expiry_time, type)
                     VALUES (?, ?, ?, ?, ?, ?)
-                    '''
-                sql_statement_values = (mac, ip, hostname, current_time, expiry_time, lease_type)
-                self.db_connection.execute(sql_statement, sql_statement_values)
-                self.db_connection.commit()
+                    """
+                _values = (mac, ip, hostname, current_time, expiry_time, lease_type)
+                cls._cursor.execute(_statement, _values)
+                cls._conn.commit()
 
                 dhcp_logger.debug(f"Added MAC:{mac} IP:{ip}")
 
         except Exception as e:
             dhcp_logger.error(f"Failed to add lease: {str(e)}")
 
-    def renew_lease(self, mac: str, lease_time: int = 7*24*60*60) -> None:
+    @classmethod
+    def renew_lease(cls, mac: str, lease_time: int = DEFAULT_LEASE_TIME) -> None:
         """Renew an existing lease by updating its expiry time."""
         try:
-            with self.lock, self.db_connection:
+            with cls._lock:
                 current_time = int(time.time())
                 expiry_time = int(current_time + lease_time)
-                sql_statement = '''
+                _statement = """
                     UPDATE leases
                     SET
                         expiry_time = ?,
                         timestamp = ?
                     WHERE mac = ?
-                '''
-                sql_values = (expiry_time, current_time, mac)
-                result = self.db_connection.execute(sql_statement, sql_values)
-                self.db_connection.commit()
+                """
+                _values = (expiry_time, current_time, mac)
+                _result = cls._cursor.execute(_statement, _values)
+                cls._conn.commit()
 
-                if result.rowcount == 0:
+                if _result.rowcount == 0:
                     dhcp_logger.warning(f"DB => Cannot renew lease, no existing lease found for MAC {mac}")
                 else:
                     dhcp_logger.debug(f"DB => renewed:{mac} new expiry:{expiry_time})")
@@ -605,182 +465,161 @@ class DHCPStorage:
         except Exception as e:
             dhcp_logger.error(f"Failed to renew lease for {mac}: {e}")
 
-    def get_lease_by_mac(self, mac: str) -> tuple | None:
+    @classmethod
+    def get_lease_by_mac(cls, mac: str) -> tuple | None:
         """Get the IP address assigned to a given MAC address."""
         try:
-            with self.lock, self.db_connection:
-                sql_statement = 'SELECT * FROM leases WHERE mac = ?'
-                sql_values = (mac,)
-                cursor = self.db_connection.execute(sql_statement, sql_values)
-                result = cursor.fetchone()
-                return result  # None if not found
+            with cls._lock:
+                _statement = 'SELECT * FROM leases WHERE mac = ?'
+                _values = (mac,)
+                cls._cursor.execute(_statement, _values)
+                return cls._cursor.fetchone()
 
         except Exception as e:
             dhcp_logger.error(f"Failed to get lease for {mac}: {e}")
             return None
 
-    def get_mac_by_ip(self, ip: str) -> str:
+    @classmethod
+    def get_mac_by_ip(cls, ip: str) -> str | None:
         """Get the MAC address assigned to a given IP address."""
         try:
-            with self.lock, self.db_connection:
-                sql_statement = 'SELECT mac FROM leases WHERE ip = ?'
-                sql_values = (ip,)
-                cursor = self.db_connection.execute(sql_statement, sql_values)
-                result = cursor.fetchone()
+            with cls._lock:
+                _statement = 'SELECT mac FROM leases WHERE ip = ?'
+                _value = (ip,)
+                cls._cursor.execute(_statement, _value)
+                result = cls._cursor.fetchone()
                 return result[0] if result else None
 
         except Exception as e:
             dhcp_logger.error(f"Failed to get lease for {ip}: {e}")
             return None
 
-    def get_all_leased_ips(self) -> set:
+    @classmethod
+    def get_all_leased_ips(cls) -> set:
         """Get a list of currently leased IPs."""
         try:
-            with self.db_connection:
+            with cls._lock:
 
-                sql_statement = 'SELECT ip FROM leases'
-                cursor = self.db_connection.execute(sql_statement)
-                result = cursor.fetchall()
-                leases_by_ip = {lease[0] for lease in result}
-                return leases_by_ip
-
-                # fetchall() returns a list of tuples. Each tuple contains the value(s) of the selected column(s).
-                # Since we're only selecting 'ip', each row is a tuple with one element, e.g., [('192.168.1.10',), ('192.168.1.11',)]
-                # lease[0] is used to extract the single value from each tuple (the IP in this case).
+                cls._cursor.execute('SELECT ip FROM leases')
+                _result = cls._cursor.fetchall()
+                return {lease[0] for lease in _result}
 
         except Exception as e:
             dhcp_logger.error(f"Failed to get active leases: {e}")
             return set()
 
-    def get_all_leases(self) -> list:
+    @classmethod
+    def get_all_leases(cls) -> list:
         """Get all leases"""
-        try:
-            with self.lock, self.db_connection:
-                sql_statment = 'SELECT * FROM leases'
-                cursor = self.db_connection.execute(sql_statment)
-                result = cursor.fetchall()
-                return result
-        except Exception as e:
-            dhcp_logger.error(f"Failed to get active leases: {e}")
-            return []
 
-    def get_active_lease_count(self) -> int:
-        """Return the number of active leases."""
-        try:
-            with self.lock, self.db_connection:
-                sql_statement = 'SELECT COUNT(*) FROM leases'
-                cursor = self.db_connection.execute(sql_statement)
-                count = cursor.fetchone()[0]
-                return count
-        except Exception as e:
-            dhcp_logger.error(f"Failed to get active lease count: {e}")
-            return 0
+        with cls._lock:
+            try:
+                cls._cursor.execute('SELECT * FROM leases')
+                return cls._cursor.fetchall()
 
-    def is_ip_pool_full(self) -> list:
-        """Check if the lease pool is exhausted."""
-        try:
-            with self.lock, self.db_connection:
-                max_pool_size = 253
-                sql_statement = 'SELECT COUNT(*) FROM leases'
-                cursor = self.db_connection.execute(sql_statement)
-                leases = cursor.fetchone()[0]
-                if leases > max_pool_size:
-                    return True
-                return False
+            except Exception as e:
+                dhcp_logger.error(f"Failed to get active leases: {e}")
+                return []
 
-        except Exception as e:
-            dhcp_logger.error(f"Error checking lease pool count: {e}")
-            return False
-
-    def remove_lease_by_mac(self, mac: str) -> None:
+    @classmethod
+    def remove_lease_by_mac(cls, mac: str):
         """Remove a lease from the database."""
-        try:
-            with self.lock, self.db_connection:
-                sql_statement = 'DELETE FROM leases WHERE mac = ?'
-                sql_values = (mac,)
-                result = self.db_connection.execute(sql_statement, sql_values)
-                self.db_connection.commit()
 
-                if result.rowcount == 0:
+        with cls._lock:
+            try:
+                _statement = 'DELETE FROM leases WHERE mac = ?'
+                _values = (mac,)
+                _result = cls._cursor.execute(_statement, _values)
+                cls._conn.commit()
+
+                if _result.rowcount == 0:
                     dhcp_logger.debug(f"DB -> Lease not found for MAC:{mac}, no deletion occured")
                 else:
-                    dhcp_logger.debug(f"DB -> Removed {result.rowcount} lease(s) for MAC:{mac}")
-        except Exception as e:
-            dhcp_logger.error(f"DB -> failed to remove lease: {e}")
+                    dhcp_logger.debug(f"DB -> Removed {_result.rowcount} lease(s) for MAC:{mac}")
 
-    def remove_leases_by_mac(self, macs: set) -> None:
+            except Exception as e:
+                dhcp_logger.error(f"DB -> failed to remove lease: {e}")
+
+    @classmethod
+    def remove_leases_by_mac(cls, macs: set):
         """Remove multiple leases from the database based on a set of MAC addresses."""
-        try:
 
-            if not macs:
-                return
+        if not macs:
+            return
 
-            with self.lock, self.db_connection:
+        with cls._lock:
+            try:
+                _value = tuple(macs)
+                _statement = f"""
+                    DELETE
+                    FROM leases
+                    WHERE mac IN ({",".join(["?"] * len(_value))})"""
 
-                sql_value = tuple(macs)
-                sql_statement_list_of_mac_placeholdes = ",".join(["?"] * len(sql_value))
+                _result = cls._cursor.execute(_statement, _value)
+                cls._conn.commit()
 
-                sql_statement = f"""
-                DELETE
-                FROM leases
-                WHERE mac IN ({sql_statement_list_of_mac_placeholdes})"""
-
-                result = self.db_connection.execute(sql_statement, sql_value)
-                self.db_connection.commit()
-
-                if result.rowcount == 0:
+                if _result.rowcount == 0:
                     dhcp_logger.debug(f"DB -> No matching leases found for removal. MACs: {str(macs)}")
                 else:
-                    dhcp_logger.debug(f"DB -> Deleted {result.rowcount} lease(s). Removed MACs: {set(macs)}")
-        except Exception as e:
-            dhcp_logger.error(f"DB -> failed to remove leases: {e}")
+                    dhcp_logger.debug(f"DB -> Deleted {_result.rowcount} lease(s). Removed MACs: {set(macs)}")
+            except Exception as e:
+                dhcp_logger.error(f"DB -> failed to remove leases: {e}")
 
-    def remove_expired_leases(self) -> None:
+    @classmethod
+    def remove_expired_leases(cls):
         """Remove expired leases."""
-        try:
+
+        with cls._lock:
+
             dhcp_logger.debug(f"Checking for expired leases ...")
-            with self.lock, self.db_connection:
+            try:
                 current_time = int(time.time())
 
-                sql_statement = "DELETE FROM leases WHERE expiry_time < ?"
-                sql_value = (current_time,)
+                _statement = "DELETE FROM leases WHERE expiry_time < ?"
+                _value = (current_time,)
 
-                self.db_connection.execute(sql_statement, sql_value)
-                self.db_connection.commit()
+                cls._cursor.execute(_statement, _value)
+                cls._conn.commit()
 
-                deleted_leases = self.db_connection.total_changes
-
+                deleted_leases = cls._conn.total_changes
                 dhcp_logger.debug(f"Found/deleted {deleted_leases} expired leases")
-        except Exception as e:
-            dhcp_logger.error(f"Error during lease cleanup: {e}")
 
-    def remove_inactive_leases(self) -> list:
-        """
-        Delete non-active leases from the database.    
-        This function does not use explicit locks as the underlying methods (get_all_leases and remove_leases_by_mac) handle locking internally.
-        It removes leases where the associated client is not responding to ARP requests.
-        """
+            except Exception as e:
+                dhcp_logger.error(f"Error during lease cleanup: {e}")
 
-        try:
-            config = Config.get_config()
-            interface = config.get("interface")
-            source_ip = config.get("server_ip")
-            source_mac = config.get("server_mac")
+    @classmethod
+    def service_lease_cleaner(cls) -> list:
+        while cls._running:
+            with cls._lock:
+                try:
 
-            active_leases = self.get_all_leases()
-            active_clients = DHCPUtilities.discover_clients_via_arp(interface=interface, source_ip=source_ip, source_mac=source_mac)
+                    cls.remove_expired_leases()
 
-            macs_to_be_removed = set()
+                    _active_leases = cls.get_all_leases()
+                    _active_leases_macs = {lease[0] for lease in _active_leases}
+                    _active_clients: dict = DHCPUtilities.discover_clients_via_arp()
+                    _macs_to_be_removed = set()
 
-            for lease_mac, lease_ip, *reset_items in active_leases:
-                if lease_mac not in active_clients:
-                    macs_to_be_removed.add(lease_mac)
+                    for _active_lease_mac in _active_leases_macs:
+                        if _active_lease_mac not in _active_clients:
+                            _macs_to_be_removed.add(_active_lease_mac)
 
-            if macs_to_be_removed:
-                self.remove_leases_by_mac(macs_to_be_removed)
+                    if _macs_to_be_removed:
+                        cls.remove_leases_by_mac(_macs_to_be_removed)
+                        dhcp_logger.info(f"Removed leases for MACs: {_macs_to_be_removed}")
 
-        except Exception as e:
-            dhcp_logger.error(f"Error during dead lease removal: {e}")
+                    for _active_client_mac, _active_client_ip in _active_clients.items():
+                        if _active_client_mac not in _active_leases_macs:
+                            cls.add_lease(
+                                mac=_active_client_mac,
+                                ip=_active_client_ip,
+                                lease_type='static'
+                            )
+
+                except Exception as e:
+                    dhcp_logger.error(f"Error during dead lease removal: {e}")
+
+            time.sleep(LEASE_CLEANER_PERIOD)
 
 
 class DHCPServer:
@@ -788,7 +627,6 @@ class DHCPServer:
         self._running = True
         self.lock = RLock()
         self.leased_ips = {}
-        self.lease_db = DHCPStorage()
         self.denied_ips = {}
         self._threads = {}
         self._inbound_packet_buffer_queue = queue.Queue(maxsize=100)
@@ -798,7 +636,7 @@ class DHCPServer:
     def _initialize_config(self) -> None:
         """Load DHCP configuration from the config file."""
         try:
-            with open(DHCP_CONFIG_FULLPATH, "r") as file_handle:
+            with open(CONFIG_FULLPATH, "r") as file_handle:
                 _config = json.load(file_handle)
                 self._interface = _config.get("interface")
                 self._own_ip = _config.get("server_ip")
@@ -814,15 +652,14 @@ class DHCPServer:
                 self._rebinding_time = int(self._lease_time * 0.875)
                 self._renewal_time = int(self._lease_time * 0.5)
                 self._mtu = int(_config.get("mtu"))
-                self._dhcp_ports = _config.get("dhcp_ports")
-                dhcp_logger.debug(
-                    f"Serving from {self._own_ip}:{self._dhcp_ports["server"]} {self._own_subnet} {self._own_mac}")
+                self._dhcp_port = _config.get("dhcp_port")
+
         except Exception as err:
             dhcp_logger.error(f"Failed to load DHCP config: {str(err)}")
 
-    def _helper_init_denied_ips_of_client_mac_if_required(self, source_mac: str):
-        if source_mac not in self.denied_ips:
-            self.denied_ips[source_mac] = set()
+    def _init_denied_ips_by_client(self, packet: Ether):
+        if packet[Ether].src not in self.denied_ips:
+            self.denied_ips[packet[Ether].src] = set()
 
     def _helper_get_dhcp_bootp_options(self, client_mac: str, transaction_id: int, your_ip: str) -> dict:
         return {
@@ -834,80 +671,84 @@ class DHCPServer:
             "flags": 0x8000
         }
 
-    def _helper_get_ntp_server_ip(self, ntp_server_url: str) -> str:
+    def _resolve_url_to_ip(self, ntp_server_url: str) -> str:
+
         try:
             return socket.gethostbyname(ntp_server_url)
+
         except socket.gaierror:
             dhcp_logger.warning(f"Failed to resolve NTP server: {ntp_server_url}")
             return self._router_ip
 
-    def _helper_get_dhcp_options(self, dhcp_type: str, message: str) -> list:
+    def _get_dhcp_options(self, dhcp_type: str, message: str) -> list:
 
-        ntp_server_ip = self._helper_get_ntp_server_ip(self._ntr_server)
+        _ntp_server_ip = self._resolve_url_to_ip(self._ntr_server)
 
-        if dhcp_type == 'DHCPNAK':
+        if dhcp_type == 'NAK':
             return [
                 ("message-type", 6),
                 ("server_id", self._own_ip),
                 ("error_message", message),
                 "end"
             ]
-        elif dhcp_type == 'DHCPACK':
+
+        if dhcp_type == 'ACK':
             return [
                 ("message-type", 5),
                 ("subnet_mask", self._own_subnet),
                 ("router", self._router_ip),
                 ("name_server", self._dns_server),
-                ("NTP_server", ntp_server_ip),
-                ("lease_time", self._lease_time),
+                ("NTP_server", _ntp_server_ip),
                 ("server_id", self._own_ip),
+                ("lease_time", self._lease_time),
                 ("renewal_time", self._renewal_time),
                 ("rebinding_time", self._rebinding_time),
-                ("interface-mtu",  self._mtu),
-                ("error_message", message),
+                ("interface-mtu", self._mtu),
                 "end"
             ]
-        elif dhcp_type == 'DHCPOFFER':
+
+        if dhcp_type == 'OFFER':
             return [
                 ("message-type", 2),
-                ("subnet_mask", self._own_subnet),
                 ("router", self._router_ip),
-                ("name_server", self._dns_server),
-                ("NTP_server", ntp_server_ip),
-                ("lease_time", self._lease_time),
                 ("server_id", self._own_ip),
+                ("name_server", self._dns_server),
+                ("subnet_mask", self._own_subnet),
+                ("NTP_server", _ntp_server_ip),
+                ("lease_time", self._lease_time),
                 ("renewal_time", self._renewal_time),
                 ("rebinding_time", self._rebinding_time),
-                ("interface-mtu",  self._mtu),
                 ("max_dhcp_size", self._mtu),
+                ("interface-mtu", self._mtu),
                 ("param_req_list", [12, 43, 60, 61, 81]),
-                ("error_message", message),
                 "end"
             ]
-        raise ValueError("DHCP Option couldn't be calculated")
 
-    def _build_dhcp_response(self, dhcp_type: str, your_ip: str = "0.0.0.0", message: str = "not provided", request_packet: Ether = None) -> DHCP:
+        raise ValueError(f"DHCP Option couldn't be calculated provided:{dhcp_type}")
+
+    def _build_dhcp_response(self, dhcp_type: str, your_ip: str, message: str, request_packet: Ether) -> DHCP:
         """Builds a DHCP packet for the given client."""
 
         bootp_options = {
             "op": 2,
             "xid": request_packet[BOOTP].xid,
             "chaddr": request_packet[BOOTP].chaddr[:6] + b"\x00" * 10,  # 16 bytes last 10 are padded with 00
-            "yiaddr": your_ip if your_ip else "0.0.0.0",
+            "yiaddr": your_ip,
             "siaddr": self._own_ip,
-            "flags": 0x8000
+            "flags": BOOTP_FLAG_BROADCAST
         }
-        dhcp_options: list[tuple] = self._helper_get_dhcp_options(dhcp_type=dhcp_type, message=message)
+
+        dhcp_options: list[tuple] = self._get_dhcp_options(dhcp_type=dhcp_type, message=message)
 
         return (
-            Ether(src=self._own_mac, dst='ff:ff:ff:ff:ff:ff') /
-            IP(src=request_packet[IP].dst, dst="255.255.255.255") /
-            UDP(sport=request_packet[UDP].dport, dport=request_packet[UDP].sport) /
+            Ether(src=self._own_mac, dst=BROADCAST_MAC) /
+            IP(src=self._own_ip, dst=BROADCAST_IP) /
+            UDP(sport=self._dhcp_port, dport=request_packet[UDP].sport) /
             BOOTP(**bootp_options) /
             DHCP(options=dhcp_options)
         )
 
-    def _send_dhcp_packet(self, packet: Ether, dhcp_type: str = ''):
+    def _send_dhcp_packet(self, packet: Ether):
         """Send a DHCP packet on the configured interface."""
 
         dhcp_type = DHCPUtilities.extract_dhcp_type_from_packet(packet)
@@ -919,15 +760,6 @@ class DHCPServer:
             f"Send {dhcp_type_string} XID {packet[BOOTP].xid} CHADDR {":".join([f"{_each_char:02x}" for _each_char in packet[BOOTP].chaddr[:6]])}")
         scapy.sendp(packet, iface=self._interface, verbose=False)
 
-    def _log_dhcp_packet_details(self, packet: Ether) -> None:
-        """Logs details of a DHCP packet."""
-
-        dhcp_type = DHCPUtilities.extract_dhcp_type_from_packet(packet)
-        dhcp_type_string = DHCPUtilities.convert_dhcp_lease_to_string(dhcp_type)
-
-        Stats.increment("received_total")
-        Stats.increment(f"received_{dhcp_type_string}")
-
     def _find_available_ip(self, packet: Ether) -> str:
         """Find the next available IP, avoiding specified exclusions"""
 
@@ -935,13 +767,9 @@ class DHCPServer:
 
             start_ip = ipaddress.IPv4Address(self._server_ip_range_start)
             end_ip = ipaddress.IPv4Address(self._server_ip_range_end)
-            leased_ips = self.lease_db.get_all_leased_ips()
+            leased_ips = DHCPStorage.get_all_leased_ips()
 
-            discovered_clients = DHCPUtilities.discover_clients_via_arp(
-                interface=self._interface,
-                source_ip=self._own_ip,
-                source_mac=self._own_mac
-            )
+            discovered_clients = DHCPUtilities.discover_clients_via_arp()
 
             for _ip in range(int(start_ip), int(end_ip) + 1):
                 _proposed_ip = str(ipaddress.IPv4Address(_ip))
@@ -952,30 +780,115 @@ class DHCPServer:
                 ):
                     continue
 
-                dhcp_logger.debug(f"Proposing IP:{_proposed_ip}, {'Leased IPs: ' + str(leased_ips) if leased_ips else ''}")
-                return _proposed_ip
+                is_ip_active, _ = DHCPUtilities.discover_client_via_arp(
+                    ip=_proposed_ip,
+                    iface=self._interface,
+                    source_ip=self._own_ip,
+                    source_mac=self._own_mac,
+                    timeout=0.75
+                )
+                dhcp_logger.debug(f"{_proposed_ip} available")
+
+                if not is_ip_active:
+                    dhcp_logger.debug(f"Proposing IP => {_proposed_ip}")
+                    return _proposed_ip
+                else:
+                    continue
 
         dhcp_logger.warning(f"No available IPs found")
         return None
 
-    def _handle_dhcp_request(self, packet: DHCP) -> None:
+    def _handle_dhcp_decline(self, packet: Ether) -> None:
+        """Handles DHCP Decline messages (RFC 2131, Section 4.3.2)"""
+
+        source_mac = packet[Ether].src
+        transaction_id = packet[BOOTP].xid
+        declined_ip = DHCPUtilities.extract_requested_addr_from_dhcp_packet(packet)
+
+        dhcp_logger.info(f"DHCPDECLINE XID:{transaction_id} MAC:{source_mac} Declined IP:{declined_ip}")
+
+        with self.lock:
+
+            existing_lease = DHCPStorage.get_lease_by_mac(source_mac)
+            self.denied_ips[source_mac].add(declined_ip)
+
+            # Case 1: The client has a lease and it is for the declined IP
+            if existing_lease and existing_lease[1] == declined_ip:
+                dhcp_logger.debug(f"Client MAC:{source_mac} declined IP:{declined_ip}, removing lease from database")
+                DHCPStorage.remove_lease_by_mac(source_mac)
+            else:
+                # Case 2: The client declined the IP and doesnt have active lease
+                dhcp_logger.debug(f"Client {source_mac} declined IP {declined_ip}, but no lease found")
+
+            server_response = self._build_dhcp_response(
+                dhcp_type="NAK",
+                your_ip="0.0.0.0",
+                message=f"IP {declined_ip} declined",
+                request_packet=packet
+            )
+            self._send_dhcp_packet(packet=server_response)
+
+    def _handle_dhcp_release(self, packet: Ether) -> None:
+        """DHCP Release (Section 4.4 of RFC 2131) sent by the client to release an IP address that it no longer needs"""
+
+        source_mac = packet[Ether].src
+        transaction_id = packet[BOOTP].xid
+        source_ip = packet[IP].src
+
+        dhcp_logger.info(f"DHCPRELEASE XID:{transaction_id} MAC:{source_mac} IP_src:{source_ip}")
+
+        with self.lock:
+
+            self.denied_ips[source_mac] = set()
+            DHCPStorage.remove_lease_by_mac(source_mac)
+
+            server_response = self._build_dhcp_response(
+                dhcp_type="ACK",
+                your_ip="0.0.0.0",
+                message=f"IP: {source_ip} released by MAC_src: {source_mac}",
+                request_packet=packet
+            )
+            self._send_dhcp_packet(server_response)
+
+    def _handle_dhcp_inform(self,  packet: Ether) -> None:
+        """DHCPINFORM (Section 3.3.2 of RFC 2131)"""
+
+        source_mac = packet[Ether].src
+        source_ip = packet[IP].src
+        transaction_id = packet[BOOTP].xid
+        param_req_list = DHCPUtilities.extract_client_param_req_list_from_dhcp_packet(packet)
+
+        dhcp_logger.info(f"DHCPINFORM MAC:{source_mac} XID:{transaction_id} Requested Parameters:{param_req_list}")
+
+        with self.lock:
+
+            server_response = self._build_dhcp_response(
+                dhcp_type="ACK",
+                transaction_id=transaction_id,
+                your_ip=source_ip,
+                message=f"Information provided",
+                request_packet=packet
+            )
+            self._send_dhcp_packet(server_response)
+
+    def _handle_dhcp_request(self, packet: Ether) -> None:
         """Handles DHCP Request messages (RFC 2131, Section 4.3)"""
 
         source_mac = packet[Ether].src
         transaction_id = packet[BOOTP].xid
         client_hostname = DHCPUtilities.extract_hostname_from_dhcp_packet(packet)
         requested_ip = DHCPUtilities.extract_requested_addr_from_dhcp_packet(packet)
-        client_ip = DHCPUtilities.extract_client_ip_address_from_dhcp_packet(packet)
+        client_ip = packet[BOOTP].ciaddr
 
-        dhcp_logger.info(f"DHCPREQUEST XID:{transaction_id} MAC:{source_mac} IP_requested:{requested_ip}")
+        dhcp_logger.info(f"REQUEST XID:{transaction_id} MAC:{source_mac} IP_requested:{requested_ip} Hostname:{client_hostname}")
 
         with self.lock:
             dhcp_type = None
             message = None
             your_ip = None
 
-            existing_lease = self.lease_db.get_lease_by_mac(source_mac)
-            lease_holder_mac = self.lease_db.get_mac_by_ip(requested_ip) if requested_ip else None
+            existing_lease = DHCPStorage.get_lease_by_mac(source_mac)
+            lease_holder_mac = DHCPStorage.get_mac_by_ip(requested_ip) if requested_ip else None
 
             # Ensure there's a valid IP to process (either 'requested_ip' or 'ciaddr')
             if requested_ip or client_ip:
@@ -991,55 +904,55 @@ class DHCPServer:
                 if is_ip_active and active_mac not in {source_mac, lease_holder_mac}:
                     dhcp_logger.debug(f"NAK (IP in use) MAC_src:{source_mac}, MAC_act:{active_mac}, MAC_leased:{lease_holder_mac}")
                     # self.denied_ips[source_mac].add(ip_to_validate)
-                    dhcp_type, message, your_ip = "DHCPNAK", "Requested IP already in use", "0.0.0.0"
+                    dhcp_type, message, your_ip = "NAK", "Requested IP already in use", "0.0.0.0"
 
                 # Case 2: Client in INIT-REBOOT requesting a previously assigned IP
                 elif not is_ip_active and existing_lease and existing_lease[1] == ip_to_validate:
                     dhcp_logger.debug(f"ACK (INIT-REBOOT) Reassigning existing lease IP:{ip_to_validate} to MAC:{source_mac}")
-                    self.lease_db.add_lease(
+                    DHCPStorage.add_lease(
                         mac=source_mac,
                         ip=ip_to_validate,
                         hostname=client_hostname,
                         lease_time=self._lease_time)
-                    dhcp_type, message, your_ip = "DHCPACK", "Existing lease reassigned", ip_to_validate
+                    dhcp_type, message, your_ip = "ACK", "Existing lease reassigned", ip_to_validate
 
                 # Case 3: Client in RENEWING/REBINDING requesting the same IP
                 elif is_ip_active and active_mac == source_mac and lease_holder_mac == source_mac:
                     dhcp_logger.debug(f"ACK (Lease Renewal) IP:{ip_to_validate} MAC:{source_mac}")
-                    self.lease_db.add_lease(
+                    DHCPStorage.add_lease(
                         mac=source_mac,
                         ip=ip_to_validate,
                         hostname=client_hostname,
                         lease_time=self._lease_time)
-                    dhcp_type, message, your_ip = "DHCPACK", "Lease renewed", ip_to_validate
+                    dhcp_type, message, your_ip = "ACK", "Lease renewed", ip_to_validate
 
                 # Case 4: No existing lease, and IP is free
                 elif not is_ip_active and not lease_holder_mac:
                     dhcp_logger.debug(f"ACK (New lease) Assigning IP:{ip_to_validate} to MAC:{source_mac}")
-                    self.lease_db.add_lease(
+                    DHCPStorage.add_lease(
                         mac=source_mac,
                         ip=ip_to_validate,
                         hostname=client_hostname,
                         lease_time=self._lease_time)
-                    dhcp_type, message, your_ip = "DHCPACK", "New lease assigned", ip_to_validate
+                    dhcp_type, message, your_ip = "ACK", "New lease assigned", ip_to_validate
 
                 # Case 5: Client Requests an IP Outside the Subnet
-                elif not DHCPUtilities._is_ip_in_subnet(ip_to_validate):
+                elif not DHCPUtilities.is_ip_in_subnet(ip_to_validate):
                     dhcp_logger.debug(f"NAK (IP outside subnet) Requested IP:{ip_to_validate} is not in allowed range")
                     # self.denied_ips[source_mac].add(ip_to_validate)
-                    dhcp_type, message, your_ip = "DHCPNAK", "Requested IP is outside the subnet", "0.0.0.0"
+                    dhcp_type, message, your_ip = "NAK", "Requested IP is outside the subnet", "0.0.0.0"
 
                 # Case 6: Client Requests a Different IP Than Its Current Lease (`ciaddr`)
                 elif existing_lease and ip_to_validate != existing_lease[1]:
                     dhcp_logger.debug(
                         f"DHCPNAK discovery required Existing:{existing_lease[1]} -> New:{ip_to_validate} for MAC:{source_mac}")
-                    dhcp_type, message, your_ip = "DHCPNAK", "DHCPDISCOVER first", "0.0.0.0"
+                    dhcp_type, message, your_ip = "NAK", "DHCPDISCOVER first", "0.0.0.0"
 
                 else:
                     # Default rejection case
                     dhcp_logger.debug(f"NAK (Default) IP:{ip_to_validate} MAC_src:{source_mac} MAC_leased:{lease_holder_mac}")
                     # self.denied_ips[source_mac].add(ip_to_validate)
-                    dhcp_type, message, your_ip = "DHCPNAK", f"Could not fulfill DHCPREQUEST for IP {ip_to_validate}", "0.0.0.0"
+                    dhcp_type, message, your_ip = "NAK", f"Could not fulfill DHCPREQUEST for IP {ip_to_validate}", "0.0.0.0"
 
             else:
                 # Case 7: No IP requested and 'ciaddr' missing
@@ -1053,132 +966,60 @@ class DHCPServer:
                 request_packet=packet
             )
 
-            self._send_dhcp_packet(packet=server_response, dhcp_type=dhcp_type)
-
-    def _handle_dhcp_decline(self, packet: DHCP) -> None:
-        """Handles DHCP Decline messages (RFC 2131, Section 4.3.2)"""
-
-        source_mac = DHCPUtilities.extract_source_mac_from_ethernet_packet(packet)
-        transaction_id = DHCPUtilities.extract_transaction_id_from_dhcp_packet(packet)
-        declined_ip = DHCPUtilities.extract_requested_addr_from_dhcp_packet(packet)
-
-        dhcp_logger.info(f"DHCPDECLINE XID:{transaction_id} MAC:{source_mac} Declined IP:{declined_ip}")
-
-        with self.lock:
-
-            existing_lease = self.lease_db.get_lease_by_mac(source_mac)
-            self.denied_ips[source_mac].add(declined_ip)
-
-            # Case 1: The client has a lease and it is for the declined IP
-            if existing_lease and existing_lease[1] == declined_ip:
-                dhcp_logger.debug(f"Client MAC:{source_mac} declined IP:{declined_ip}, removing lease from database")
-                self.lease_db.remove_lease_by_mac(source_mac)
-            else:
-                # Case 2: The client declined the IP and doesnt have active lease
-                dhcp_logger.debug(f"Client {source_mac} declined IP {declined_ip}, but no lease found")
-
-            dhcp_type = "DHCPNAK"
-            message = f"IP {declined_ip} was declined by client"
-
-            server_response = self._build_dhcp_response(
-                dhcp_type=dhcp_type,
-                your_ip="0.0.0.0",
-                message=message,
-                request_packet=packet
-            )
-            self._send_dhcp_packet(packet=server_response, dhcp_type=dhcp_type)
-
-    def _handle_dhcp_release(self, packet: DHCP) -> None:
-        """DHCP Release (Section 4.4 of RFC 2131) sent by the client to release an IP address that it no longer needs"""
-
-        source_mac = DHCPUtilities.extract_source_mac_from_ethernet_packet(packet)
-        transaction_id = DHCPUtilities.extract_transaction_id_from_dhcp_packet(packet)
-        source_ip = DHCPUtilities.extract_source_ip_from_ethernet_packet(packet)
-
-        dhcp_logger.info(f"DHCPRELEASE XID:{transaction_id} MAC:{source_mac} IP_src:{source_ip}")
-
-        with self.lock:
-
-            self.denied_ips[source_mac] = set()
-            self.lease_db.remove_lease_by_mac(source_mac)
-
-            dhcp_type = "DHCPACK"
-            message = f"IP: {source_ip} released by MAC_src: {source_mac}"
-
-            server_response = self._build_dhcp_response(
-                dhcp_type=dhcp_type,
-                your_ip="0.0.0.0",
-                message=message,
-                request_packet=packet
-            )
-            self._send_dhcp_packet(packet=server_response, dhcp_type=dhcp_type)
-
-    def _handle_dhcp_inform(self,  packet: DHCP) -> None:
-        """DHCPINFORM (Section 3.3.2 of RFC 2131)"""
-
-        source_mac = DHCPUtilities.extract_source_mac_from_ethernet_packet(packet)
-        source_ip = DHCPUtilities.extract_source_ip_from_ethernet_packet(packet)
-        transaction_id = DHCPUtilities.extract_transaction_id_from_dhcp_packet(packet)
-        param_req_list = DHCPUtilities.extract_client_param_req_list_from_dhcp_packet(packet)
-
-        dhcp_logger.info(f"DHCPINFORM MAC:{source_mac} XID:{transaction_id} Requested Parameters:{param_req_list}")
-
-        with self.lock:
-
-            dhcp_type = "DHCPACK"
-            message = f"Information provided"
-
-            server_response = self._build_dhcp_response(
-                dhcp_type=dhcp_type,
-                transaction_id=transaction_id,
-                your_ip=source_ip,
-                message=message,
-                request_packet=packet
-            )
-            self._send_dhcp_packet(packet=server_response, dhcp_type=dhcp_type)
+            self._send_dhcp_packet(server_response)
 
     def _handle_dhcp_discover(self, packet: Ether) -> None:
         """Handles DHCPDISCOVER messages (RFC 2131, Section 4.1) sent by clients to discover DHCP servers."""
 
-        proposed_ip = self._find_available_ip(packet)
-        if not proposed_ip:
-            dhcp_logger.warning(f"No available IPs, ignoring request")
-            return
-
-        dhcp_logger.debug(f"DHCPDISCOVER XID:{packet[BOOTP].xid} MAC:{packet[Ether].src} IP_proposed:{proposed_ip}")
-
         with self.lock:
-            dhcp_type = "DHCPOFFER"
-            message = "offer_ip"
-            server_response = self._build_dhcp_response(
-                dhcp_type=dhcp_type,
+
+            proposed_ip = self._find_available_ip(packet)
+            if not proposed_ip:
+                dhcp_logger.warning(f"No available IPs, ignoring request")
+                return
+
+            dhcp_logger.debug(f"DISCOVER XID:{packet[BOOTP].xid} MAC:{packet[Ether].src} proposed IP:{proposed_ip}")
+
+            _response = self._build_dhcp_response(
+                dhcp_type="OFFER",
                 your_ip=proposed_ip,
-                message=message,
+                message="offer_ip",
                 request_packet=packet
             )
 
-            self._send_dhcp_packet(packet=server_response, dhcp_type=dhcp_type)
+            self._send_dhcp_packet(_response)
 
-    def _main_handler(self, packet: Ether):
+    def _log_inbound_packet(self, packet: Ether) -> None:
+        """Logs details of a DHCP packet."""
 
-        self._log_dhcp_packet_details(packet)
-        self._helper_init_denied_ips_of_client_mac_if_required(source_mac=packet[Ether].src)
+        dhcp_type = DHCPUtilities.extract_dhcp_type_from_packet(packet)
+        dhcp_type_string = DHCPUtilities.convert_dhcp_lease_to_string(dhcp_type)
 
-        if DHCPUtilities.is_dhcp_discover(packet):
-            self._handle_dhcp_discover(packet)
-        elif DHCPUtilities.is_dhcp_request(packet):
-            self._handle_dhcp_request(packet)
-        elif DHCPUtilities.is_dhcp_decline(packet):
-            self._handle_dhcp_decline(packet)
-        elif DHCPUtilities.is_dhcp_release(packet):
-            self._handle_dhcp_release(packet)
-        elif DHCPUtilities.is_dhcp_inform(packet):
-            self._handle_dhcp_inform(packet)
-        else:
-            dhcp_logger.warning(f'DHCP type unknown')
+        Stats.increment("received_total")
+        Stats.increment(f"received_{dhcp_type_string}")
 
-        RabbitMqProducer.send_message({'timestamp': time.time(), 'type': 'statistics', 'payload': Stats.get_all_statistics()})
-        RabbitMqProducer.send_message({'timestamp': time.time(), 'type': 'dhcp-leases', 'payload': self.lease_db.get_all_leases()})
+    def _handle_inbound_dhcp_packet(self, packet: Ether):
+
+        with self.lock:
+
+            self._log_inbound_packet(packet)
+            self._init_denied_ips_by_client(packet)
+
+            if DHCPUtilities.is_dhcp_discover(packet):
+                self._handle_dhcp_discover(packet)
+            elif DHCPUtilities.is_dhcp_request(packet):
+                self._handle_dhcp_request(packet)
+            elif DHCPUtilities.is_dhcp_decline(packet):
+                self._handle_dhcp_decline(packet)
+            elif DHCPUtilities.is_dhcp_release(packet):
+                self._handle_dhcp_release(packet)
+            elif DHCPUtilities.is_dhcp_inform(packet):
+                self._handle_dhcp_inform(packet)
+            else:
+                dhcp_logger.warning(f'DHCP type unknown')
+
+            RabbitMqProducer.send_message({'timestamp': time.time(), 'type': 'statistics', 'payload': Stats.get_all_statistics()})
+            RabbitMqProducer.send_message({'timestamp': time.time(), 'type': 'dhcp-leases', 'payload': DHCPStorage.get_all_leases()})
 
     def service_queue_worker_processor(self) -> None:
 
@@ -1188,7 +1029,7 @@ class DHCPServer:
                 packet = self._inbound_packet_buffer_queue.get(timeout=0.5)
                 dhcp_logger.debug(f"{thread_name} processing XID {packet[BOOTP].xid}")
 
-                self._main_handler(packet)
+                self._handle_inbound_dhcp_packet(packet)
                 self._inbound_packet_buffer_queue.task_done()
                 dhcp_logger.debug(f"{thread_name} processing done")
                 time.sleep(0.1)
@@ -1198,7 +1039,7 @@ class DHCPServer:
 
             except Exception as err:
                 dhcp_logger.error(f"{thread_name} processing DHCP packet:{str(err)}")
-                # self._inbound_packet_buffer_queue.task_done()
+                self._inbound_packet_buffer_queue.task_done()
                 time.sleep(0.1)
 
     def _is_received_packet_valid(self, packet: Ether) -> bool:
@@ -1218,7 +1059,7 @@ class DHCPServer:
             if self._inbound_packet_buffer_queue.full():
                 raise queue.Full
 
-            key = (packet[Ether].src, packet[BOOTP].xid, int(time.time() // 10))
+            key = (packet[Ether].src, packet[BOOTP].xid)
             if key in self._inbound_packet_deduplication_queue:
                 return
 
@@ -1248,6 +1089,10 @@ class DHCPServer:
 
         self._running = True
 
+        Utilities.delete_dns_db_files()
+        Utilities.create_db()
+        DHCPStorage.init()
+
         traffic_listener = threading.Thread(target=self.service_traffic_listener, name="traffic_listener", daemon=True)
         traffic_listener.start()
         self._threads["traffic_listener"] = traffic_listener
@@ -1257,11 +1102,10 @@ class DHCPServer:
             queue_worker.start()
             self._threads[f"queue_worker_{i}"] = queue_worker
 
-        schedule_cleanup_dead_leases = Scheduler(interval=1*60*60, function=self.lease_db.remove_inactive_leases)
-        schedule_cleanup_dead_leases.start_schedule()
-
-        schedule_cleanup_expired_leases = Scheduler(interval=2*60*60, function=self.lease_db.remove_expired_leases)
-        schedule_cleanup_expired_leases.start_schedule()
+        service_lease_cleaner = threading.Thread(target=DHCPStorage.service_lease_cleaner,
+                                                 name="service_lease_cleaner", daemon=True)
+        service_lease_cleaner.start()
+        self._threads[f"service_lease_cleaner"] = service_lease_cleaner
 
         dhcp_logger.info("Started")
 

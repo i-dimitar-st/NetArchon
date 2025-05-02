@@ -4,7 +4,7 @@
     "server_mac": "18:c0:4d:46:f4:11",
     "server_cidr": "24",
     "server_port_dns": 53,
-    "upstream_ip": "94.140.14.15",
+    "upstream_ip": "9.9.9.9",
     "dns_cache_ttl": 300,
     "dns_ncache_ttl": 300
 }

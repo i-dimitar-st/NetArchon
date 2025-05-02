@@ -11,8 +11,5 @@
     "ntp_server": "pool.ntp.org",
     "lease_time": 1209600,
     "mtu": 1500,
-    "dhcp_ports": {
-        "server": 67,
-        "client": 68
-    }
+    "dhcp_port": 67
 }

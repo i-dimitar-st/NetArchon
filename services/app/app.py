@@ -24,6 +24,7 @@ app_logger.info('Started APP')
 
 ROOT_PATH = Path(__file__).resolve().parents[2]
 DNS_DB_PATH = ROOT_PATH / "db" / "dns.sqlite3"
+DHCP_DB_PATH = ROOT_PATH / "db" / "dhcp.sqlite3"
 DHCP_CONFIG_PATH = ROOT_PATH / "config" / "dhcp_config.json"
 DNS_CONFIG_PATH = ROOT_PATH / "config" / "dns_config.json"
 DNS_CONTROL_LIST = ROOT_PATH / "config" / "dns_control_list.json"
@@ -185,6 +186,30 @@ def get_dns_system_config() -> dict:
         return None
 
 
+def get_dhcp_leases() -> list:
+
+    try:
+        with sqlite3.connect(DHCP_DB_PATH) as conn:
+
+            cursor = conn.cursor()
+
+            cursor.execute("PRAGMA table_info(leases)")
+            columns: list[str] = [column[1] for column in cursor.fetchall()]
+
+            cursor.execute("SELECT * FROM leases")
+            leases: list[tuple] = cursor.fetchall()
+
+            result = []
+            for lease in leases:
+                result.append(dict(zip(columns, lease)))
+
+            return result
+
+    except Exception as e:
+        app_logger.error(f"Error: Failed to read {DNS_DB_PATH} - {e}")
+        return []
+
+
 def get_dns_history() -> list:
 
     try:
@@ -294,6 +319,7 @@ def update_dhcp_statistics(payload: dict = {}):
 
 
 def update_dhcp_leases(_leases: list = None):
+
     if _leases is None:
         _leases = []
 
@@ -439,7 +465,7 @@ def dhcp():
     return render_template(
         'dhcp.html',
         dhcp_statistics=copy.deepcopy(DHCP_STATISTICS),
-        dhcp_leases=copy.deepcopy(LEASES))
+        dhcp_leases=get_dhcp_leases())
 
 
 @app.route('/dns')
