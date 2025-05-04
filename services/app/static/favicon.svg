@@ -1,16 +1,17 @@
 <svg viewBox="0 0 100 100" xmlns="http://www.w3.org/2000/svg">
-  <!-- Shield base - scaled up by 30% from center -->
-  <path d="M50 3 L87 22 L87 50 C87 75 65 93 50 99 C35 93 13 75 13 50 L13 22 Z" fill="#0b5884"/>
+  <!-- Main blue energy body -->
+  <ellipse cx="50" cy="55" rx="25" ry="35" fill="#00a8ff"/>
   
-  <!-- Network nodes and connections - scaled up by 30% -->
-  <circle cx="50" cy="27" r="6.5" fill="#ffffff"/>
-  <circle cx="31" cy="50" r="6.5" fill="#ffffff"/>
-  <circle cx="69" cy="50" r="6.5" fill="#ffffff"/>
-  <circle cx="50" cy="73" r="6.5" fill="#ffffff"/>
+  <!-- Brighter inner core -->
+  <ellipse cx="50" cy="55" rx="15" ry="25" fill="#80d4ff"/>
   
-  <!-- Connection lines - thickness increased by 30% -->
-  <line x1="50" y1="27" x2="31" y2="50" stroke="#ffffff" stroke-width="2.6"/>
-  <line x1="50" y1="27" x2="69" y2="50" stroke="#ffffff" stroke-width="2.6"/>
-  <line x1="31" y1="50" x2="50" y2="73" stroke="#ffffff" stroke-width="2.6"/>
-  <line x1="69" y1="50" x2="50" y2="73" stroke="#ffffff" stroke-width="2.6"/>
+  <!-- Central white energy core -->
+  <circle cx="50" cy="55" r="8" fill="#ffffff"/>
+  
+  <!-- Simple energy crown/head shape -->
+  <path d="M50 20 Q60 30 60 40 Q50 35 40 40 Q40 30 50 20" fill="#00a8ff"/>
+  
+  <!-- Simple energy arcs -->
+  <path d="M35 40 Q50 30 65 40" stroke="#ffffff" stroke-width="2" fill="none"/>
+  <path d="M30 60 Q50 50 70 60" stroke="#ffffff" stroke-width="2" fill="none"/>
 </svg>

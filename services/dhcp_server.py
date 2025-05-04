@@ -1223,14 +1223,14 @@ class DHCPServer:
             _time = packet.time//DEDUPLICATION_TIME_BUFFER_SEC
 
             DHCPStatsStorage.increment(key="received_total")
-            with open("./logs/packets.log", "a", encoding="utf-8") as f:
+            with open("./logs/dhcp_packets.log", "a", encoding="utf-8") as f:
                 f.write(f"{packet.time:.4f} {_time} {packet[Ether].src} {packet[BOOTP].xid} {_dhcp_type} - RAW\n")
 
             key = (packet[Ether].src, packet[BOOTP].xid, _dhcp_type, _time)
             if key in self._inbound_packet_deduplication_queue:
                 return
 
-            with open("./logs/packets.log", "a", encoding="utf-8") as f:
+            with open("./logs/dhcp_packets.log", "a", encoding="utf-8") as f:
                 f.write(f"{packet.time:.4f} {_time} {packet[Ether].src} {packet[BOOTP].xid} {_dhcp_type} - OK\n")
 
             self._inbound_packet_deduplication_queue.appendleft(key)

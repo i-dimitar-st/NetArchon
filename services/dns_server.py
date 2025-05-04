@@ -32,7 +32,7 @@ DEFAULT_INTERFACE = 'eth0'
 DEFAULT_DNS_SERVER = '94.140.14.15'
 DEFAULT_DNS_SERVER_SECONDARY = '9.9.9.9'
 DEFAULT_DNS_SERVERS = ["1.1.1.1", "9.9.9.9", "94.140.14.15"]
-DEFAULT_DNS_TIMEOUT = 4
+DEFAULT_DNS_TIMEOUT = 5
 
 ROOT_PATH = Path(__file__).resolve().parents[1]
 CONFIG_PATH = ROOT_PATH / 'config'
@@ -64,6 +64,7 @@ DB_MAX_HISTORY_SIZE = 1500
 INBOUND_QUEUE_BUFFER_SIZE = 100
 INBOUND_QUEUE_BUFFER_LIMIT = 50
 INBOUND_REQUESTS_DEDUPLICATE_QUEUE_SIZE = 50
+DEDUPLICATION_TIME_BUFFER_SEC = 60
 INBOUND_PACKET_HIGH_LIMIT = 100
 
 WORKER_THROTTLE_TIMEOUT = 0.02
@@ -180,6 +181,7 @@ class DNSUtilities:
 
 
 class DNSCacheStorage:
+
     _lock = threading.RLock()
     _conn = None
     _cursor = None
@@ -344,6 +346,7 @@ class DNSCacheStorage:
 
 
 class DNSHistoryStorage:
+
     _lock = threading.RLock()
     _conn = None
     _cursor = None
@@ -440,6 +443,7 @@ class DNSHistoryStorage:
 
 
 class DNSStatsStorage:
+
     _lock = threading.RLock()
     _is_initialised = False
     _conn = None
@@ -468,6 +472,7 @@ class DNSStatsStorage:
                     id INTEGER PRIMARY KEY AUTOINCREMENT,
                     last_updated TEXT DEFAULT CURRENT_TIMESTAMP,
                     request_total INTEGER DEFAULT 0,
+                    request_total_valid INTEGER DEFAULT 0,
                     request_blacklisted INTEGER DEFAULT 0,
                     request_not_supported INTEGER DEFAULT 0,
                     request_type_a INTEGER DEFAULT 0,
@@ -545,9 +550,6 @@ class DNSStatsStorage:
 
 
 class DNSServer:
-    """
-    A DNS server that processes incoming DNS queries, caches responses, and forwards queries to upstream DNS servers.
-    """
 
     def __init__(self):
         """
@@ -590,7 +592,9 @@ class DNSServer:
             try:
                 with open(DNS_CONTROL_LIST_FULL_PATH, mode="r", encoding="utf-8") as file_handle:
                     _control_list = json.load(file_handle)
-                    _blacklist_new = set(_control_list.get("blacklist", []))
+                    _blacklist_urls = set(_control_list.get("blacklist", {}).get("urls", []))
+                    _blacklist_rules = set(_control_list.get("blacklist", {}).get("rules", []))
+                    _blacklist_new = _blacklist_urls | _blacklist_rules
                     _whitelist_new = set(_control_list.get("whitelist", []))
                     if _blacklist_new != self.BLACKLIST or _whitelist_new != self.WHITELIST:
                         self.BLACKLIST = _blacklist_new
@@ -726,7 +730,7 @@ class DNSServer:
 
         qtype = packet[DNS].qd.qtype
 
-        DNSStatsStorage.increment(key='request_total')
+        DNSStatsStorage.increment(key='request_total_valid')
 
         if self._is_query_blacklisted(packet):
             DNSStatsStorage.increment(key='request_blacklisted')
@@ -752,13 +756,13 @@ class DNSServer:
 
     def _is_query_blacklisted(self, packet: Ether) -> bool:
         decoded_query = packet[DNS].qd.qname.decode('utf-8').rstrip('.').lower()
-        for blacklist_rule_raw in self.BLACKLIST:
-            blacklist_rule = f"^{blacklist_rule_raw.strip().lower().replace('*', '.*')}$"
+        for _blacklist_rule_raw in self.BLACKLIST:
+            blacklist_rule = f"^{_blacklist_rule_raw.strip().lower().replace('*', '.*')}$"
             if re.search(blacklist_rule, decoded_query):
                 return True
         return False
 
-    def query_individual_dns_server(self, server_ip: str, packet: Ether) -> Optional[IP]:
+    def query_individual_dns_server(self, server_ip: str, packet: Ether) -> IP | None:
 
         try:
             response = scapy.sr1(
@@ -808,7 +812,7 @@ class DNSServer:
 
         for _server_ip, _server_response in _results.items():
             if not _server_response:
-                dns_logger.debug(f"{_server_ip} did not provide response")
+                dns_logger.debug(f"{_server_ip} no response")
                 continue
 
             for _index in range(_server_response[DNS].ancount):
@@ -817,14 +821,15 @@ class DNSServer:
                     _best_response, _best_server_ip = _server_response, _server_ip
 
         if not _best_response:
-            dns_logger.warning("No valid DNS response collected from any server")
+            dns_logger.warning("Weird none of the DNS servers provided valid responses")
             return None
 
         # for _index in range(_best_response[DNS].ancount):
         #     _best_response[DNS].an[_index].ttl = DEFAUT_CACHE_TTL
         #     print(_best_response[DNS].an[_index].ttl)
 
-        dns_logger.debug(f"Response from {_best_server_ip} TTL {_max_ttl} ({packet[DNS].qd.qname})")
+        # dns_logger.debug(f"Response from {_best_server_ip} TTL {_max_ttl} ({packet[DNS].qd.qname})")
+
         return _best_response
 
     def _query_external_dns_server(self, packet: Ether) -> IP | None:
@@ -899,7 +904,7 @@ class DNSServer:
 
         # DNSCacheStorage.add_to_negative_cache(query_name)
         DNSStatsStorage.increment(key='external_failure')
-        dns_logger.warning(f"[DNSQUERY] {query_name} timeout")
+        dns_logger.warning(f"{query_name} failed")
         return None
 
     def _handle_dns_request(self, packet: Ether):
@@ -936,7 +941,7 @@ class DNSServer:
                     self._send_packet(self._build_servfail_response(packet))
             return
 
-        dns_logger.error(f"Query: {packet[DNS].qd.qname} failed, likely timedout")
+        dns_logger.error(f"{packet[DNS].qd.qname} failed")
         self._send_packet(self._build_servfail_response(packet))
 
     def _validate_inbound_packet(self, packet: Ether) -> bool:
@@ -963,18 +968,28 @@ class DNSServer:
 
         try:
 
-            self._inbound_packet_timestamps.appendleft(time.time())
+            self._inbound_packet_timestamps.appendleft(packet.time)
 
             if not self._validate_inbound_packet(packet):
                 return
 
+            DNSStatsStorage.increment(key='request_total')
+
+            _time = packet.time // DEDUPLICATION_TIME_BUFFER_SEC
+
+            with open("./logs/dns_packets.log", "a", encoding="utf-8") as f:
+                f.write(f"{packet.time:.4f} {_time} {packet[Ether].src} {packet[DNS].id} {packet[DNS].qd} - RAW\n")
+
             if self._inbound_packet_buffer_queue.full():
                 raise queue.Full("DNS packet queue is full")
 
-            key = (packet[IP].src, packet[DNS].id)
+            key = (packet[IP].src, packet[DNS].id, packet[DNS].qd, _time)
 
             if key in self._inbound_packet_deduplication_queue:
                 return
+
+            with open("./logs/dns_packets.log", "a", encoding="utf-8") as f:
+                f.write(f"{packet.time:.4f} {_time} {packet[Ether].src} {packet[DNS].id} {packet[DNS].qd} - OK\n")
 
             self._inbound_packet_deduplication_queue.appendleft(key)
             self._inbound_packet_buffer_queue.put(packet)
