@@ -77,7 +77,7 @@ class Utilities:
         sqlite3.connect(DB_FULLPATH).close()
 
     @staticmethod
-    def delete_dns_db_files() -> None:
+    def delete_db_files() -> None:
         """Deletes files with given suffixes from the base path."""
 
         dhcp_logger.debug(f"Deleting DHCP DB files ...")
@@ -107,22 +107,6 @@ class Utilities:
         connection.execute(f"PRAGMA mmap_size = {DB_MMAP_SIZE}")
         connection.execute(f"PRAGMA auto_vacuum = {DB_AUTO_VACCUM}")
         return connection
-
-
-class Stats:
-    _stats = {}
-    _lock = RLock()
-
-    @classmethod
-    def increment(cls, key: str, value: int = 1) -> None:
-        """Increment a specific statistic counter."""
-        with cls._lock:
-            cls._stats[key] = cls._stats.get(key, 0) + value
-
-    @classmethod
-    def get_all_statistics(cls) -> dict:
-        """Retrieve all statistics."""
-        return cls._stats.copy()
 
 
 class RabbitMqProducer:
@@ -623,6 +607,95 @@ class DHCPStorage:
             time.sleep(LEASE_CLEANER_PERIOD)
 
 
+class DHCPStatsStorage:
+    _lock = threading.RLock()
+    _is_initialised = False
+    _conn = None
+    _cursor = None
+    _valid_columns = None
+
+    @classmethod
+    def init(cls):
+        """Initializes the class-level SQLite connection and cursor."""
+
+        if cls._is_initialised:
+            return
+
+        cls._conn = Utilities.enrich_connection(sqlite3.connect(**Utilities.get_connection_settings()))
+        cls._cursor = cls._conn.cursor()
+        cls._create_table()
+        cls._init_table()
+        cls._is_initialised = True
+        cls._valid_columns = set()
+
+    @classmethod
+    def _create_table(cls):
+        with cls._lock:
+            cls._cursor.execute("""
+                                CREATE TABLE IF NOT EXISTS stats (
+                                    id INTEGER PRIMARY KEY AUTOINCREMENT,
+                                    last_updated TEXT DEFAULT CURRENT_TIMESTAMP,
+                                    received_total INTEGER DEFAULT 0,
+                                    received_total_valid INTEGER DEFAULT 0,
+                                    received_discover INTEGER DEFAULT 0,
+                                    received_request INTEGER DEFAULT 0,
+                                    received_decline INTEGER DEFAULT 0,
+                                    received_release INTEGER DEFAULT 0,
+                                    received_inform INTEGER DEFAULT 0,
+                                    sent_total INTEGER DEFAULT 0,
+                                    sent_offer INTEGER DEFAULT 0,
+                                    sent_ack INTEGER DEFAULT 0,
+                                    sent_nak INTEGER DEFAULT 0
+                                )
+                                """)
+            cls._conn.commit()
+
+    @classmethod
+    def _init_table(cls):
+
+        with cls._lock:
+            cls._cursor.execute("DELETE FROM stats")
+            cls._cursor.execute("DELETE FROM sqlite_sequence WHERE name='stats'")
+            cls._cursor.execute("INSERT INTO stats (id) VALUES (1)")
+            cls._conn.commit()
+
+    @classmethod
+    def _is_key_valid(cls, key: str) -> bool:
+        """Validates that the key exists as a column in the `stats` table, and caches it if found."""
+
+        if not cls._valid_columns:
+            with cls._lock:
+                cls._cursor.execute("PRAGMA table_info(stats)")
+                columns_info = cls._cursor.fetchall()
+                cls._valid_columns.update({col[1] for col in columns_info})
+
+        return bool(key in cls._valid_columns)
+
+    @classmethod
+    def increment(cls, key: str, count: int = 1):
+
+        if not cls._is_key_valid(key):
+            dhcp_logger.warning(f"Invalid key: {key}")
+            return
+
+        with cls._lock:
+            cls._cursor.execute(f"""
+                                UPDATE stats
+                                SET {key} = {key} + ?,last_updated = CURRENT_TIMESTAMP
+                                WHERE id = 1
+                                """, (count,))
+            cls._conn.commit()
+
+    @classmethod
+    def close(cls):
+        with cls._lock:
+            if cls._conn:
+                cls._cursor.close()
+                cls._conn.close()
+                cls._cursor = None
+                cls._conn = None
+
+
 class DHCPServer:
     def __init__(self) -> None:
         self._running = True
@@ -751,8 +824,8 @@ class DHCPServer:
         dhcp_type = DHCPUtilities.extract_dhcp_type_from_packet(packet)
         dhcp_type_string = DHCPUtilities.convert_dhcp_lease_to_string(dhcp_type)
 
-        Stats.increment("sent_total")
-        Stats.increment(f"sent_{dhcp_type_string}")
+        DHCPStatsStorage.increment(key="sent_total")
+        DHCPStatsStorage.increment(key=f"sent_{dhcp_type_string}")
 
         dhcp_logger.debug(
             f"Send {dhcp_type_string} XID {packet[BOOTP].xid} CHADDR {":".join([f"{_each_char:02x}" for _each_char in packet[BOOTP].chaddr[:6]])}")
@@ -1082,8 +1155,8 @@ class DHCPServer:
         dhcp_type = DHCPUtilities.extract_dhcp_type_from_packet(packet)
         dhcp_type_string = DHCPUtilities.convert_dhcp_lease_to_string(dhcp_type)
 
-        Stats.increment("received_total")
-        Stats.increment(f"received_{dhcp_type_string}")
+        DHCPStatsStorage.increment(key="received_total_valid")
+        DHCPStatsStorage.increment(key=f"received_{dhcp_type_string}")
 
     def _handle_inbound_dhcp_packet(self, packet: Ether):
 
@@ -1105,7 +1178,7 @@ class DHCPServer:
             else:
                 dhcp_logger.warning(f'DHCP type unknown')
 
-            RabbitMqProducer.send_message({'timestamp': time.time(), 'type': 'statistics', 'payload': Stats.get_all_statistics()})
+            # RabbitMqProducer.send_message({'timestamp': time.time(), 'type': 'statistics', 'payload': Stats.get_all_statistics()})
             RabbitMqProducer.send_message({'timestamp': time.time(), 'type': 'dhcp-leases', 'payload': DHCPStorage.get_all_leases()})
 
     def service_queue_worker_processor(self) -> None:
@@ -1149,6 +1222,7 @@ class DHCPServer:
             _dhcp_type = DHCPUtilities.extract_dhcp_type_from_packet(packet)
             _time = packet.time//DEDUPLICATION_TIME_BUFFER_SEC
 
+            DHCPStatsStorage.increment(key="received_total")
             with open("./logs/packets.log", "a", encoding="utf-8") as f:
                 f.write(f"{packet.time:.4f} {_time} {packet[Ether].src} {packet[BOOTP].xid} {_dhcp_type} - RAW\n")
 
@@ -1185,9 +1259,11 @@ class DHCPServer:
 
         self._running = True
 
-        Utilities.delete_dns_db_files()
+        Utilities.delete_db_files()
         Utilities.create_db()
+
         DHCPStorage.init()
+        DHCPStatsStorage.init()
 
         traffic_listener = threading.Thread(target=self.service_traffic_listener, name="traffic_listener", daemon=True)
         traffic_listener.start()

@@ -258,6 +258,30 @@ def get_dns_statistics() -> dict:
         return {}
 
 
+def get_dhcp_statistics() -> dict:
+    try:
+        with sqlite3.connect(DHCP_DB_PATH) as conn:
+
+            cursor = conn.cursor()
+
+            cursor.execute("PRAGMA table_info(stats)")
+            columns: list[str] = [column[1] for column in cursor.fetchall()]
+
+            cursor.execute("SELECT * FROM stats")
+            row: tuple | None = cursor.fetchone()
+
+            if row and columns:
+                if len(columns) != len(row):
+                    app_logger.warning(f"[get_dns_statistics] Column count ({len(columns)}) != Row length ({len(row)})")
+                return dict(zip(columns, row))
+            else:
+                return {}
+
+    except Exception as e:
+        app_logger.error(f"[get_dns_statistics]  Failed to read {DNS_DB_PATH} - {e}")
+        return {}
+
+
 def get_control_list() -> dict:
 
     try:
@@ -463,7 +487,7 @@ def info_and_statistics():
 def dhcp():
     return render_template(
         'dhcp.html',
-        dhcp_statistics=copy.deepcopy(DHCP_STATISTICS),
+        dhcp_statistics=get_dhcp_statistics(),
         dhcp_leases=get_dhcp_leases())
 
 

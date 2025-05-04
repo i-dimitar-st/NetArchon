@@ -12,7 +12,10 @@ import signal
 import ipaddress
 import re
 import random
+import threading
+from concurrent.futures import ThreadPoolExecutor, as_completed
 import scapy.all as scapy
+from typing import Optional, List
 from collections import deque
 from scapy.layers.inet import IP, UDP, Ether
 from scapy.layers.dns import DNS, DNSRR
@@ -28,6 +31,8 @@ DEFAULT_CIDR = '24'
 DEFAULT_INTERFACE = 'eth0'
 DEFAULT_DNS_SERVER = '94.140.14.15'
 DEFAULT_DNS_SERVER_SECONDARY = '9.9.9.9'
+DEFAULT_DNS_SERVERS = ["1.1.1.1", "9.9.9.9", "94.140.14.15"]
+DEFAULT_DNS_TIMEOUT = 4
 
 ROOT_PATH = Path(__file__).resolve().parents[1]
 CONFIG_PATH = ROOT_PATH / 'config'
@@ -48,13 +53,13 @@ DB_CACHE_SIZE = -8192   # 8KB
 DB_MMAP_SIZE = 25165824  # 24MB
 DB_AUTO_VACCUM = 'INCREMENTAL'
 
-CACHE_TTL = 10*60
-NEGATIVE_CACHE_TTL = 10*60
+DEFAUT_CACHE_TTL = 10*60
+NEGATIVE_DEFAUT_CACHE_TTL = 10*60
 CACHE_EXPIRY_GRACE = 60 * 60 * 3
 REMOVER_PERIOD = 60 * 30 * 1
 UNSUPPORTED_QUERY_TYPES = [12, 28, 65]
 BLOCKED_LISTS_LOADING_PERIOD = 5 * 60
-DB_MAX_HISTORY_SIZE = 500
+DB_MAX_HISTORY_SIZE = 1500
 
 INBOUND_QUEUE_BUFFER_SIZE = 100
 INBOUND_QUEUE_BUFFER_LIMIT = 50
@@ -131,10 +136,10 @@ class DNSUtilities:
     def extract_max_ttl_from_answers(answers: DNSRR) -> int:
         """Extracts and returns the maximum TTL from DNSRR records in the answer chain."""
 
-        max_ttl = CACHE_TTL
+        max_ttl = DEFAUT_CACHE_TTL
         for answer in answers:
             if isinstance(answer, DNSRR):
-                max_ttl = max(CACHE_TTL, answer.ttl)
+                max_ttl = max(DEFAUT_CACHE_TTL, answer.ttl)
         return max_ttl
 
     @staticmethod
@@ -274,7 +279,7 @@ class DNSCacheStorage:
         with cls._lock:
             decoded_query = query.decode('utf-8', errors='ignore')
             created = int(time.time())
-            expiration = int(created + NEGATIVE_CACHE_TTL)
+            expiration = int(created + NEGATIVE_DEFAUT_CACHE_TTL)
             cls._cursor.execute("""
                                 INSERT INTO negative_cache (query, created, expiration, update_counter)
                                 VALUES (?,?,?,1)
@@ -569,8 +574,8 @@ class DNSServer:
                     self.OWN_CIDR = _config.get("server_subnet", DEFAULT_CIDR)
                     self.DNS_PORT = _config.get("server_port_dns", DEFAULT_DNS_PORT)
                     self.UPSTREAM_DNS = _config.get("upstream_ip", DEFAULT_DNS_SERVER)
-                    self.CACHE_TTL = _config.get("dns_cache_ttl", CACHE_TTL)
-                    self.NEGATIVE_TTL = _config.get("dns_ncache_ttl", NEGATIVE_CACHE_TTL)
+                    self.DEFAUT_CACHE_TTL = _config.get("dns_DEFAUT_CACHE_TTL", DEFAUT_CACHE_TTL)
+                    self.NEGATIVE_TTL = _config.get("dns_nDEFAUT_CACHE_TTL", NEGATIVE_DEFAUT_CACHE_TTL)
                     self.BLACKLIST = set()
                     self.WHITELIST = set()
 
@@ -753,6 +758,75 @@ class DNSServer:
                 return True
         return False
 
+    def query_individual_dns_server(self, server_ip: str, packet: Ether) -> Optional[IP]:
+
+        try:
+            response = scapy.sr1(
+                IP(dst=server_ip, src=self.OWN_IP) /
+                UDP(sport=DNSUtilities.generate_random_port(), dport=DEFAULT_DNS_PORT) /
+                DNS(id=packet[DNS].id, rd=1, qd=packet[DNS].qd, aa=0),
+                verbose=0, retry=0, timeout=DEFAULT_DNS_TIMEOUT, iface=self.INTERFACE
+            )
+
+            if not response:
+                dns_logger.warning(f"{server_ip} no response")
+                return None
+
+            if response[DNS].rcode != 0:
+                dns_logger.warning(f"{server_ip} bad response, rcode:{response[DNS].rcode}")
+                return None
+
+            if not response[DNS].an:
+                dns_logger.warning(f"{server_ip} no response")
+                return None
+
+            if response[DNS].ancount < 1:
+                dns_logger.warning(f"{server_ip} empty reponse")
+                return None
+
+            return response
+
+        except Exception as e:
+            dns_logger.error(f"Error querying {server_ip}: {str(e)}")
+
+        return None
+
+    def query_multiple_dns_servers(self, packet: Ether) -> Optional[DNSRR]:
+
+        _results = {}
+        with ThreadPoolExecutor(max_workers=len(DEFAULT_DNS_SERVERS)) as executor:
+            _futures = {
+                _ip: executor.submit(self.query_individual_dns_server, _ip, packet)
+                for _ip in DEFAULT_DNS_SERVERS
+            }
+            for _ip, _future in _futures.items():
+                _results[_ip] = _future.result()
+
+        _max_ttl = 0
+        _best_response = None
+        _best_server_ip = None
+
+        for _server_ip, _server_response in _results.items():
+            if not _server_response:
+                dns_logger.debug(f"{_server_ip} did not provide response")
+                continue
+
+            for _index in range(_server_response[DNS].ancount):
+                if _server_response[DNS].an[_index].ttl > _max_ttl:
+                    _max_ttl = _server_response[DNS].an[_index].ttl
+                    _best_response, _best_server_ip = _server_response, _server_ip
+
+        if not _best_response:
+            dns_logger.warning("No valid DNS response collected from any server")
+            return None
+
+        # for _index in range(_best_response[DNS].ancount):
+        #     _best_response[DNS].an[_index].ttl = DEFAUT_CACHE_TTL
+        #     print(_best_response[DNS].an[_index].ttl)
+
+        dns_logger.debug(f"Response from {_best_server_ip} TTL {_max_ttl} ({packet[DNS].qd.qname})")
+        return _best_response
+
     def _query_external_dns_server(self, packet: Ether) -> IP | None:
         """
         Forwards the DNS query to an external DNS server and returns the response if valid.
@@ -800,7 +874,8 @@ class DNSServer:
 
         DNSStatsStorage.increment(key='cache_miss')
 
-        external_response = self._query_external_dns_server(packet)
+        # external_response = self._query_external_dns_server(packet)
+        external_response = self.query_multiple_dns_servers(packet)
 
         if external_response:
             rcode = external_response[DNS].rcode

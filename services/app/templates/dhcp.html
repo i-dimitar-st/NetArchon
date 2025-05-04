@@ -186,12 +186,12 @@
               </div>
             </div>
             <div class="card-body">
-              {% for key, value in dhcp_statistics.items() %}
+              {% for key, value in dhcp_statistics.items() %} {% if value %}
               <div class="stats-item d-flex justify-content-between p-2">
                 <span class="stats-label">{{ key | replace('_', ' ') | upper }}</span>
                 <span class="stats-value">{{ value }}</span>
               </div>
-              {% endfor %}
+              {% endif %} {% endfor %}
             </div>
           </div>
         </div>

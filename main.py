@@ -23,7 +23,7 @@ def run_gui():
     app.run(
         host="0.0.0.0",
         port=5000,
-        debug=False,
+        debug=True,
         use_reloader=False,
         ssl_context=(CERT_PEM_PATH, CERT_KEY_PATH),
         threaded=False,
