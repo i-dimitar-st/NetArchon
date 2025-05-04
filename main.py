@@ -1,20 +1,21 @@
 #!/usr/bin/env python3.12
-import threading
-import logging
 import os
+import threading
 import time
-import sys
 from services import MainLogger
 from services import DHCPServer
 from services import DNSServer
 from services import RabbitMqConsumer
 from services import app
 
+NETARCHON_APP_MODE = os.environ.get("NETARCHON_MODE", "development")
+NETARCHON_LOG_LEVEL = os.environ.get("NETARCHON_LOG_LEVEL", "debug")
 
 CERT_PEM_PATH = './services/app/certificates/cert.pem'
 CERT_KEY_PATH = './services/app/certificates/key.pem'
 
-main_logger = MainLogger.get_logger(service_name="MAIN", log_level=logging.INFO)
+
+main_logger = MainLogger.get_logger(service_name="MAIN", log_level=NETARCHON_LOG_LEVEL)
 
 
 def run_gui():
@@ -26,7 +27,7 @@ def run_gui():
         debug=True,
         use_reloader=False,
         ssl_context=(CERT_PEM_PATH, CERT_KEY_PATH),
-        threaded=False,
+        threaded=True,
         processes=1
     )
 

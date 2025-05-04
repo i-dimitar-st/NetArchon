@@ -1,15 +1,12 @@
+import os
+import time
 import sys
 import platform
-import logging
 import threading
 import json
 import sqlite3
-import time
-import os
-import copy
-from datetime import datetime, timezone
 from pathlib import Path
-from flask import Flask, render_template, request, jsonify
+from flask import Flask, render_template
 from services.service_logger import MainLogger
 # from services.rabbitmq_service import RabbitMqConsumer
 
@@ -19,7 +16,7 @@ import psutil # type: ignore
 import pika # type: ignore
 # fmt: on
 
-app_logger = MainLogger.get_logger(service_name="GUI", log_level=logging.DEBUG)
+app_logger = MainLogger.get_logger(service_name="GUI", log_level="debug")
 app_logger.info('Started APP')
 
 ROOT_PATH = Path(__file__).resolve().parents[2]

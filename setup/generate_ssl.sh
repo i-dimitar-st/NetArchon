@@ -1,6 +1,6 @@
 #!/bin/bash
 
-CERT_DIR="./"
+CERT_DIR="../services/app/certificates"
 CERT_FILE="$CERT_DIR/cert.pem"
 KEY_FILE="$CERT_DIR/key.pem"
 

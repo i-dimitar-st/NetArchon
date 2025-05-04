@@ -22,7 +22,7 @@ from scapy.layers.dns import DNS, DNSRR
 from pathlib import Path
 from services import MainLogger
 
-dns_logger = MainLogger.get_logger(service_name='DNS', log_level=logging.DEBUG)
+dns_logger = MainLogger.get_logger(service_name="DNS", log_level="debug")
 
 DEFAULT_DNS_PORT = 53
 DEFAULT_MAC = '00:00:00:00:00:00'

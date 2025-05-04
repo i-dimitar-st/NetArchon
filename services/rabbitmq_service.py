@@ -11,7 +11,7 @@ sys.path.append('/projects/gitlab/netarchon/venv/lib/python3.12/site-packages')
 import pika # type: ignore
 # fmt: on
 
-rabbidmq_logger = MainLogger.get_logger(service_name="RABBIT-MQ", log_level=logging.DEBUG)
+rabbidmq_logger = MainLogger.get_logger(service_name="RABBIT-MQ", log_level="debug")
 
 
 class RabbitMqConsumer:

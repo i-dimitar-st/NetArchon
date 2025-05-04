@@ -15,18 +15,28 @@ if os.path.exists(LOG_PATH):
     os.remove(LOG_PATH)
 
 
+LOG_LEVEL_MAP = {
+    "debug": logging.DEBUG,
+    "info": logging.INFO,
+    "warning": logging.WARNING,
+    "error": logging.ERROR,
+    "critical": logging.CRITICAL
+}
+
+
 class MainLogger:
 
     @classmethod
-    def get_logger(cls, service_name="MAIN", log_level=logging.DEBUG):
+    def get_logger(cls, service_name="MAIN", log_level="debug"):
         """Returns a logger for the given service, using the main log file."""
 
         logger = logging.getLogger(service_name)
-        logger.setLevel(log_level)
+        level = LOG_LEVEL_MAP.get(log_level.lower(), logging.DEBUG)
+        logger.setLevel(level)
 
         if not logger.hasHandlers():
             file_handler = logging.FileHandler(LOG_PATH, mode='a', encoding='utf-8')
-            file_handler.setLevel(log_level)
+            file_handler.setLevel(level)
             formatter = logging.Formatter(LOG_FORMAT, datefmt='%Y-%m-%d %H:%M:%S')
             file_handler.setFormatter(formatter)
             logger.addHandler(file_handler)

@@ -1,7 +1,6 @@
 
 import time
 import sqlite3
-import logging
 import socket
 import json
 import ipaddress
@@ -66,7 +65,7 @@ ARP_DICOVERY_TIMEOUT = 3
 LEASE_CLEANER_PERIOD = 1*60*60
 
 
-dhcp_logger = MainLogger.get_logger(service_name="DHCP", log_level=logging.DEBUG)
+dhcp_logger = MainLogger.get_logger(service_name="DHCP", log_level="debug")
 
 
 class Utilities:
