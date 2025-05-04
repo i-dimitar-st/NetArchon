@@ -977,8 +977,8 @@ class DNSServer:
 
             _time = packet.time // DEDUPLICATION_TIME_BUFFER_SEC
 
-            with open("./logs/dns_packets.log", "a", encoding="utf-8") as f:
-                f.write(f"{packet.time:.4f} {_time} {packet[Ether].src} {packet[DNS].id} {packet[DNS].qd} - RAW\n")
+            # with open("./logs/dns_packets.log", "a", encoding="utf-8") as f:
+            #     f.write(f"{packet.time:.4f} {_time} {packet[Ether].src} {packet[DNS].id} {packet[DNS].qd} - RAW\n")
 
             if self._inbound_packet_buffer_queue.full():
                 raise queue.Full("DNS packet queue is full")
@@ -988,8 +988,8 @@ class DNSServer:
             if key in self._inbound_packet_deduplication_queue:
                 return
 
-            with open("./logs/dns_packets.log", "a", encoding="utf-8") as f:
-                f.write(f"{packet.time:.4f} {_time} {packet[Ether].src} {packet[DNS].id} {packet[DNS].qd} - OK\n")
+            # with open("./logs/dns_packets.log", "a", encoding="utf-8") as f:
+            #     f.write(f"{packet.time:.4f} {_time} {packet[Ether].src} {packet[DNS].id} {packet[DNS].qd} - OK\n")
 
             self._inbound_packet_deduplication_queue.appendleft(key)
             self._inbound_packet_buffer_queue.put(packet)
@@ -1040,7 +1040,6 @@ class DNSServer:
 
                 self._handle_dns_request(packet)
                 self._inbound_packet_buffer_queue.task_done()
-                time.sleep(_throttle_sleep_timeout)
 
             except queue.Empty:
                 time.sleep(_empty_queue_sleep_timeout)

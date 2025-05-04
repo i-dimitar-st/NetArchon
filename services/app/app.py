@@ -279,11 +279,15 @@ def get_dhcp_statistics() -> dict:
         return {}
 
 
-def get_control_list() -> dict:
+def get_control_list() -> list:
 
     try:
         with open(DNS_CONTROL_LIST, encoding="utf-8", mode="r") as file_handle:
-            return json.load(file_handle)
+            _config = json.load(file_handle)
+            _blacklist_rules = []
+            for _key, _value in _config.get("blacklist").items():
+                _blacklist_rules.extend(_value)
+            return sorted(_blacklist_rules)
     except Exception as e:
         app_logger.error(f"Error: Failed to read {DNS_CONTROL_LIST} - {e}")
         return None
