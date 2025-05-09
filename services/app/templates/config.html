@@ -261,7 +261,7 @@
     <div class="container py-4">
       <!-- Config Cards Grid -->
       <div class="config-grid">
-        <!-- DHCP Config -->
+        <!-- Server Config -->
         <div class="card h-100">
           <div class="card-header bg-white">
             <div class="d-flex justify-content-between align-items-center">
@@ -269,13 +269,13 @@
                 <div class="icon-container">
                   <i class="fas fa-network-wired dhcp-icon"></i>
                 </div>
-                <h5 class="mb-0">DHCP Configuration</h5>
+                <h5 class="mb-0">Server</h5>
               </div>
               <button id="editBtn" class="btn btn-sm btn-outline-primary"><i class="fas fa-edit me-1"></i> Edit</button>
             </div>
           </div>
           <div class="card-body">
-            {% for key, value in dhcp_config.items() %} {% if value %}
+            {% for key, value in config.get("server").items() %} {% if value %}
             <div class="config-item">
               <span class="config-label">{{ key | replace('_', ' ') | upper }}</span>
               <span class="config-value">{{ value | upper }}</span>
@@ -291,7 +291,36 @@
             </div>
           </div>
         </div>
+        <!-- DHCP Config -->
+        <div class="card h-100">
+          <div class="card-header bg-white">
+            <div class="d-flex justify-content-between align-items-center">
+              <div class="card-title-wrapper">
+                <div class="icon-container">
+                  <i class="fas fa-network-wired dhcp-icon"></i>
+                </div>
+                <h5 class="mb-0">DHCP</h5>
+              </div>
+              <button id="editBtn" class="btn btn-sm btn-outline-primary"><i class="fas fa-edit me-1"></i> Edit</button>
+            </div>
+          </div>
+          <div class="card-body">
+            {% for key, value in config.get("dhcp").items() %} {% if value %}
+            <div class="config-item">
+              <span class="config-label">{{ key | replace('_', ' ') | upper }}</span>
+              <span class="config-value">{{ value | upper }}</span>
+            </div>
+            {% endif %} {% endfor %}
 
+            <!-- Hidden action buttons for editing -->
+            <div id="actionButtons" class="d-none mt-4">
+              <div class="d-flex justify-content-end">
+                <button id="cancelBtn" class="btn btn-outline-secondary me-2">Cancel</button>
+                <button class="btn btn-primary">Save Changes</button>
+              </div>
+            </div>
+          </div>
+        </div>
         <!-- DNS Config -->
         <div class="card h-100">
           <div class="card-header bg-white">
@@ -300,13 +329,13 @@
                 <div class="icon-container">
                   <i class="fas fa-globe dns-icon"></i>
                 </div>
-                <h5 class="mb-0">DNS Configuration</h5>
+                <h5 class="mb-0">DNS</h5>
               </div>
               <button class="btn btn-sm btn-outline-primary"><i class="fas fa-edit me-1"></i> Edit</button>
             </div>
           </div>
           <div class="card-body">
-            {% for key, value in dns_config.items() %} {% if value %}
+            {% for key, value in config.get("dns").items() %} {% if value %}
             <div class="config-item">
               <span class="config-label">{{ key | replace('_', ' ') | upper }}</span>
               <span class="config-value">{{ value | upper }}</span>

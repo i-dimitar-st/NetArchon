@@ -23,7 +23,7 @@ import pika # type: ignore
 
 ROOT_PATH = Path(__file__).resolve().parents[1]
 CONFIG_PATH = ROOT_PATH / 'config'
-CONFIG_FULLPATH = CONFIG_PATH / 'dhcp_config.json'
+CONFIG_FULLPATH = CONFIG_PATH / 'config.json'
 
 DB_PATH = ROOT_PATH / 'db'
 DB_FILENAME = 'dhcp.sqlite3'
@@ -63,6 +63,10 @@ DHCP_PARAMS_REQUEST = [12, 43, 60, 61, 81]
 
 ARP_DICOVERY_TIMEOUT = 3
 LEASE_CLEANER_PERIOD = 1*60*60
+
+WORKER_QUEUE_GET_TIMEOUT = 0.4
+WORKER_QUEUE_EMPTY_SLEEP_TIMEOUT = 0.1
+WORKER_ERROR_SLEEP_TIMEOUT = 0.1
 
 
 dhcp_logger = MainLogger.get_logger(service_name="DHCP", log_level="debug")
@@ -109,6 +113,7 @@ class Utilities:
 
 
 class RabbitMqProducer:
+
     consumer_tag = 'dhcp_server_producer'
     queue_name = 'dhcp_server'
     host = '127.0.0.1'
@@ -517,9 +522,7 @@ class DHCPStorage:
                 cls._conn.commit()
 
                 if _result.rowcount == 0:
-                    dhcp_logger.debug(f"DB -> Lease not found for MAC:{mac}, no deletion occured")
-                else:
-                    dhcp_logger.debug(f"DB -> Removed {_result.rowcount} lease(s) for MAC:{mac}")
+                    dhcp_logger.debug(f"Lease DB removed {_result.rowcount} MAC:{mac}")
 
             except Exception as e:
                 dhcp_logger.error(f"DB -> failed to remove lease: {e}")
@@ -557,10 +560,8 @@ class DHCPStorage:
 
             dhcp_logger.debug(f"Checking for expired leases ...")
             try:
-                current_time = int(time.time())
-
                 _statement = "DELETE FROM leases WHERE expiry_time < ?"
-                _value = (current_time,)
+                _value = (int(time.time()),)
 
                 cls._cursor.execute(_statement, _value)
                 cls._conn.commit()
@@ -607,6 +608,7 @@ class DHCPStorage:
 
 
 class DHCPStatsStorage:
+
     _lock = threading.RLock()
     _is_initialised = False
     _conn = None
@@ -633,6 +635,7 @@ class DHCPStatsStorage:
             cls._cursor.execute("""
                                 CREATE TABLE IF NOT EXISTS stats (
                                     id INTEGER PRIMARY KEY AUTOINCREMENT,
+                                    start_time TEXT DEFAULT CURRENT_TIMESTAMP,
                                     last_updated TEXT DEFAULT CURRENT_TIMESTAMP,
                                     received_total INTEGER DEFAULT 0,
                                     received_total_valid INTEGER DEFAULT 0,
@@ -696,6 +699,7 @@ class DHCPStatsStorage:
 
 
 class DHCPServer:
+
     def __init__(self) -> None:
         self._running = True
         self.lock = RLock()
@@ -712,21 +716,23 @@ class DHCPServer:
         try:
             with open(CONFIG_FULLPATH, "r") as file_handle:
                 _config = json.load(file_handle)
-                self._interface = _config.get("interface")
-                self._own_ip = _config.get("server_ip")
-                self._own_mac = _config.get("server_mac")
-                self._own_subnet = _config.get("server_subnet_mask")
-                self._server_ip_range_start = _config.get("server_ip_range_start")
-                self._server_ip_range_end = _config.get("server_ip_range_end")
-                self._broadcast = _config.get("server_broadcast")
-                self._router_ip = _config.get("router_ip")
-                self._dns_server = _config.get("dns_server")
-                self._ntr_server = _config.get("ntp_server")
-                self._lease_time = _config.get("lease_time")
+                _server = _config.get("server",{})
+                _dhcp_settings = _config.get("dhcp",{})
+                self._interface = _server.get("interface")
+                self._own_ip = _server.get("ip")
+                self._own_mac = _server.get("mac")
+                self._own_subnet = _server.get("subnet_mask")
+                self._broadcast = _server.get("broadcast")
+                self._server_ip_range_start = _dhcp_settings.get("ip_range_start")
+                self._server_ip_range_end = _dhcp_settings.get("ip_range_end")
+                self._router_ip = _dhcp_settings.get("router_ip")
+                self._dns_server = _dhcp_settings.get("dns_server")
+                self._ntr_server = _dhcp_settings.get("ntp_server")
+                self._lease_time = _dhcp_settings.get("lease_time")
                 self._rebinding_time = int(self._lease_time * 0.875)
                 self._renewal_time = int(self._lease_time * 0.5)
-                self._mtu = int(_config.get("mtu"))
-                self._dhcp_port = _config.get("dhcp_port")
+                self._mtu = int(_dhcp_settings.get("mtu"))
+                self._dhcp_port = _dhcp_settings.get("port")
 
         except Exception as err:
             dhcp_logger.error(f"Failed to load DHCP config: {str(err)}")
@@ -826,8 +832,7 @@ class DHCPServer:
         DHCPStatsStorage.increment(key="sent_total")
         DHCPStatsStorage.increment(key=f"sent_{dhcp_type_string}")
 
-        dhcp_logger.debug(
-            f"Send {dhcp_type_string} XID {packet[BOOTP].xid} CHADDR {":".join([f"{_each_char:02x}" for _each_char in packet[BOOTP].chaddr[:6]])}")
+        # dhcp_logger.debug(f"Send {dhcp_type_string} XID {packet[BOOTP].xid} CHADDR {":".join([f"{_each_char:02x}" for _each_char in packet[BOOTP].chaddr[:6]])}")
         scapy.sendp(packet, iface=self._interface, verbose=False)
 
     def _find_available_ip(self, packet: Ether) -> str:
@@ -1185,21 +1190,18 @@ class DHCPServer:
         thread_name = threading.current_thread().name
         while self._running:
             try:
-                packet = self._inbound_packet_buffer_queue.get(timeout=0.5)
-                dhcp_logger.debug(f"{thread_name} processing XID {packet[BOOTP].xid}")
+                packet = self._inbound_packet_buffer_queue.get(timeout=WORKER_QUEUE_GET_TIMEOUT)
 
                 self._handle_inbound_dhcp_packet(packet)
                 self._inbound_packet_buffer_queue.task_done()
-                dhcp_logger.debug(f"{thread_name} processing done")
-                time.sleep(0.05)
 
             except queue.Empty:
-                time.sleep(0.1)
+                time.sleep(WORKER_QUEUE_EMPTY_SLEEP_TIMEOUT)
 
             except Exception as err:
                 dhcp_logger.error(f"{thread_name} processing DHCP packet:{str(err)}")
                 self._inbound_packet_buffer_queue.task_done()
-                time.sleep(0.1)
+                time.sleep(WORKER_ERROR_SLEEP_TIMEOUT)
 
     def _is_received_packet_valid(self, packet: Ether) -> bool:
         return bool(
@@ -1218,19 +1220,17 @@ class DHCPServer:
             if self._inbound_packet_buffer_queue.full():
                 raise queue.Full
 
+            DHCPStatsStorage.increment(key="received_total")
+
             _dhcp_type = DHCPUtilities.extract_dhcp_type_from_packet(packet)
             _time = packet.time//DEDUPLICATION_TIME_BUFFER_SEC
 
-            DHCPStatsStorage.increment(key="received_total")
-            with open("./logs/dhcp_packets.log", "a", encoding="utf-8") as f:
-                f.write(f"{packet.time:.4f} {_time} {packet[Ether].src} {packet[BOOTP].xid} {_dhcp_type} - RAW\n")
+            if self._inbound_packet_buffer_queue.qsize() > INBOUND_REQUESTS_DEDUPLICATE_QUEUE_SIZE/2:
+                dhcp_logger.warning(f"Queue half full")
 
             key = (packet[Ether].src, packet[BOOTP].xid, _dhcp_type, _time)
             if key in self._inbound_packet_deduplication_queue:
                 return
-
-            with open("./logs/dhcp_packets.log", "a", encoding="utf-8") as f:
-                f.write(f"{packet.time:.4f} {_time} {packet[Ether].src} {packet[BOOTP].xid} {_dhcp_type} - OK\n")
 
             self._inbound_packet_deduplication_queue.appendleft(key)
             self._inbound_packet_buffer_queue.put(packet)

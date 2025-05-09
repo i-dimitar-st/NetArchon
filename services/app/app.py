@@ -22,6 +22,7 @@ app_logger.info('Started APP')
 ROOT_PATH = Path(__file__).resolve().parents[2]
 DNS_DB_PATH = ROOT_PATH / "db" / "dns.sqlite3"
 DHCP_DB_PATH = ROOT_PATH / "db" / "dhcp.sqlite3"
+CONFIG_PATH = ROOT_PATH / "config" / "config.json"
 DHCP_CONFIG_PATH = ROOT_PATH / "config" / "dhcp_config.json"
 DNS_CONFIG_PATH = ROOT_PATH / "config" / "dns_config.json"
 DNS_CONTROL_LIST = ROOT_PATH / "config" / "dns_control_list.json"
@@ -161,6 +162,16 @@ def get_network_interfaces():
         network_interfaces.append(interface_data)
 
     return network_interfaces
+
+
+def get_config() -> dict:
+
+    try:
+        with open(CONFIG_PATH, encoding="utf-8", mode="r") as file_handle:
+            return json.load(file_handle)
+    except Exception as e:
+        app_logger.error(f"Error: Failed to read {DHCP_CONFIG_PATH} - {e}")
+        return None
 
 
 def get_dhcp_system_config() -> dict:
@@ -505,8 +516,7 @@ def dns():
 def config():
     return render_template(
         'config.html',
-        dhcp_config=get_dhcp_system_config(),
-        dns_config=get_dns_system_config(),
+        config=get_config(),
         dns_control_list=get_control_list()
     )
 
