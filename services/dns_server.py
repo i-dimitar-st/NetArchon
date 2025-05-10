@@ -53,13 +53,12 @@ DB_CACHE_SIZE = -8192   # 8KB
 DB_MMAP_SIZE = 25165824  # 24MB
 DB_AUTO_VACCUM = 'INCREMENTAL'
 
-DEFAUT_CACHE_TTL = 10*60
-NEGATIVE_DEFAUT_CACHE_TTL = 10*60
-CACHE_EXPIRY_GRACE = 60 * 60 * 3
-REMOVER_PERIOD = 60 * 30 * 1
+DEFAULT_CACHE_TTL = 10*60
+NEGATIVE_DEFAULT_CACHE_TTL = 10*60
+CACHE_EXPIRY_GRACE = 30*60
 UNSUPPORTED_QUERY_TYPES = [12, 28, 65]
 BLOCKED_LISTS_LOADING_PERIOD = 5 * 60
-DB_MAX_HISTORY_SIZE = 1500
+DB_MAX_HISTORY_SIZE = 1000
 
 INBOUND_QUEUE_BUFFER_SIZE = 100
 INBOUND_QUEUE_BUFFER_LIMIT = 50
@@ -72,7 +71,7 @@ WORKER_QUEUE_EMPTY_SLEEP_TIMEOUT = 0.1
 WORKER_ERROR_SLEEP_TIMEOUT = 0.1
 
 
-class Utiltities:
+class Utilities:
 
     @staticmethod
     def delete_dns_db_files() -> None:
@@ -132,13 +131,14 @@ class DNSUtilities:
         return bool(packet[DNS].qd.qtype in UNSUPPORTED_QUERY_TYPES)
 
     @staticmethod
-    def extract_max_ttl_from_answers(answers: DNSRR) -> int:
+    def extract_max_ttl_from_answers(packet: DNS) -> int:
         """Extracts and returns the maximum TTL from DNSRR records in the answer chain."""
 
-        max_ttl = DEFAUT_CACHE_TTL
-        for answer in answers:
-            if isinstance(answer, DNSRR):
-                max_ttl = max(DEFAUT_CACHE_TTL, answer.ttl)
+        max_ttl = 0
+        # We have to iterate through DNSRR like this
+        for _index in range(packet[DNS].ancount):
+            if packet[DNS].an[_index].ttl > max_ttl:
+                max_ttl = packet[DNS].an[_index].ttl
         return max_ttl
 
     @staticmethod
@@ -183,56 +183,58 @@ class DNSCacheStorage:
     _lock = threading.RLock()
     _conn = None
     _cursor = None
-    _is_initialised = False
+    _running = False
 
     @classmethod
     def init(cls):
 
-        if cls._is_initialised:
+        if cls._running:
             return
 
-        cls._conn = Utiltities.enrich_connection(
-            sqlite3.connect(**Utiltities.get_connection_settings()))
+        cls._running = True
+        cls._conn = Utilities.enrich_connection(sqlite3.connect(**Utilities.get_connection_settings()))
         cls._cursor = cls._conn.cursor()
         cls._create_tables()
         cls._create_triggers()
-        cls._is_initialised = True
 
     @classmethod
     def _create_tables(cls):
-        with cls._lock:
 
+        if not cls._running:
+            return
+        
+        with cls._lock:
             cls._cursor.execute("""
                                 CREATE TABLE IF NOT EXISTS cache (
-                                query TEXT PRIMARY KEY,
+                                query BLOB PRIMARY KEY,
                                 response BLOB NOT NULL,
-                                created INTEGER NOT NULL,
+                                created INTEGER NOT NULL DEFAULT (CAST(strftime('%s','now') AS INTEGER)),
+                                modified INTEGER,
                                 expiration INTEGER NOT NULL,
                                 update_counter INTEGER DEFAULT 0)""")
 
-            cls._cursor.execute(
-                """CREATE INDEX IF NOT EXISTS idx_cache_query ON cache(query)""")
-            cls._cursor.execute(
-                """CREATE INDEX IF NOT EXISTS idx_cache_created ON cache(created)""")
-            cls._cursor.execute(
-                """CREATE INDEX IF NOT EXISTS idx_cache_expiration ON cache(expiration)""")
+            cls._cursor.execute("CREATE INDEX IF NOT EXISTS idx_cache_query ON cache(query)")
+            cls._cursor.execute("CREATE INDEX IF NOT EXISTS idx_cache_created ON cache(created)")
+            cls._cursor.execute("CREATE INDEX IF NOT EXISTS idx_cache_expiration ON cache(expiration)")
             cls._cursor.execute("""
                                 CREATE TABLE IF NOT EXISTS negative_cache (
-                                query TEXT PRIMARY KEY,
-                                created INTEGER NOT NULL,
+                                query BLOB PRIMARY KEY,
+                                created INTEGER NOT NULL DEFAULT (CAST(strftime('%s','now') AS INTEGER)),
+                                modified INTEGER,
                                 expiration INTEGER NOT NULL,
                                 update_counter INTEGER DEFAULT 0)""")
 
-            cls._cursor.execute(
-                """CREATE INDEX IF NOT EXISTS idx_negative_cache_query ON negative_cache(query)""")
-            cls._cursor.execute(
-                """CREATE INDEX IF NOT EXISTS idx_negative_cache_created ON negative_cache(created)""")
-            cls._cursor.execute(
-                """CREATE INDEX IF NOT EXISTS idx_negative_cache_expiration ON negative_cache(expiration)""")
+            cls._cursor.execute("CREATE INDEX IF NOT EXISTS idx_negative_cache_query ON negative_cache(query)")
+            cls._cursor.execute("CREATE INDEX IF NOT EXISTS idx_negative_cache_created ON negative_cache(created)")
+            cls._cursor.execute("CREATE INDEX IF NOT EXISTS idx_negative_cache_expiration ON negative_cache(expiration)")
             cls._conn.commit()
 
     @classmethod
     def _create_triggers(cls):
+        
+        if not cls._running:
+            return
+        
         with cls._lock:
 
             cls._cursor.execute(f"""
@@ -240,106 +242,117 @@ class DNSCacheStorage:
                 BEFORE INSERT ON cache
                 BEGIN
                     DELETE FROM cache
-                    WHERE created < expiration - {CACHE_EXPIRY_GRACE};
-                END;
-            """)
+                    WHERE expiration < CAST(strftime('%s','now') AS INT) - {CACHE_EXPIRY_GRACE};
+                END;""")
 
             cls._cursor.execute(f"""
                 CREATE TRIGGER IF NOT EXISTS delete_expired_negative_cache
                 BEFORE INSERT ON negative_cache
                 BEGIN
                     DELETE FROM negative_cache
-                    WHERE created < expiration - {CACHE_EXPIRY_GRACE};
-                END;
-            """)
+                    WHERE expiration < CAST(strftime('%s','now') AS INT) - {CACHE_EXPIRY_GRACE};
+                END;""")
 
             cls._conn.commit()
 
     @classmethod
     def add_to_cache(cls, query: bytes, response: DNS):
 
-        if not response[DNS].an or not query:
-            dns_logger.warning(f"Missing inputs")
+        if not cls._running:
             return
 
-        ttl_max: int = DNSUtilities.extract_max_ttl_from_answers(
-            response[DNS].an)
-        created = int(time.time())
-        expiration = int(created + ttl_max)
-        decoded_query = query.decode('utf-8', errors='ignore')
+        if not query:
+            dns_logger.warning(f"Cannot add to cache, no query")
+            return
+
+        if not response[DNS].an:
+            dns_logger.warning(f"Cannot add to cache no DNS Answer")
+            return
 
         with cls._lock:
-            cls._cursor.execute("""
-                INSERT INTO cache (query, response, created, expiration, update_counter)
-                VALUES (?,?,?,?,1)
-                ON CONFLICT(query) DO UPDATE SET
-                    response = excluded.response,
-                    created = excluded.created,
-                    expiration = excluded.expiration,
-                    update_counter = cache.update_counter + 1
-            """, (decoded_query, bytes(response), created, expiration))
-            cls._conn.commit()
+            try:
+                ttl_max:int = DEFAULT_CACHE_TTL \
+                                if DNSUtilities.extract_max_ttl_from_answers(response) < DEFAULT_CACHE_TTL \
+                                else DNSUtilities.extract_max_ttl_from_answers(response) 
+                cls._cursor.execute(f"""
+                                    INSERT INTO cache (query,response,expiration)
+                                    VALUES (?,?,?)
+                                    ON CONFLICT(query)
+                                    DO UPDATE SET
+                                            response = excluded.response,
+                                            expiration = excluded.expiration,
+                                            modified = CAST(strftime('%s', 'now') AS INTEGER),
+                                            update_counter = cache.update_counter + 1
+                                    """, (query, bytes(response), ttl_max+int(time.time())))
+                cls._conn.commit()
+            except Exception as err:
+                dns_logger.error(f"Error inserting into cache {query}")
 
     @classmethod
     def add_to_negative_cache(cls, query: bytes):
-        dns_logger.debug(f"adding to negative cache {query}")
+
+        if not cls._running:
+            return
 
         with cls._lock:
-            decoded_query = query.decode('utf-8', errors='ignore')
-            created = int(time.time())
-            expiration = int(created + NEGATIVE_DEFAUT_CACHE_TTL)
-            cls._cursor.execute("""
-                                INSERT INTO negative_cache (query, created, expiration, update_counter)
-                                VALUES (?,?,?,1)
-                                ON CONFLICT(query) DO UPDATE SET
-                                    created = excluded.created,
-                                    expiration = excluded.expiration,
-                                    update_counter = negative_cache.update_counter + 1
-                               """, (decoded_query, created, expiration))
-            cls._conn.commit()
+            try:
+
+                cls._cursor.execute("""
+                                    INSERT INTO negative_cache (query,expiration)
+                                    VALUES (?,?)
+                                    ON CONFLICT(query)
+                                    DO UPDATE SET
+                                        expiration = excluded.expiration,
+                                        modified = CAST(strftime('%s', 'now') AS INTEGER),
+                                        update_counter = negative_cache.update_counter + 1
+                                """, (query, int(time.time()+NEGATIVE_DEFAULT_CACHE_TTL)))
+                cls._conn.commit()
+            except Exception as err:
+                dns_logger.error(f"error adding to negative cache {query}")
 
     @classmethod
     def get_cached_response(cls, query: bytes) -> tuple[DNS | None, bool]:
         """Fetches the cached response if valid and not expired."""
 
+        if not cls._running:
+            return
         with cls._lock:
-            decoded_query = query.decode('utf-8', errors='ignore')
-            cls._cursor.execute("""
-                                SELECT response, expiration
-                                FROM cache
-                                WHERE query=?
-                                """, (decoded_query,))
-            result = cls._cursor.fetchone()
-
-            if result:
-                response, expiration = result
-                if int(time.time()) > expiration:
-                    return None, False
-                else:
-                    return DNS(response), True
-
-            return None, False
+            try:
+                cls._cursor.execute("""
+                                    SELECT response
+                                    FROM cache
+                                    WHERE query = ?
+                                    AND expiration > CAST(strftime('%s', 'now') AS INTEGER)
+                                    """, (query,))
+                result = cls._cursor.fetchone()
+                if result:
+                    return DNS(result[0]), True
+                return None, False
+            except Exception as err:
+                dns_logger.error(f"error getting cached response {query},{str(err)}")
+                return None, False
 
     @classmethod
     def is_query_in_negative_cache(cls, query: bytes) -> bool:
         """Checks if a query has been negatively cached (NXDOMAIN response)."""
 
+        if not cls._running:
+            return
         with cls._lock:
-            decoded_query = query.decode('utf-8', errors='ignore')
-            cls._cursor.execute("""
-                                SELECT expiration
-                                FROM negative_cache
-                                WHERE query=?
-                                """, (decoded_query,))
-            result = cls._cursor.fetchone()
-
-            if result:
-                if int(time.time()) > result[0]:
-                    return False
-                else:
+            try:
+                cls._cursor.execute("""
+                                    SELECT expiration
+                                    FROM negative_cache
+                                    WHERE query=?
+                                    AND expiration > CAST(strftime('%s', 'now') AS INTEGER)
+                                    """, (query,))
+                result = cls._cursor.fetchone()
+                if result:
                     return True
-
-        return False
+                return False
+            except Exception as err:
+                dns_logger.error(f"error querying negative cache {query} {str(err)}")
+                return False
 
     @classmethod
     def close(cls):
@@ -365,8 +378,8 @@ class DNSHistoryStorage:
         if cls._running:
             return
 
-        cls._conn = Utiltities.enrich_connection(
-            sqlite3.connect(**Utiltities.get_connection_settings()))
+        cls._conn = Utilities.enrich_connection(
+            sqlite3.connect(**Utilities.get_connection_settings()))
         cls._cursor = cls._conn.cursor()
         cls._create_table()
         cls._running = True
@@ -381,15 +394,23 @@ class DNSHistoryStorage:
         with cls._lock:
             cls._cursor.execute("""
                                 CREATE TABLE IF NOT EXISTS history (
-                                query TEXT NOT NULL PRIMARY KEY,
-                                query_counter INTEGER NOT NULL DEFAULT 0,
-                                active INTEGER NOT NULL DEFAULT 1,
-                                created INTEGER NOT NULL
-                                )""")
-            cls._cursor.execute(
-                """CREATE INDEX IF NOT EXISTS idx_query ON history(query)""")
-            cls._cursor.execute(
-                """CREATE INDEX IF NOT EXISTS idx_query_counter ON history(query_counter)""")
+                                    query TEXT NOT NULL PRIMARY KEY,
+                                    query_counter INTEGER NOT NULL DEFAULT 0,
+                                    active INTEGER NOT NULL DEFAULT 1,
+                                    created INTEGER NOT NULL)
+                                """)
+            cls._cursor.execute(f"""
+                                CREATE TRIGGER limit_table
+                                BEFORE INSERT ON history
+                                FOR EACH ROW
+                                WHEN (SELECT COUNT(*) FROM history) >= {DB_MAX_HISTORY_SIZE}
+                                BEGIN
+                                    DELETE FROM history
+                                    WHERE created = (SELECT created FROM history ORDER BY created ASC LIMIT 1);
+                                END""")
+            cls._cursor.execute("CREATE INDEX IF NOT EXISTS idx_query ON history(query)")
+            cls._cursor.execute("CREATE INDEX IF NOT EXISTS idx_created ON history(created)")
+            cls._cursor.execute("CREATE INDEX IF NOT EXISTS idx_query_counter ON history(query_counter)")
             cls._conn.commit()
 
     @classmethod
@@ -399,58 +420,28 @@ class DNSHistoryStorage:
         if not cls._running:
             return
 
-        decoded_query = query.decode(
-            'utf-8', errors='ignore').rstrip('.').lower()
         with cls._lock:
+            decoded_query = query.decode('utf-8').rstrip('.').lower()
             cls._cursor.execute("""
                                 INSERT INTO history (query,active,query_counter,created)
                                 VALUES (?,?,1,?)
                                 ON CONFLICT (query) DO UPDATE SET
-                                    active = excluded.active,
                                     query_counter = history.query_counter + 1,
+                                    active = excluded.active,
                                     created = excluded.created
-                                """, (decoded_query, active, int(time.time())))
+                                """,(decoded_query, active, int(time.time())))
             cls._conn.commit()
-
-    @classmethod
-    def service_delete_stale_history_entries(cls):
-        while cls._running:
-            try:
-                with cls._lock:
-
-                    cls._cursor.execute("SELECT COUNT(*) FROM history")
-                    _records_number = cls._cursor.fetchone()[0]
-
-                    if _records_number > DB_MAX_HISTORY_SIZE:
-                        dns_logger.debug(f"Attempting to clean")
-                        cls._cursor.execute("""
-                                            DELETE FROM history
-                                            WHERE created IN (
-                                                SELECT created
-                                                FROM history
-                                                ORDER BY created ASC
-                                                LIMIT ?
-                                            )
-                                            """, (_records_number - DB_MAX_HISTORY_SIZE,))
-                        _deleted_recoreds = cls._cursor.rowcount
-                        cls._conn.commit()
-                        dns_logger.info(
-                            f"Max history size reached deleted:{_deleted_recoreds} entries")
-
-            except Exception as err:
-                dns_logger.error(f"[stale_history_remover] {str(err)}")
-
-            time.sleep(REMOVER_PERIOD)
 
     @classmethod
     def close(cls):
         with cls._lock:
             if cls._conn:
-                cls._cursor.close()
                 cls._conn.close()
-                cls._cursor = None
                 cls._conn = None
-                cls._running = False
+            if cls._cursor:
+                cls._cursor.close()
+                cls._cursor = None
+            cls._running = False
 
 
 class DNSStatsStorage:
@@ -468,8 +459,8 @@ class DNSStatsStorage:
         if cls._is_initialised:
             return
 
-        cls._conn = Utiltities.enrich_connection(
-            sqlite3.connect(**Utiltities.get_connection_settings()))
+        cls._conn = Utilities.enrich_connection(
+            sqlite3.connect(**Utilities.get_connection_settings()))
         cls._cursor = cls._conn.cursor()
         cls._create_table()
         cls._init_table()
@@ -541,14 +532,15 @@ class DNSStatsStorage:
     @classmethod
     def increment(cls, key: str, count: int = 1):
 
-        if not cls._is_key_valid(key):
-            dns_logger.warning(f"[DNSSTATSDB] Invalid key: {key}")
-            return
-
         with cls._lock:
+            if not cls._is_key_valid(key):
+                dns_logger.warning(f"Invalid key: {key}")
+                return
             cls._cursor.execute(f"""
                                 UPDATE stats
-                                SET {key} = {key} + ?,last_updated = CURRENT_TIMESTAMP
+                                SET
+                                    {key} = {key} + ?,
+                                    last_updated = CURRENT_TIMESTAMP
                                 WHERE id = 1
                                 """, (count,))
             cls._conn.commit()
@@ -571,12 +563,9 @@ class DNSServer:
         """
         self._running = True
         self._lock = threading.RLock()
-        self._inbound_packet_buffer_queue = queue.Queue(
-            maxsize=INBOUND_QUEUE_BUFFER_SIZE)
-        self._inbound_packet_deduplication_queue = deque(
-            maxlen=INBOUND_REQUESTS_DEDUPLICATE_QUEUE_SIZE)
-        self._inbound_packet_timestamps = deque(
-            maxlen=INBOUND_REQUESTS_DEDUPLICATE_QUEUE_SIZE)
+        self._inbound_packet_buffer_queue = queue.Queue(maxsize=INBOUND_QUEUE_BUFFER_SIZE)
+        self._inbound_packet_deduplication_queue = deque(maxlen=INBOUND_REQUESTS_DEDUPLICATE_QUEUE_SIZE)
+        self._inbound_packet_timestamps = deque(maxlen=INBOUND_REQUESTS_DEDUPLICATE_QUEUE_SIZE)
         self._threads = {}
         self._initialize_config()
         self._load_control_list()
@@ -589,18 +578,14 @@ class DNSServer:
                     _config = json.load(file_handle)
                     _server = _config.get("server", {})
                     _dns_settings = _config.get("dns", {})
-                    self.INTERFACE = _server.get(
-                        "interface", DEFAULT_INTERFACE)
+                    self.INTERFACE = _server.get("interface", DEFAULT_INTERFACE)
                     self.OWN_IP = _server.get("ip", DEFAULT_IP)
                     self.OWN_MAC = _server.get("mac", DEFAULT_MAC)
                     self.OWN_CIDR = _server.get("subnet_mask", DEFAULT_CIDR)
                     self.DNS_PORT = _dns_settings.get("port", DEFAULT_DNS_PORT)
-                    self.UPSTREAM_DNS = _dns_settings.get(
-                        "server", DEFAULT_DNS_SERVER)
-                    self.DEFAUT_CACHE_TTL = _dns_settings.get(
-                        "ttl_cache", DEFAUT_CACHE_TTL)
-                    self.NEGATIVE_TTL = _dns_settings.get(
-                        "ttl_cache", NEGATIVE_DEFAUT_CACHE_TTL)
+                    self.UPSTREAM_DNS = _dns_settings.get("server", DEFAULT_DNS_SERVER)
+                    self.DEFAULT_CACHE_TTL = _dns_settings.get("ttl_cache", DEFAULT_CACHE_TTL)
+                    self.NEGATIVE_TTL = _dns_settings.get("ttl_cache", NEGATIVE_DEFAULT_CACHE_TTL)
                     self.BLACKLIST = set()
                     self.WHITELIST = set()
 
@@ -756,9 +741,7 @@ class DNSServer:
         """
         Tracks statistics for DNS query types and unsupported queries.
         """
-
         qtype = packet[DNS].qd.qtype
-
         DNSStatsStorage.increment(key='request_total_valid')
 
         if self._is_query_blacklisted(packet):
@@ -768,8 +751,7 @@ class DNSServer:
             DNSStatsStorage.increment(key='request_not_supported')
 
         if DNSUtilities.convert_request_type(qtype):
-            DNSStatsStorage.increment(
-                key=DNSUtilities.convert_request_type(qtype))
+            DNSStatsStorage.increment(key=DNSUtilities.convert_request_type(qtype))
 
     def _track_response_stats(self, packet: Ether) -> None:
 
@@ -785,8 +767,7 @@ class DNSServer:
             DNSStatsStorage.increment(key='response_notimp')
 
     def _is_query_blacklisted(self, packet: Ether) -> bool:
-        decoded_query = packet[DNS].qd.qname.decode(
-            'utf-8').rstrip('.').lower()
+        decoded_query = packet[DNS].qd.qname.decode('utf-8').rstrip('.').lower()
         for _blacklist_rule_raw in self.BLACKLIST:
             blacklist_rule = f"^{_blacklist_rule_raw.strip().lower().replace('*', '.*')}$"
             if re.search(blacklist_rule, decoded_query):
@@ -807,15 +788,18 @@ class DNSServer:
                 dns_logger.warning(
                     f"{server_ip} no response {packet[DNS].qd.qname}")
                 return None
+            
+            if response and response[DNS].rcode == 0:               
+                return response
 
             if response[DNS].rcode != 0:
                 dns_logger.warning(
-                    f"{server_ip} bad response (rcode={response[DNS].rcode}) {packet[DNS].qd.qname}")
+                    f"{server_ip} responded, bad response (rcode={response[DNS].rcode}) {packet[DNS].qd.qname}")
                 return None
 
-            if not response[DNS].an:
+            if not response[DNS].an or response[DNS].ancount < 1:
                 dns_logger.warning(
-                    f"{server_ip} did not asnwer {packet[DNS].qd.qname}")
+                    f"{server_ip} responded, no answer {packet[DNS].qd.qname}")
                 return None
 
             return response
@@ -837,7 +821,7 @@ class DNSServer:
             for _ip, _future in _futures.items():
                 _results[_ip] = _future.result()
 
-        _max_ttl = 0
+        _best_response_ttl = 0
         _best_response = None
 
         for _server_ip, _server_response in _results.items():
@@ -846,8 +830,8 @@ class DNSServer:
 
             # We have to iterate through DNSRR like this
             for _index in range(_server_response[DNS].ancount):
-                if _server_response[DNS].an[_index].ttl > _max_ttl:
-                    _max_ttl = _server_response[DNS].an[_index].ttl
+                if _server_response[DNS].an[_index].ttl and _server_response[DNS].an[_index].ttl > _best_response_ttl:
+                    _best_response_ttl = _server_response[DNS].an[_index].ttl
                     _best_response = _server_response
 
         if not _best_response:
@@ -881,27 +865,25 @@ class DNSServer:
         external_response = self._query_multiple_dns_servers(packet)
 
         if external_response:
-            rcode = external_response[DNS].rcode
 
-            if rcode == 0 and external_response[DNS].an:
-                DNSCacheStorage.add_to_cache(
-                    query_name, external_response[DNS])
+            if external_response[DNS].rcode == 0 and external_response[DNS].an:
+                DNSCacheStorage.add_to_cache(query_name, external_response[DNS])
                 DNSStatsStorage.increment(key='external_noerror')
                 return external_response[DNS]
 
-            elif rcode == 2:  # 2 = SERVFAIL
-                DNSCacheStorage.add_to_negative_cache(query_name)
-                DNSStatsStorage.increment(key='external_servfail')
-                dns_logger.warning(f"[DNSQUERY] {query_name} SERVFAIL")
-                return None
+            # elif rcode == 2:  # 2 = SERVFAIL
+            #     DNSCacheStorage.add_to_negative_cache(query_name)
+            #     DNSStatsStorage.increment(key='external_servfail')
+            #     dns_logger.warning(f"[DNSQUERY] {query_name} SERVFAIL")
+            #     return None
 
-            elif rcode in [3, 4, 5]:  # 3 = NXDOMAIN, 4 = NOTIMP, 5 = REFUSED
-                DNSCacheStorage.add_to_negative_cache(query_name)
-                DNSStatsStorage.increment(key='external_nxdomain')
-                dns_logger.warning(f"[DNSQUERY] {query_name} rcode:{rcode}")
-                return external_response[DNS]
+            # elif rcode in [3, 4, 5]:  # 3 = NXDOMAIN, 4 = NOTIMP, 5 = REFUSED
+            #     DNSCacheStorage.add_to_negative_cache(query_name)
+            #     DNSStatsStorage.increment(key='external_nxdomain')
+            #     dns_logger.warning(f"[DNSQUERY] {query_name} rcode:{rcode}")
+            #     return external_response[DNS]
 
-        # DNSCacheStorage.add_to_negative_cache(query_name)
+        DNSCacheStorage.add_to_negative_cache(query_name)
         DNSStatsStorage.increment(key='external_failure')
         dns_logger.warning(f"{query_name} failed")
         return None
@@ -954,7 +936,7 @@ class DNSServer:
         ):
             return False
 
-        subnet = Utiltities.generate_subnet_from_ip_and_cidr(
+        subnet = Utilities.generate_subnet_from_ip_and_cidr(
             self.OWN_IP, self.OWN_CIDR)
 
         if ipaddress.ip_address(packet[IP].src) not in subnet or ipaddress.ip_address(packet[IP].dst) not in subnet:
@@ -965,21 +947,18 @@ class DNSServer:
 
         return True
 
-    def _add_to_processing_queue_if_valid(self, packet: Ether) -> None:
+    def _preprocessor(self, packet: Ether) -> None:
         """Enqueue a sniffed DNS packet for processing"""
 
         try:
 
+            DNSStatsStorage.increment(key='request_total')
             self._inbound_packet_timestamps.appendleft(packet.time)
-            
             if not self._validate_inbound_packet(packet):
                 return
 
-            DNSStatsStorage.increment(key='request_total')
-
             if self._inbound_packet_buffer_queue.qsize() > INBOUND_REQUESTS_DEDUPLICATE_QUEUE_SIZE/2:
                 dns_logger.warning(f"Queue half full")
-
             if self._inbound_packet_buffer_queue.full():
                 raise queue.Full("DNS packet queue is full")
 
@@ -990,12 +969,6 @@ class DNSServer:
 
             self._inbound_packet_deduplication_queue.appendleft(key)
             self._inbound_packet_buffer_queue.put(packet)
-
-            if len(self._inbound_packet_timestamps) > 1:
-                _time_delta = abs(self._inbound_packet_timestamps[0] - self._inbound_packet_timestamps[-1])
-                per_sec_hitrate = len(self._inbound_packet_timestamps) / _time_delta
-                if per_sec_hitrate > INBOUND_PACKET_HIGH_LIMIT:
-                    dns_logger.warning(f"Package/sec = {round(per_sec_hitrate, 2)}")
 
         except queue.Full:
             dns_logger.warning(f"packet queue is full")
@@ -1040,7 +1013,7 @@ class DNSServer:
             scapy.sniff(
                 iface=self.INTERFACE,
                 filter="ip and udp dst port 53",
-                prn=self._add_to_processing_queue_if_valid,
+                prn=self._preprocessor,
                 store=False
             )
 
@@ -1054,52 +1027,42 @@ class DNSServer:
         """Starts the DNS server, listening for DNS queries, and starts the cleanup thread."""
 
         self._running = True
-        dns_logger.info(
-            f"Starting at IFACE:{self.INTERFACE} MAC:{self.OWN_MAC} IP:{self.OWN_IP} PORT:{self.DNS_PORT}")
+        dns_logger.info(f"Starting at IFACE:{self.INTERFACE} MAC:{self.OWN_MAC} IP:{self.OWN_IP} PORT:{self.DNS_PORT}")
 
-        Utiltities.delete_dns_db_files()
-        Utiltities.create_db()
+        Utilities.delete_dns_db_files()
+        Utilities.create_db()
 
         DNSHistoryStorage.init()
         DNSStatsStorage.init()
         DNSCacheStorage.init()
 
-        traffic_listener = threading.Thread(
-            target=self.service_traffic_listener,
-            name="traffic_listener",
-            daemon=True)
+        traffic_listener = threading.Thread(target=self.service_traffic_listener,name="traffic_listener",daemon=True)
         traffic_listener.start()
         self._threads["traffic_listener"] = traffic_listener
 #
-        control_lists_loader = threading.Thread(
-            target=self.service_control_lists_loader,
-            name="control_lists_loader",
-            daemon=True)
+        control_lists_loader = threading.Thread(target=self.service_control_lists_loader,name="control_lists_loader",daemon=True)
         control_lists_loader.start()
         self._threads["control_lists_loader"] = control_lists_loader
 
         for _index in range(10):
-            queue_worker = threading.Thread(
-                target=self.service_queue_worker_processor,
-                name=f"queue_worker_{_index}",
-                daemon=True)
+            queue_worker = threading.Thread(target=self.service_queue_worker_processor,name=f"queue_worker_{_index}",daemon=True)
             queue_worker.start()
             self._threads[f"queue_worker_{_index}"] = queue_worker
 
-        stale_history_remover = threading.Thread(target=DNSHistoryStorage.service_delete_stale_history_entries,
-                                                 name="stale_history_remover", daemon=True)
-        stale_history_remover.start()
-        self._threads[f"stale_history_remover"] = stale_history_remover
+        # stale_history_remover = threading.Thread(target=DNSHistoryStorage.service_delete_stale_history_entries,
+        #                                          name="stale_history_remover", daemon=True)
+        # stale_history_remover.start()
+        # self._threads[f"stale_history_remover"] = stale_history_remover
 
         dns_logger.info("Service started")
 
     def stop_service(self):
-        """Sets running to False to stop the DNS server gracefully."""
+
         self._running = False
 
         for thread_name, thread in self._threads.items():
             if thread.is_alive():
-                dns_logger.info(f"Stopping thread: {thread_name}")
+                dns_logger.info(f"Stopping thread:{thread_name}")
                 thread.join()
 
         dns_logger.info("All threads stopped, stopping the DNS server")
@@ -1110,11 +1073,7 @@ class DNSServer:
         self.stop_service()
         sys.exit(0)
 
-
 if __name__ == "__main__":
-
-    # dns_server = DNSServer()
-    # dns_server.start()
 
     while True:
         time.sleep(1)
