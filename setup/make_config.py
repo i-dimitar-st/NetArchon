@@ -124,6 +124,9 @@ try:
         }, file_handle, ensure_ascii=False, indent=4)
         print(f"Config file saved to disk at {CONFIG_FULL_PATH}")
 
+
 except Exception as err:
     print(f"Error:{str(err)}")
     exit(1)
+
+print(f"Make config complete, config at:{CONFIG_FULL_PATH} edit if required")

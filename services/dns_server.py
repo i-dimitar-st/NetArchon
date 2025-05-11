@@ -829,7 +829,7 @@ class DNSServer:
                     _best_response = _server_response
 
         if not _best_response:
-            dns_logger.warning("Weird all external DNS servers failed")
+            dns_logger.warning(f"Weird all external DNS servers failed for {packet[DNS].qd.qname}")
             return None
 
         return _best_response
