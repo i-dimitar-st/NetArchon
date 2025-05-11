@@ -34,7 +34,7 @@ StandardError=journal
 Environment=PYTHONUNBUFFERED=1
 Environment=NETARCHON_LOG_LEVEL=debug
 Environment=NETARCHON_APP_MODE=production
-Environment=NETARCHON_CONFIG_PATH=$WORKDIR/config/settings.json
+Environment=NETARCHON_CONFIG_PATH=$WORKDIR/config/config.json
 
 [Install]
 WantedBy=multi-user.target

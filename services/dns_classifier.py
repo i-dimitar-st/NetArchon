@@ -47,8 +47,6 @@ def get_dns_history() -> set:
 class DomainClassifier(nn.Module):
     def __init__(self, vocab_size, embed_dim=128, output_dim=1, dropout_rate=0.35):
         super(DomainClassifier, self).__init__()
-
-        print(vocab_size)
         self.embedding = nn.Embedding(vocab_size, embed_dim, padding_idx=0)
         self.lstm1 = nn.LSTM(embed_dim, 128, batch_first=True, dropout=dropout_rate)
         self.lstm2 = nn.LSTM(128, 128, batch_first=True, dropout=dropout_rate)
