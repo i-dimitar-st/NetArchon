@@ -14,7 +14,7 @@ from scapy.layers.l2 import Ether, ARP
 from scapy.layers.inet import IP, UDP
 from threading import RLock
 from pathlib import Path
-from services import MainLogger
+from services.service_logger import MainLogger
 
 # fmt: off
 sys.path.append('/projects/gitlab/netarchon/venv/lib/python3.12/site-packages')
@@ -716,8 +716,8 @@ class DHCPServer:
         try:
             with open(CONFIG_FULLPATH, "r") as file_handle:
                 _config = json.load(file_handle)
-                _server = _config.get("server",{})
-                _dhcp_settings = _config.get("dhcp",{})
+                _server = _config.get("server", {})
+                _dhcp_settings = _config.get("dhcp", {})
                 self._interface = _server.get("interface")
                 self._own_ip = _server.get("ip")
                 self._own_mac = _server.get("mac")

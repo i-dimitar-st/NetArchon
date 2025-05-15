@@ -1,23 +1,16 @@
 {
-    "timestamp": "2025-05-11T21:55:30.353824",
+    "timestamp": "2025-05-07",
     "server": {
         "interface": "enp2s0",
         "mac": "18:c0:4d:46:f4:11",
-        "mac_broadcast": "ff:ff:ff:ff:ff:ff",
-        "family": "inet",
         "ip": "192.168.20.100",
-        "ip_broadcast": "192.168.20.255",
-        "cidr": "24",
-        "subnet_mask": "255.255.255.0"
+        "subnet_mask": "255.255.255.0",
+        "broadcast": "192.168.20.255",
+        "cidr": "24"
     },
     "dns": {
         "port": 53,
         "server": "9.9.9.9",
-        "server_list": [
-            "1.1.1.3",
-            "9.9.9.9",
-            "185.228.168.9"
-        ],
         "ttl_cache": 300
     },
     "dhcp": {

@@ -2,11 +2,11 @@
 import os
 import threading
 import time
-from services import MainLogger
-from services import DHCPServer
-from services import DNSServer
-from services import RabbitMqConsumer
-from services import app
+from services.service_logger import MainLogger
+from services.dhcp_server import DHCPServer
+from services.dns.dns_server import DNSServer
+from services.rabbitmq_service import RabbitMqConsumer
+from services.app.app import app
 
 NETARCHON_APP_MODE = os.environ.get("NETARCHON_MODE", "development")
 NETARCHON_LOG_LEVEL = os.environ.get("NETARCHON_LOG_LEVEL", "debug")

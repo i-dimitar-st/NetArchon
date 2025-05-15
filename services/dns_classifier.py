@@ -1,9 +1,8 @@
 import os
 import sys
-import numpy as np
 import sqlite3
 from pathlib import Path
-
+from typing import List, Tuple
 
 # fmt: off
 sys.path.append('/projects/gitlab/netarchon/venv/lib/python3.12/site-packages')
@@ -19,78 +18,60 @@ DNS_CONTROL_LISTS_PATH = ROOT_PATH / 'config' / 'dns_control_list.json'
 DB_FULLPATH = ROOT_PATH / 'db' / 'dns.sqlite3'
 ALLOWED_CHARS = "abcdefghijklmnopqrstuvwxyz0123456789-._~:/?#[]@!$&'()*+,;=%."
 MAX_LENGTH = 80
-
-def get_dns_history() -> set:
-
-    try:
-        with sqlite3.connect(DB_FULLPATH) as conn:
-
-            cursor = conn.cursor()
-
-            cursor.execute("PRAGMA table_info(history)")
-            columns: list[str] = [column[1] for column in cursor.fetchall()]
-
-            cursor.execute("SELECT * FROM history")
-            query_result: list[tuple] = cursor.fetchall()
-
-            history_record = []
-            for each in query_result:
-                history_record.append(dict(zip(columns, each)))
-
-            return sorted({each["query"] for each in history_record})
-
-    except Exception as e:
-        print(f"Error: Failed to read {DB_FULLPATH} - {e}")
-        return []
+EPOCHS = 50
 
 
 class DomainClassifier(nn.Module):
-    def __init__(self, vocab_size, embed_dim=128, output_dim=1, dropout_rate=0.35):
+    def __init__(self, vocab_size: int, embed_dim: int = 128, output_dim: int = 1, dropout_rate: float = 0.35):
         super(DomainClassifier, self).__init__()
+
         self.embedding = nn.Embedding(vocab_size, embed_dim, padding_idx=0)
-        self.lstm1 = nn.LSTM(embed_dim, 128, batch_first=True, dropout=dropout_rate)
-        self.lstm2 = nn.LSTM(128, 128, batch_first=True, dropout=dropout_rate)
-        self.lstm3 = nn.LSTM(128, 128, batch_first=True, dropout=dropout_rate)
+        self.lstm1 = nn.LSTM(embed_dim, 128, batch_first=True)
+        self.dropout1 = nn.Dropout(dropout_rate)
+        self.lstm2 = nn.LSTM(128, 128, batch_first=True)
+        self.dropout2 = nn.Dropout(dropout_rate)
+        self.lstm3 = nn.LSTM(128, 128, batch_first=True)
+        self.dropout3 = nn.Dropout(dropout_rate)
         self.fc = nn.Linear(128, output_dim)
         self.sigmoid = nn.Sigmoid()
 
-    def forward(self, x):
-        x = self.embedding(x)
-        out, (h_n, c_n) = self.lstm1(x)
-        out, (h_n, c_n) = self.lstm2(out)
-        out, (h_n, c_n) = self.lstm3(out)
-        out = out[:, -1, :] 
-        out = self.fc(out)
-        out = self.sigmoid(out)
-
-        return out
-
-class DomainDataset(Dataset):
-    def __init__(self, data, labels, known_chars):
-        self.data = data
-        self.labels = labels
-        self.known_chars = known_chars
-
-    def __len__(self):
-        return len(self.data)
-
-    def __getitem__(self, idx):
-        # Convert domain to indices based on known_chars
-        domain = self.data[idx]
-        indices = [self.known_chars.get(char, 0) for char in domain]  # Default to padding (0) if char not found
-        label = self.labels[idx]
-        return torch.tensor(indices), torch.tensor(label)
+    def forward(self, domain_urls: torch.Tensor) -> torch.Tensor:
+        embedded: torch.Tensor = self.embedding(domain_urls)
+        lstm_out1, _ = self.lstm1(embedded)
+        lstm_out1 = self.dropout1(lstm_out1)
+        lstm_out2, _ = self.lstm2(lstm_out1)
+        lstm_out2 = self.dropout2(lstm_out2)
+        lstm_out3, _ = self.lstm3(lstm_out2)
+        lstm_out3 = self.dropout3(lstm_out3)
+        final_timestep_output: torch.Tensor = lstm_out3[:, -1, :]
+        logits: torch.Tensor = self.fc(final_timestep_output)
+        output: torch.Tensor = self.sigmoid(logits)
+        return output
 
 
-def collate_fn(batch):
-    # Pad the sequences to the maximum length in the batch
-    max_len = max(len(x[0]) for x in batch)
-    padded_inputs = [F.pad(x[0], (0, max_len - len(x[0]))) for x in batch]
-    labels = [x[1] for x in batch]
+def filter_domain(input_string: str) -> str:
+    adjusted_input = [char.lower() for char in input_string if char.lower() in ALLOWED_CHARS]
+    return ''.join(adjusted_input)
+
+
+def collate_fn(batch: List[Tuple[str, int]]) -> Tuple[torch.Tensor, torch.Tensor]:
+    max_domain_length = max(len(_domain[0]) for _domain in batch)
+    
+    padded_inputs = [
+        torch.tensor([ALLOWED_CHARS.find(char) + 1 for char in _domain[0]])
+        for _domain in batch
+    ]
+    
+    padded_inputs = [
+        F.pad(_domain, (0, max_domain_length - len(_domain))) 
+        for _domain in padded_inputs
+    ]
+    
+    labels = [_domain[1] for _domain in batch]
     return torch.stack(padded_inputs, 0), torch.tensor(labels)
 
+
 def generate_training_dataset():
-    # Example dataset (replace with your actual data generation process)
     domains_with_labels = {
         "ads.google.com": 1,
         "track.analytics.com": 1,
@@ -165,11 +146,11 @@ def generate_training_dataset():
         "web.facebook.com":0,
         "www.turkishairlines.com":0,
         "weather-data.apple.com":0
-
     }
     return list(domains_with_labels.keys()), list(domains_with_labels.values())
 
-def train(model, train_loader, criterion, optimizer, num_epochs=50):
+
+def train(model, train_loader, criterion, optimizer, num_epochs=EPOCHS):
     model.train()
     for epoch in range(num_epochs):
         running_loss = 0.0
@@ -180,8 +161,9 @@ def train(model, train_loader, criterion, optimizer, num_epochs=50):
             loss.backward()
             optimizer.step()
             running_loss += loss.item()
-        
+
         print(f"Epoch {epoch+1}/{num_epochs}, Loss: {running_loss/len(train_loader):.4f}")
+
 
 def evaluate(model, test_loader):
     model.eval()
@@ -193,53 +175,60 @@ def evaluate(model, test_loader):
             predicted = (outputs >= 0.5).float()  # Predict 1 if output >= 0.5, else 0
             total += labels.size(0)
             correct += (predicted == labels).sum().item()
-    
+
     accuracy = correct / total
     print(f"Accuracy: {accuracy * 100:.2f}%")
     return accuracy
+
 
 def save_model(model, path):
     torch.save(model.state_dict(), path)
     print(f"Model saved to {path}")
 
-def test_and_print_results(domains, model, known_chars):
+
+def test_and_print_results(domains, model):
     for domain in domains:
-        indices = [known_chars.get(char, 0) for char in domain]
+        indices = [ALLOWED_CHARS.find(char) + 1 for char in domain]  # Map characters to indices based on ALLOWED_CHARS
         indices = torch.tensor([indices])
         output = model(indices)
         print(f"{domain:>50} => {output.item()*100:8.3f} %")
 
-def extract_chars_from_domain_list(domains:list[str]) -> dict:
-    return {char: idx + 1 for idx, char in enumerate(set("".join(domains)))}
 
-def extract_chars_from_string(string:str) -> dict:
-    return {char: idx + 1 for idx, char in string}
+def get_dns_history() -> set:
+    try:
+        with sqlite3.connect(DB_FULLPATH) as conn:
+            cursor = conn.cursor()
 
-def process_string(input_string: str) -> str:
-    adjusted_input = [char.lower() for char in input_string if char.lower() in ALLOWED_CHARS]
-    return ''.join(adjusted_input)
+            cursor.execute("PRAGMA table_info(history)")
+            columns: list[str] = [column[1] for column in cursor.fetchall()]
+
+            cursor.execute("SELECT * FROM history")
+            query_result: list[tuple] = cursor.fetchall()
+
+            history_record = []
+            for each in query_result:
+                history_record.append(dict(zip(columns, each)))
+
+            return sorted({each["query"] for each in history_record})
+
+    except Exception as e:
+        print(f"Error: Failed to read {DB_FULLPATH} - {e}")
+        return []
+
 
 if __name__ == "__main__":
+    
     print("DNS Query Classifier")
 
-    # Step 1: Generate dataset
     training_domains_normalized = []
     training_domains, training_labels = generate_training_dataset()
     for each in training_domains:
-        training_domains_normalized.append(process_string(each))
+        training_domains_normalized.append(filter_domain(each))
 
-    known_chars:dict = {char: idx + 1 for idx, char in enumerate(set("".join(training_domains)))}
-    known_chars['<PAD>'] = 0  
-    input_size = len(known_chars)
+    input_size = len(ALLOWED_CHARS) + 1  # +1 padding
 
-    # known_chars = {char: idx+1 for idx, char in enumerate(ALLOWED_CHARS)}
-    # known_chars['<PAD>'] = 0
-    # input_size = len(known_chars)
-
-    # Step 2: Create model
     dnsClassifier = DomainClassifier(vocab_size=input_size)
 
-    # Step 3: Manually split the data into train and test
     split_idx = int(len(training_domains_normalized) * 0.8)
     train_domains = training_domains_normalized[:split_idx]
     test_domains = training_domains_normalized[split_idx:]
@@ -247,18 +236,13 @@ if __name__ == "__main__":
     test_labels = training_labels[split_idx:]
 
     # Step 4: Create dataset and dataloaders
-    train_dataset = DomainDataset(train_domains, train_labels, known_chars)
-    test_dataset = DomainDataset(test_domains, test_labels, known_chars)
+    train_loader = DataLoader(list(zip(train_domains, train_labels)), batch_size=2, shuffle=True, collate_fn=collate_fn)
+    test_loader = DataLoader(list(zip(test_domains, test_labels)), batch_size=2, shuffle=False, collate_fn=collate_fn)
 
-    train_loader = DataLoader(train_dataset, batch_size=2, shuffle=True, collate_fn=collate_fn)
-    test_loader = DataLoader(test_dataset, batch_size=2, shuffle=False, collate_fn=collate_fn)
-
-    # Step 5: Train model
     print("Stage 5 - Training")
     criterion = nn.BCELoss()  # Binary Cross-Entropy loss
-    # optimizer = optim.Adam(model.parameters(), lr=0.001)
     optimizer = optim.AdamW(dnsClassifier.parameters(), lr=1e-4, weight_decay=0.01)
-    train(dnsClassifier, train_loader, criterion, optimizer, num_epochs=50)
+    train(dnsClassifier, train_loader, criterion, optimizer, num_epochs=EPOCHS)
 
     # Step 6: Evaluate model
     print("Eval ...")
@@ -269,7 +253,5 @@ if __name__ == "__main__":
     save_model(dnsClassifier, "models/domain_classifier_model.pt")
 
     # Step 8: Test and print results on new domains
-    print("Testing model on new domains...")
-    test_and_print_results(get_dns_history(), dnsClassifier, known_chars)
-
-    exit(0)
+    print("Testing model on new domains:")
+    test_and_print_results(get_dns_history(), dnsClassifier)
