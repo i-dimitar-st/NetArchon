@@ -2,21 +2,66 @@ import re
 import random
 from typing import Optional, List
 from concurrent.futures import ThreadPoolExecutor
-from scapy.all import IP, UDP, DNS, DNSQR, sr1, DNSRR
+from scapy.all import IP, UDP, DNS, DNSQR, sr1, DNSRR, Ether
 
 
 OWN_INTERFACE = 'enp2s0'
 DNS_PORT = 53
-DNS_TIMEOUT = 2
+DNS_TIMEOUT = 2.5
 DNS_RETRY = 0
 DNS_DEFAULT_SERVER = "1.1.1.1"
 DNS_MIN_TTL = 30
 
 
+def is_valid_external_domain(dns_query: DNSQR) -> bool:
+    if not isinstance(dns_query, DNSQR):
+        return False
+
+    _qname = dns_query.qname
+    if isinstance(_qname, bytes):
+        _qname = _qname.decode(errors='ignore')
+
+    # RFC 1035 min one . => 2+ labels
+    _regex = re.compile(
+    r"^"                              # start
+    r"^(?=.{1,253}$)"                 # 1-253 chars
+    r"(?!-)"                          # not start -
+    r"([A-Za-z0-9-]{1,63}(?<!-)\.)+"  # 1^ lables end with . no trailing - in each
+    r"[A-Za-z0-9-]{1,63}(?<!-)\.?"    # label (TLD) with optional trailing dot, no trailing hyphen
+    r"$"                              # end
+)
+    return bool(_regex.fullmatch(_qname))
+
+
+def is_valid_domain(dns_query: DNSQR) -> bool:
+    
+    if not isinstance(dns_query, DNSQR):
+        return False
+
+    _qname = dns_query.qname
+    if isinstance(_qname, bytes):
+        _qname = _qname.decode(errors='ignore')
+
+    # RFC 1035 domain pattern
+    _regex = re.compile(r"^(?=.{1,253}$)(?!-)[A-Za-z0-9-]{1,63}(?<!-)(\.(?!-)[A-Za-z0-9-]{1,63}(?<!-))*\.?$")
+    # ^(?=.{1,253}$)          => Assert total length between 1 and 253 characters
+    # (?!-)                   => Domain must NOT start with a hyphen
+    # [A-Za-z0-9-]{1,63}      => First label: 1 to 63 alphanumeric or hyphen chars
+    # (?<!-)                  => First label must NOT end with a hyphen
+    # (                       => Start of group for additional labels
+    #    \.                   => Literal dot separator between labels
+    #    (?!-)                => Next label must NOT start with a hyphen
+    #    [A-Za-z0-9-]{1,63}   => Label: 1 to 63 alphanumeric or hyphen chars
+    #    (?<!-)               => Label must NOT end with a hyphen
+    # )*                      => Zero or more additional labels allowed
+    # \.?                     => Optional trailing dot for fully qualified domain names (FQDN)
+    # $                       => End of string
+    return bool(_regex.fullmatch(_qname))
+
+
 def is_valid_ipv4(ip: str) -> bool:
     if not isinstance(ip, str):
         return False
-
     return bool(re.compile(r"^[0-9]{1,3}\.[0-9]{1,3}\.[0-9]{1,3}\.[0-9]{1,3}$").match(ip))
 
 
@@ -27,18 +72,18 @@ def generate_dnsqr(qtype='A', qname='example.com', qclass=1) -> DNSQR:
 def is_valid_response(response: IP) -> bool:
     return bool(
         response is not None
-        or response.haslayer(DNS)
-        or response[DNS].rcode == 0
-        or response[DNS].ancount > 0
+        and response.haslayer(DNS)
+        and response[DNS].rcode == 0
+        and response[DNS].ancount > 0
     )
 
 
 def is_empty_response(response: IP) -> bool:
     return bool(
         response is not None
-        or response.haslayer(DNS)
-        or response[DNS].rcode == 0
-        or response[DNS].ancount == 0)
+        and response.haslayer(DNS)
+        and response[DNS].rcode == 0
+        and response[DNS].ancount == 0)
 
 
 def extract_longest_dnrr_to_dict(dns_resource_records: list[DNSRR]) -> dict:
@@ -52,9 +97,11 @@ def extract_longest_dnrr_to_dict(dns_resource_records: list[DNSRR]) -> dict:
     }
 
 
-def extract_min_and_max_ttl(dns_resource_records: List[DNSRR]) -> tuple:
-    min_ttl = min((getattr(each_rr, 'ttl', DNS_MIN_TTL) for each_rr in dns_resource_records), default=DNS_MIN_TTL)
-    max_ttl = max((getattr(each_rr, 'ttl', DNS_MIN_TTL) for each_rr in dns_resource_records), default=DNS_MIN_TTL)
+def extract_min_and_max_ttl(dns_resource_records: DNSRR = None) -> tuple:
+    if not dns_resource_records:
+        return DNS_MIN_TTL,DNS_MIN_TTL
+    min_ttl = min((getattr(dns_resource_record, 'ttl', DNS_MIN_TTL) for dns_resource_record in dns_resource_records), default=DNS_MIN_TTL)
+    max_ttl = max((getattr(dns_resource_record, 'ttl', DNS_MIN_TTL) for dns_resource_record in dns_resource_records), default=DNS_MIN_TTL)
     return min_ttl, max_ttl
 
 
@@ -73,7 +120,7 @@ def extract_longest_dnsrr(dns_resource_records: List[DNSRR]) -> DNSRR:
 
 
 class DNSQuery:
-    def __init__(self, retry: int = DNS_RETRY, dst_port: int = DNS_PORT, timeout: int = DNS_TIMEOUT, dns_server_ip: str = DNS_DEFAULT_SERVER, interface: str = OWN_INTERFACE):
+    def __init__(self, retry: int = DNS_RETRY, dst_port: int = DNS_PORT, timeout: float = DNS_TIMEOUT, dns_server_ip: str = DNS_DEFAULT_SERVER, interface: str = OWN_INTERFACE):
 
         if not is_valid_ipv4(dns_server_ip):
             raise ValueError("Invalid IP")
@@ -91,6 +138,9 @@ class DNSQuery:
     def query(self, dns_query: DNSQR) -> IP | None:
         try:
 
+            if not is_valid_external_domain(dns_query):
+                return None
+            
             response = sr1(
                 IP(dst=self.dst_ip) /
                 UDP(sport=self.src_port, dport=self.dst_port) /
@@ -106,7 +156,6 @@ class DNSQuery:
             return None
 
         except Exception as e:
-            print(f"Error querying {self.dst_ip} {str(e)}")
             return None
 
 
@@ -114,14 +163,14 @@ class DNSQueries:
     def __init__(self, dns_servers: list[str]):
         self.dns_servers = dns_servers
 
-    def query_best_from_multiple_servers(self, query_question: DNSQR) -> IP | None:
-        
+    def query_best_from_multiple_servers(self, dns_query_record: DNSQR) -> IP | None:
+
         results = {}
         dns_queries = [DNSQuery(dns_server_ip=ip) for ip in self.dns_servers]
 
         with ThreadPoolExecutor(max_workers=len(self.dns_servers)) as executor:
             futures = {
-                dns_query.dst_ip: executor.submit(dns_query.query, query_question)
+                dns_query.dst_ip: executor.submit(dns_query.query, dns_query_record)
                 for dns_query in dns_queries
             }
             results = {}
@@ -133,7 +182,7 @@ class DNSQueries:
 
         return self.extract_best_response(results) or self.extract_fallback(results)
 
-    def extract_best_response(self, dns_responses: dict[str: IP]) -> IP | None:
+    def extract_best_response(self, dns_responses: dict) -> IP | None:
 
         _best_ttl = 0
         best_response = None
@@ -151,9 +200,7 @@ class DNSQueries:
     def extract_fallback(self, dns_responses: dict) -> IP | None:
 
         for response in dns_responses.values():
-            if not response or not response.haslayer(DNS):
-                continue
-            if response[DNS].rcode == 0 and response[DNS].ancount == 0:
+            if is_empty_response(response):
                 return response
 
         return None

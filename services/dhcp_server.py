@@ -14,7 +14,7 @@ from scapy.layers.l2 import Ether, ARP
 from scapy.layers.inet import IP, UDP
 from threading import RLock
 from pathlib import Path
-from services.service_logger import MainLogger
+from services.logger.logger import MainLogger
 
 # fmt: off
 sys.path.append('/projects/gitlab/netarchon/venv/lib/python3.12/site-packages')

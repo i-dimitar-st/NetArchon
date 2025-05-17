@@ -43,7 +43,6 @@ class MainLogger:
         logger.setLevel(cls._get_logger_level(log_level))
 
         if not logger.hasHandlers():
-            # file_handler = logging.FileHandler(LOG_PATH, mode='a', encoding='utf-8')
             file_handler = RotatingFileHandler(
                 LOG_PATH,
                 maxBytes=50 * 1024 * 1024,  

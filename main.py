@@ -2,28 +2,30 @@
 import os
 import threading
 import time
-from services.service_logger import MainLogger
+from services.logger.logger import MainLogger
 from services.dhcp_server import DHCPServer
 from services.dns.dns_server import DNSServer
 from services.rabbitmq_service import RabbitMqConsumer
 from services.app.app import app
 
-NETARCHON_APP_MODE = os.environ.get("NETARCHON_MODE", "development")
-NETARCHON_LOG_LEVEL = os.environ.get("NETARCHON_LOG_LEVEL", "debug")
+APP_MODE = os.environ.get("NETARCHON_MODE", "development")
+LOG_LEVEL = os.environ.get("NETARCHON_LOG_LEVEL", "debug")
+APP_HOST = os.environ.get("APP_HOST", "0.0.0.0")
+APP_PORT = int(os.environ.get("APP_PORT", 5000))
 
 CERT_PEM_PATH = './services/app/certificates/cert.pem'
 CERT_KEY_PATH = './services/app/certificates/key.pem'
 
 
-main_logger = MainLogger.get_logger(service_name="MAIN", log_level=NETARCHON_LOG_LEVEL)
+main_logger = MainLogger.get_logger(service_name="MAIN", log_level=LOG_LEVEL)
 
 
 def run_gui():
     """Starts the Flask GUI."""
     main_logger.info("Starting GUI")
     app.run(
-        host="0.0.0.0",
-        port=5000,
+        host=APP_HOST,
+        port=APP_PORT,
         debug=True,
         use_reloader=False,
         ssl_context=(CERT_PEM_PATH, CERT_KEY_PATH),
@@ -33,19 +35,19 @@ def run_gui():
 
 
 def run_dhcp():
-    main_logger.info("Starting DCHP Server")
+    main_logger.info("Starting DCHP")
     dhcp = DHCPServer()
     dhcp.start()
 
 
 def run_dns():
-    main_logger.info("Starting DNS Server")
+    main_logger.info("Starting DNS")
     dns = DNSServer()
     dns.start()
 
 
 if __name__ == "__main__":
-    main_logger.info("starting")
+    main_logger.info("Starting Main")
 
     dhcp_thread = threading.Thread(target=run_dhcp, name="DHCP-Thread", daemon=True)
     dhcp_thread.start()

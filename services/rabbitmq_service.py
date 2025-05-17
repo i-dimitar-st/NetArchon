@@ -1,9 +1,8 @@
 
 import json
-import logging
 import threading
 import sys
-from services.service_logger import MainLogger
+from services.logger.logger import MainLogger
 
 
 # fmt: off

@@ -6,8 +6,9 @@ import threading
 import json
 import sqlite3
 from pathlib import Path
+from typing import Callable,Optional
 from flask import Flask, render_template
-from services.service_logger import MainLogger
+from services.logger.logger import MainLogger
 # from services.rabbitmq_service import RabbitMqConsumer
 
 # fmt: off
@@ -20,7 +21,8 @@ app_logger = MainLogger.get_logger(service_name="GUI", log_level="debug")
 app_logger.info('Started APP')
 
 ROOT_PATH = Path(__file__).resolve().parents[2]
-DNS_DB_PATH = ROOT_PATH / "db" / "dns.sqlite3"
+DNS_DB_HISTORY = ROOT_PATH / "db" / "dns_history.sqlite3"
+DNS_DB_STATS = ROOT_PATH / "db" / "dns_stats.sqlite3"
 DHCP_DB_PATH = ROOT_PATH / "db" / "dhcp.sqlite3"
 CONFIG_PATH = ROOT_PATH / "config" / "config.json"
 DHCP_CONFIG_PATH = ROOT_PATH / "config" / "dhcp_config.json"
@@ -164,8 +166,7 @@ def get_network_interfaces():
     return network_interfaces
 
 
-def get_config() -> dict:
-
+def get_config() -> dict | None:
     try:
         with open(CONFIG_PATH, encoding="utf-8", mode="r") as file_handle:
             return json.load(file_handle)
@@ -174,7 +175,7 @@ def get_config() -> dict:
         return None
 
 
-def get_dhcp_system_config() -> dict:
+def get_dhcp_system_config() -> dict | None:
 
     try:
         with open(DHCP_CONFIG_PATH, encoding="utf-8", mode="r") as file_handle:
@@ -184,7 +185,7 @@ def get_dhcp_system_config() -> dict:
         return None
 
 
-def get_dns_system_config() -> dict:
+def get_dns_system_config() -> dict | None:
 
     try:
         with open(DNS_CONFIG_PATH, encoding="utf-8", mode="r") as file_handle:
@@ -214,14 +215,14 @@ def get_dhcp_leases() -> list:
             return result
 
     except Exception as e:
-        app_logger.error(f"Error: Failed to read {DNS_DB_PATH} - {e}")
+        app_logger.error(f"Error: Failed to read {DHCP_DB_PATH} - {e}")
         return []
 
 
 def get_dns_history() -> list:
 
     try:
-        with sqlite3.connect(DNS_DB_PATH) as conn:
+        with sqlite3.connect(DNS_DB_HISTORY) as conn:
 
             cursor = conn.cursor()
 
@@ -238,13 +239,13 @@ def get_dns_history() -> list:
             return dns_records
 
     except Exception as e:
-        app_logger.error(f"Error: Failed to read {DNS_DB_PATH} - {e}")
+        app_logger.error(f"Error: Failed to read {DNS_DB_HISTORY} - {e}")
         return []
 
 
 def get_dns_statistics() -> dict:
     try:
-        with sqlite3.connect(DNS_DB_PATH) as conn:
+        with sqlite3.connect(DNS_DB_STATS) as conn:
 
             cursor = conn.cursor()
 
@@ -256,13 +257,13 @@ def get_dns_statistics() -> dict:
 
             if row and columns:
                 if len(columns) != len(row):
-                    app_logger.warning(f"[get_dns_statistics] Column count ({len(columns)}) != Row length ({len(row)})")
+                    app_logger.warning(f"Column count ({len(columns)}) != Row length ({len(row)})")
                 return dict(zip(columns, row))
             else:
                 return {}
 
     except Exception as e:
-        app_logger.error(f"[get_dns_statistics]  Failed to read {DNS_DB_PATH} - {e}")
+        app_logger.error(f"Failed to read {DNS_DB_STATS} - {e}")
         return {}
 
 
@@ -286,11 +287,11 @@ def get_dhcp_statistics() -> dict:
                 return {}
 
     except Exception as e:
-        app_logger.error(f"[get_dns_statistics]  Failed to read {DNS_DB_PATH} - {e}")
+        app_logger.error(f"[get_dns_statistics]  Failed to read {DHCP_DB_PATH} - {e}")
         return {}
 
 
-def get_control_list() -> list:
+def get_control_list() -> list | None:
 
     try:
         with open(DNS_CONTROL_LIST, encoding="utf-8", mode="r") as file_handle:
@@ -353,10 +354,7 @@ def update_dhcp_statistics(payload: dict = {}):
     DHCP_STATISTICS.update(payload)
 
 
-def update_dhcp_leases(_leases: list = None):
-
-    if _leases is None:
-        _leases = []
+def update_dhcp_leases(_leases: list = []):
 
     for _lease in _leases:
         mac_address = _lease[0]
@@ -370,7 +368,7 @@ def update_dhcp_leases(_leases: list = None):
 
 
 class RabbitMqConsumer:
-    def __init__(self, host: str = '127.0.0.1', port: int = 5672, encoding: str = 'utf-8', message_queue_name: str = "dhcp_server", consumer_tag: str = 'default_consumer', processor_function: callable = None):
+    def __init__(self, host: str = '127.0.0.1', port: int = 5672, encoding: str = 'utf-8', message_queue_name: str = "dhcp_server", consumer_tag: str = 'default_consumer', processor_function:Optional[Callable] = None):
         """Initializes the RabbitMqConsumer with one message queue and consumer tag"""
         self.host = host
         self.port = port
@@ -418,7 +416,7 @@ class RabbitMqConsumer:
                                        consumer_tag=self.consumer_tag)
 
             while not self.stop_event.is_set():
-                self.connection.process_data_events(time_limit=0.2)
+                self.connection.process_data_events(time_limit=1)
                 time.sleep(0.2)
 
             app_logger.info("RabbitMQ listener stopped gracefully.")

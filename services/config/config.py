@@ -3,11 +3,11 @@ import json
 import time
 import copy
 from pathlib import Path
-from services.service_logger import MainLogger
+from services.logger.logger import MainLogger
 
-ROOT_PATH = Path(__file__).resolve().parents[1]
-CONFIG_PATH = ROOT_PATH / 'config'
-DNS_CONFIG_FULLPATH = CONFIG_PATH / 'config.json'
+ROOT_PATH = Path(__file__).resolve().parents[2]
+CONFIG_FULLPATH = ROOT_PATH / 'config' / 'config.json'
+
 
 config_logger = MainLogger.get_logger(service_name="CONFIG", log_level="debug")
 
@@ -24,8 +24,7 @@ class Config:
                 return
 
             try:
-
-                with open(DNS_CONFIG_FULLPATH, mode="r", encoding='utf-8') as file_handle:
+                with open(CONFIG_FULLPATH, mode="r", encoding='utf-8') as file_handle:
                     _config = json.load(file_handle)
 
                     cls.timestamp = _config.get("timestamp", time.time())

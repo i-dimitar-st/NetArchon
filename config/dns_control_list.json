@@ -59,9 +59,15 @@
       "ads*mozilla.org",
       "pagead*.syndication.com",
       "prod.adjoe*.com",
-      "xgapromo*googleapis.com"
+      "xgapromo*googleapis.com",
+      "*.akstat.io",
+      "*.fls.doubleclick.net",
+      "*.mrtb-plug.com",
+      "*clienttons-s.akamaihd.net"
     ],
     "urls": [
+      "em-frame.securitytrfx.com",
+      "d32yrtgrrtlvci.cloudfront.net",
       "pixel.adsafeprotected.com",
       "ads.telma.com.mk",
       "certify-js.alexametrics.com",
@@ -99,7 +105,9 @@
       "static.adsafeprotected.com",
       "app.adjust.io",
       "mobile.yandexadexchange.net",
-      "venetia.iad.appboy.com"
+      "venetia.iad.appboy.com",
+      "ads.sportsport.mk",
+      "8232301.fls.doubleclick.net"
     ]
   }
 }
