@@ -1,65 +1,58 @@
-#!/usr/bin/env python3.12
-import os
-import threading
 import time
+import signal
+import sys
+from pathlib import Path
+
+from services.config.config import config
 from services.logger.logger import MainLogger
-from services.dhcp_server import DHCPServer
-from services.dns.dns_server import DNSServer
-from services.rabbitmq_service import RabbitMqConsumer
-from services.app.app import app
+from services.dhcp.dhcp_server import DHCPServer
+from services.dns.server import DNSServer
+from services.app.app import App
+from services.garbage_collection.service import GCMonitorService
 
-APP_MODE = os.environ.get("NETARCHON_MODE", "development")
-LOG_LEVEL = os.environ.get("NETARCHON_LOG_LEVEL", "debug")
-APP_HOST = os.environ.get("APP_HOST", "0.0.0.0")
-APP_PORT = int(os.environ.get("APP_PORT", 5000))
+logger = MainLogger.get_logger(service_name="MAIN")
 
-CERT_PEM_PATH = './services/app/certificates/cert.pem'
-CERT_KEY_PATH = './services/app/certificates/key.pem'
+HOST = config.get("app", "host")
+PORT = config.get("app", "port")
 
-
-main_logger = MainLogger.get_logger(service_name="MAIN", log_level=LOG_LEVEL)
-
-
-def run_gui():
-    """Starts the Flask GUI."""
-    main_logger.info("Starting GUI")
-    app.run(
-        host=APP_HOST,
-        port=APP_PORT,
-        debug=True,
-        use_reloader=False,
-        ssl_context=(CERT_PEM_PATH, CERT_KEY_PATH),
-        threaded=True,
-        processes=1
-    )
+ROOT = Path(config.get("paths", "root"))
+PEM = ROOT / config.get("certificates", "cert")
+KEY = ROOT / config.get("certificates", "key")
+SHUTDOWN_FLAG = False
 
 
-def run_dhcp():
-    main_logger.info("Starting DCHP")
-    dhcp = DHCPServer()
-    dhcp.start()
-
-
-def run_dns():
-    main_logger.info("Starting DNS")
-    dns = DNSServer()
-    dns.start()
+def shutdown_handler(signum, frame):
+    logger.info(f"Received signal {signum}, shutting down.")
+    global SHUTDOWN_FLAG
+    SHUTDOWN_FLAG = True
 
 
 if __name__ == "__main__":
-    main_logger.info("Starting Main")
+    logger.info("Starting Main")
 
-    dhcp_thread = threading.Thread(target=run_dhcp, name="DHCP-Thread", daemon=True)
-    dhcp_thread.start()
+    dhcp = DHCPServer()
+    dhcp.start()
 
-    dns_thread = threading.Thread(target=run_dns, name="DNS-Thread", daemon=True)
-    dns_thread.start()
+    dns = DNSServer()
+    dns.start()
 
-    gui_thread = threading.Thread(target=run_gui, name="GUI-Thread", daemon=True)
-    gui_thread.start()
+    gc_metrics = GCMonitorService(interval=600)
+    gc_metrics.start()
 
-    try:
-        while True:
-            time.sleep(1)
-    except KeyboardInterrupt:
-        main_logger.info("Stopping services")
+    app_gui = App(port=PORT,
+                  host=HOST,
+                  ssl_context=(PEM, KEY))
+    app_gui.start()
+
+    signal.signal(signal.SIGINT, shutdown_handler)
+    signal.signal(signal.SIGTERM, shutdown_handler)
+
+    while not SHUTDOWN_FLAG:
+        time.sleep(1)
+
+    dns.stop()
+    dhcp.stop()
+    gc_metrics.stop()
+    app_gui.stop()
+    logger.info("Shutdown complete.")
+    sys.exit(0)

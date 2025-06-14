@@ -1,0 +1,3 @@
+PYTHONPATH=.
+VENV_BINARY=./venv/bin/python
+sudo PYTHONPATH=${PYTHONPATH} ${VENV_BINARY} main.py

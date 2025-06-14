@@ -275,7 +275,7 @@
             </div>
           </div>
           <div class="card-body">
-            {% for key, value in config.get("server").items() %} {% if value %}
+            {% for key, value in config.get("network").items() %} {% if value %}
             <div class="config-item">
               <span class="config-label">{{ key | replace('_', ' ') | upper }}</span>
               <span class="config-value">{{ value | upper }}</span>

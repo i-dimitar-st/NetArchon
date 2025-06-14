@@ -1,40 +1,34 @@
 import os
 import time
-import sys
 import platform
-import threading
+import sys
 import json
+import signal
+import multiprocessing
+from copy import deepcopy
 import sqlite3
+import psutil
 from pathlib import Path
-from typing import Callable,Optional
 from flask import Flask, render_template
 from services.logger.logger import MainLogger
-# from services.rabbitmq_service import RabbitMqConsumer
+from services.config.config import config
 
-# fmt: off
-sys.path.append('/projects/gitlab/netarchon/venv/lib/python3.12/site-packages')
-import psutil # type: ignore
-import pika # type: ignore
-# fmt: on
-
-app_logger = MainLogger.get_logger(service_name="GUI", log_level="debug")
-app_logger.info('Started APP')
-
-ROOT_PATH = Path(__file__).resolve().parents[2]
-DNS_DB_HISTORY = ROOT_PATH / "db" / "dns_history.sqlite3"
-DNS_DB_STATS = ROOT_PATH / "db" / "dns_stats.sqlite3"
-DHCP_DB_PATH = ROOT_PATH / "db" / "dhcp.sqlite3"
-CONFIG_PATH = ROOT_PATH / "config" / "config.json"
-DHCP_CONFIG_PATH = ROOT_PATH / "config" / "dhcp_config.json"
-DNS_CONFIG_PATH = ROOT_PATH / "config" / "dns_config.json"
+ROOT_PATH = Path("/projects/gitlab/netarchon")
+DNS_HISTORY_DB = ROOT_PATH / "db" / "dns_history.sqlite3"
+DNS_STATS_DB = ROOT_PATH / "db" / "dns_stats.sqlite3"
+DHCP_LEASES_DB = ROOT_PATH / "db" / "dhcp_leases.sqlite3"
+DHCP_STATS_DB = ROOT_PATH / "db" / "dhcp_stats.sqlite3"
 DNS_CONTROL_LIST = ROOT_PATH / "config" / "dns_control_list.json"
 LOG_FILE_PATH = ROOT_PATH / "logs" / "main.log"
-ACTIVE_NETWORK_INTERFACE = 'enp2s0'
+
 DHCP_STATISTICS = {}
 LEASES = []
 
 
-def generate_system_stats() -> dict:
+app_logger = MainLogger.get_logger(service_name="GUI", log_level="debug")
+
+
+def _generate_system_stats() -> dict:
     process = psutil.Process()
     stats = {
         'system': {
@@ -45,9 +39,7 @@ def generate_system_stats() -> dict:
             'os_release': {'value': platform.release()},
             'architecture': {'value': platform.machine()},
             'processor': {'value': platform.processor()},
-            'hostname': {'value': platform.node()},
-            'python_version': {'value': sys.version},
-            'python_executable': {'value': sys.executable},
+            'hostname': {'value': platform.node()}
         },
         'cpu': {
             'usage': {'value': psutil.cpu_percent(interval=0.5), 'unit': '%'},
@@ -110,35 +102,39 @@ def generate_system_stats() -> dict:
 
     # Current Process Stats
     with process.oneshot():
+        now = time.time()
+        create_time = process.create_time()
+        uptime = round(now - create_time, 2)
+
         mem_info = process.memory_info()
         cpu_times = process.cpu_times()
-        ctx_switches = process.num_ctx_switches()
-        io_counters = process.io_counters()
         open_files = process.open_files()
+        open_connections = process.connections(kind='inet')  # TCP/UDP sockets
+        cpu_percent = process.cpu_percent(interval=0.1)  # Short sample
+
         stats['process'] = {
             'pid': {'value': process.pid},
             'name': {'value': process.name()},
             'status': {'value': process.status()},
+            'uptime': {'value': uptime, 'unit': 'sec'},
+            'cpu': {'value': round(cpu_percent, 2), 'unit': '%'},
+            'cpu_user': {'value': round(cpu_times.user, 2), 'unit': 'sec'},
+            'cpu_system': {'value': round(cpu_times.system, 2), 'unit': 'sec'},
             'memory_rss': {'value': int(mem_info.rss / 1024 / 1024), 'unit': 'MB'},
             'memory_vms': {'value': int(mem_info.vms / 1024 / 1024), 'unit': 'MB'},
-            'cpu_time_user': {'value': round(cpu_times.user, 2), 'unit': 'sec'},
-            'cpu_time_system': {'value': round(cpu_times.system, 2), 'unit': 'sec'},
-            'threads': {'value': process.num_threads()},
-            'context_switches_voluntary': {'value': ctx_switches.voluntary},
-            'context_switches_involuntary': {'value': ctx_switches.involuntary},
-            'io_read_bytes': {'value': int(io_counters.read_bytes / 1024), 'unit': 'KB'},
-            'io_write_bytes': {'value': int(io_counters.write_bytes / 1024), 'unit': 'KB'},
             'open_files_count': {'value': len(open_files)},
+            'open_sockets_count': {'value': len(open_connections)},
         }
 
     return stats
 
 
-def get_network_interfaces():
+def _get_network_interfaces():
+
     network_interfaces = []
 
-    for interface, addresses in psutil.net_if_addrs().items():
-        interface_data = {
+    for interface, _addresses in psutil.net_if_addrs().items():
+        _interface_data = {
             "name": interface,
             "type": None,
             "ip_address": None,
@@ -147,113 +143,76 @@ def get_network_interfaces():
             "mac_address": None
         }
 
-        for address in addresses:
-            addr_type = address.family
-            addr = address.address
-            netmask = address.netmask
-            broadcast = address.broadcast
+        for _address in _addresses:
+            _type = _address.family
+            _addr = _address.address
+            netmask = _address.netmask
+            broadcast = _address.broadcast
 
-            if addr_type == 2:
-                interface_data["type"] = "IPv4"
-                interface_data["ip_address"] = addr
-                interface_data["netmask"] = netmask
-                interface_data["broadcast"] = broadcast
-            elif addr_type == 17:
-                interface_data["mac_address"] = addr
+            if _type == 2:
+                _interface_data["type"] = "IPv4"
+                _interface_data["ip_address"] = _addr
+                _interface_data["netmask"] = netmask
+                _interface_data["broadcast"] = broadcast
+            elif _type == 17:
+                _interface_data["mac_address"] = _addr
 
-        network_interfaces.append(interface_data)
+        network_interfaces.append(_interface_data)
 
     return network_interfaces
 
 
-def get_config() -> dict | None:
-    try:
-        with open(CONFIG_PATH, encoding="utf-8", mode="r") as file_handle:
-            return json.load(file_handle)
-    except Exception as e:
-        app_logger.error(f"Error: Failed to read {DHCP_CONFIG_PATH} - {e}")
-        return None
-
-
-def get_dhcp_system_config() -> dict | None:
+def _get_dhcp_leases() -> list:
 
     try:
-        with open(DHCP_CONFIG_PATH, encoding="utf-8", mode="r") as file_handle:
-            return json.load(file_handle)
-    except Exception as e:
-        app_logger.error(f"Error: Failed to read {DHCP_CONFIG_PATH} - {e}")
-        return None
+        with sqlite3.connect(DHCP_LEASES_DB) as _conn:
 
+            _cursor = _conn.cursor()
+            columns_raw = _cursor.execute("PRAGMA table_info(leases)").fetchall()
 
-def get_dns_system_config() -> dict | None:
-
-    try:
-        with open(DNS_CONFIG_PATH, encoding="utf-8", mode="r") as file_handle:
-            return json.load(file_handle)
-    except Exception as e:
-        app_logger.error(f"Error: Failed to read {DNS_CONFIG_PATH} - {e}")
-        return None
-
-
-def get_dhcp_leases() -> list:
-
-    try:
-        with sqlite3.connect(DHCP_DB_PATH) as conn:
-
-            cursor = conn.cursor()
-
-            cursor.execute("PRAGMA table_info(leases)")
-            columns: list[str] = [column[1] for column in cursor.fetchall()]
-
-            cursor.execute("SELECT * FROM leases")
-            leases: list[tuple] = cursor.fetchall()
+            _columns: list[str] = [column[1] for column in columns_raw]
+            _leases: list[tuple] = _cursor.execute("SELECT * FROM leases").fetchall()
 
             result = []
-            for lease in leases:
-                result.append(dict(zip(columns, lease)))
+            for _lease in _leases:
+                result.append(dict(zip(_columns, _lease)))
 
             return result
 
     except Exception as e:
-        app_logger.error(f"Error: Failed to read {DHCP_DB_PATH} - {e}")
+        app_logger.exception(f"Error: Failed to read {DHCP_LEASES_DB} - {e}")
         return []
 
 
-def get_dns_history() -> list:
+def _get_dns_history() -> list:
 
     try:
-        with sqlite3.connect(DNS_DB_HISTORY) as conn:
+        with sqlite3.connect(DNS_HISTORY_DB) as _conn:
 
-            cursor = conn.cursor()
+            _cursor = _conn.cursor()
+            _cursor.execute("PRAGMA table_info(history)")
+            _columns: list[str] = [_column[1] for _column in _cursor.fetchall()]
 
-            cursor.execute("PRAGMA table_info(history)")
-            columns: list[str] = [column[1] for column in cursor.fetchall()]
-
-            cursor.execute("SELECT * FROM history")
-            history_records: list[tuple] = cursor.fetchall()
+            _history_records: list[tuple] = _cursor.execute("SELECT * FROM history").fetchall()
 
             dns_records = []
-            for history_record in history_records:
-                dns_records.append(dict(zip(columns, history_record)))
+            for history_record in _history_records:
+                dns_records.append(dict(zip(_columns, history_record)))
 
             return dns_records
 
     except Exception as e:
-        app_logger.error(f"Error: Failed to read {DNS_DB_HISTORY} - {e}")
+        app_logger.error(f"Error: Failed to read {DNS_HISTORY_DB} - {e}")
         return []
 
 
-def get_dns_statistics() -> dict:
+def _get_dns_statistics() -> dict:
     try:
-        with sqlite3.connect(DNS_DB_STATS) as conn:
-
+        with sqlite3.connect(DNS_STATS_DB) as conn:
             cursor = conn.cursor()
-
             cursor.execute("PRAGMA table_info(stats)")
             columns: list[str] = [column[1] for column in cursor.fetchall()]
-
-            cursor.execute("SELECT * FROM stats")
-            row: tuple | None = cursor.fetchone()
+            row: tuple | None = cursor.execute("SELECT * FROM stats").fetchone()
 
             if row and columns:
                 if len(columns) != len(row):
@@ -263,18 +222,18 @@ def get_dns_statistics() -> dict:
                 return {}
 
     except Exception as e:
-        app_logger.error(f"Failed to read {DNS_DB_STATS} - {e}")
+        app_logger.error(f"Failed to read {DNS_STATS_DB} - {e}")
         return {}
 
 
-def get_dhcp_statistics() -> dict:
+def _get_dhcp_statistics() -> dict:
     try:
-        with sqlite3.connect(DHCP_DB_PATH) as conn:
+        with sqlite3.connect(DHCP_STATS_DB) as conn:
 
             cursor = conn.cursor()
 
-            cursor.execute("PRAGMA table_info(stats)")
-            columns: list[str] = [column[1] for column in cursor.fetchall()]
+            columns_raw = cursor.execute("PRAGMA table_info(stats)").fetchall()
+            columns: list[str] = [column[1] for column in columns_raw]
 
             cursor.execute("SELECT * FROM stats")
             row: tuple | None = cursor.fetchone()
@@ -287,11 +246,11 @@ def get_dhcp_statistics() -> dict:
                 return {}
 
     except Exception as e:
-        app_logger.error(f"[get_dns_statistics]  Failed to read {DHCP_DB_PATH} - {e}")
+        app_logger.error(f"[get_dns_statistics]  Failed to read {DHCP_STATS_DB} - {e}")
         return {}
 
 
-def get_control_list() -> list | None:
+def _get_control_list() -> list | None:
 
     try:
         with open(DNS_CONTROL_LIST, encoding="utf-8", mode="r") as file_handle:
@@ -305,7 +264,7 @@ def get_control_list() -> list | None:
         return None
 
 
-def get_system_logs() -> list:
+def _get_system_logs() -> list:
 
     try:
         with open(LOG_FILE_PATH, mode="r", encoding="utf-8") as file_handle:
@@ -314,225 +273,84 @@ def get_system_logs() -> list:
                 if not line:
                     continue
                 line_array = line.strip().split("|")
-                log_entries.append({
-                    "timestamp": line_array[0].strip(),
-                    "level": line_array[1].strip(),
-                    "service": line_array[2].strip(),
-                    "message": line_array[3].strip()
-                })
+                log_entries.append({"timestamp": line_array[0].strip(),
+                                    "level": line_array[1].strip(),
+                                    "service": line_array[2].strip(),
+                                    "message": line_array[3].strip()})
             return log_entries
     except Exception as e:
         app_logger.error(f"Failed to read {LOG_FILE_PATH} - {e}")
         return []
 
 
-def queue_processor_dhcp(message: bytes) -> None:
-    _message_dict = json.loads(message.decode('utf-8'))
-    message_type = _message_dict.get("type", None)
-    message_payload = _message_dict.get("payload", None)
-    if message_payload and message_type == 'statistics':
-        update_dhcp_statistics(message_payload)
-    if message_payload and message_type == 'dhcp-leases':
-        update_dhcp_leases(message_payload)
-
-
-def queue_processor_dns(message: bytes) -> None:
-    _message_dict = json.loads(message.decode('utf-8'))
-    message_type = _message_dict.get("type", None)
-    message_payload = _message_dict.get("payload", None)
-    if message_payload and message_type == 'history':
-        update_dns_history(message_payload)
-
-
-def update_dns_history(payload: list = []):
-    pass
-
-
-def update_dhcp_statistics(payload: dict = {}):
-    if not payload:
-        return
-    DHCP_STATISTICS.update(payload)
-
-
-def update_dhcp_leases(_leases: list = []):
-
-    for _lease in _leases:
-        mac_address = _lease[0]
-
-        existing_lease = next((lease for lease in LEASES if lease[0] == mac_address), None)
-
-        if existing_lease:
-            LEASES[LEASES.index(existing_lease)] = _lease
-        else:
-            LEASES.append(_lease)
-
-
-class RabbitMqConsumer:
-    def __init__(self, host: str = '127.0.0.1', port: int = 5672, encoding: str = 'utf-8', message_queue_name: str = "dhcp_server", consumer_tag: str = 'default_consumer', processor_function:Optional[Callable] = None):
-        """Initializes the RabbitMqConsumer with one message queue and consumer tag"""
-        self.host = host
-        self.port = port
-        self.encoding = encoding
-        self.stop_event = threading.Event()
-        self.message_queue_name = message_queue_name
-        self.consumer_tag = consumer_tag
-        self.connection = None
-        self.channel = None
-        self._processor_function = processor_function
-
-    def _get_connection_parameters(self):
-        """Return default connection params."""
-        return pika.ConnectionParameters(
-            host=self.host,                             # RabbitMQ server address (hostname or IP)
-            port=self.port,                             # Port number for RabbitMQ (default: 5672)
-            virtual_host='/',                           # Virtual host on the RabbitMQ server (default: '/')
-            credentials=pika.PlainCredentials('guest', 'guest'),  # Credentials (username and password), default is 'guest'/'guest'
-            heartbeat=600,                              # Ensures the connection stays alive (default: 600 seconds)
-            ssl_options=None,                           # SSL/TLS options (None means no SSL/TLS connection)
-            connection_attempts=3,                      # Number of connection attempts before giving up (default: 3)
-            retry_delay=5,                              # Delay (in seconds) between retry attempts (default: 5 seconds)
-            blocked_connection_timeout=None,            # Timeout in seconds for blocked connections (None means no timeout)
-            client_properties=None,                     # Custom client properties (None means no custom properties)
-            frame_max=131072,                           # Maximum size of frames that can be sent (None means no limit)
-            locale='en_US',                             # Locale setting for the connection (None means the default locale)
-            socket_timeout=None,                        # Socket timeout in seconds (None means no timeout)
-        )
-
-    def _get_queue_parameters(self):
-        return {'queue': self.message_queue_name,
-                'durable': True}
-
-    def listen_message(self):
-        """Starts listening for requests on RabbitMQ."""
-        app_logger.info(f"Starting RabbitMQ listener for message queue: {self.message_queue_name}...")
-
-        try:
-            self.connection = pika.BlockingConnection(self._get_connection_parameters())
-            self.channel = self.connection.channel()
-
-            self.channel.queue_declare(**self._get_queue_parameters())
-            self.channel.basic_consume(queue=self.message_queue_name,
-                                       on_message_callback=self.process_message,
-                                       consumer_tag=self.consumer_tag)
-
-            while not self.stop_event.is_set():
-                self.connection.process_data_events(time_limit=1)
-                time.sleep(0.2)
-
-            app_logger.info("RabbitMQ listener stopped gracefully.")
-
-        except Exception as e:
-            app_logger.error(f"Error starting RabbitMQ listener:{e}")
-        finally:
-            # Ensure to close the connection when stop event is set
-            if self.connection:
-                self.connection.close()
-
-    def process_message(self, channel, method, properties, body):
-        """Handles requests from RabbitMQ and stores in-memory."""
-        try:
-            # message = json.loads(body.decode(self.encoding))
-            channel.basic_ack(delivery_tag=method.delivery_tag)
-            self._processor_function(body)
-
-        except Exception as e:
-            app_logger.error(f"Error processing request: {e}")
-            channel.basic_nack(delivery_tag=method.delivery_tag)
+class App:
+    def __init__(self, ssl_context: tuple, host: str = "0.0.0.0", port: int = 8080):
+        self._logger = app_logger
+        self._host = host
+        self._port = port
+        self._ssl_context = ssl_context
+        self._worker: multiprocessing.Process | None = None
 
     def start(self):
-        """Starts both RabbitMQ listeners in separate threads."""
-        rabbitmq_thread = threading.Thread(target=self.listen_message,
-                                           name="rabbitmq-listener",
-                                           daemon=True)
-        rabbitmq_thread.start()
-        app_logger.info(f"RabbitMQ listeners {self.consumer_tag} thread started.")
+        self._logger.info(f"Starting Flask App at {self._host}:{self._port}.")
+        self._worker = multiprocessing.Process(target=self._work, daemon=True)
+        self._worker.start()
 
     def stop(self):
-        """Stops both RabbitMQ listeners gracefully."""
-        app_logger.debug("Stopping RabbitMQ listeners...")
-        self.stop_event.set()  # Set the stop event to signal the threads to stop
-        app_logger.debug("Stop event set. Listeners will stop after processing the current message.")
+        self._logger.info("Shutting Flask App")
+        if self._worker and self._worker.is_alive():
+            self._worker.terminate()
+            self._worker.join(timeout=5)
+            self._logger.info("App stopped.")
 
-        # Close connection on stop event
-        if self.connection and not self.connection.is_closed:
-            self.connection.close()
-            app_logger.info("RabbitMQ connection closed.")
+    def _work(self):
+        app = Flask(__name__)
+        self._define_routes(app)
+        app.run(host=self._host,
+                port=self._port,
+                ssl_context=self._ssl_context)
 
+    def _define_routes(self, app: Flask):
+        @app.route('/')
+        def index():
+            return render_template('index.html',
+                                   system_stats=_generate_system_stats(),
+                                   active_leases=len(_get_dhcp_leases()))
 
-def run_rabbitmq_consumer():
-    """Starts the RabbitMQ Consumer."""
-    app_logger.info("Starting RabbidMQ Consumer")
-    rabbitmq_dhcp_service = RabbitMqConsumer(message_queue_name="dhcp_server", consumer_tag='app_gui',
-                                             processor_function=queue_processor_dhcp)
-    rabbitmq_dhcp_service.start()
-    rabbitmq_dns_service = RabbitMqConsumer(message_queue_name="dns_server", consumer_tag='app_gui', processor_function=queue_processor_dns)
-    rabbitmq_dns_service.start()
+        @app.route('/info')
+        def info():
+            return render_template('info.html',
+                                   system_statistics=_generate_system_stats(),
+                                   network_interfaces=_get_network_interfaces())
 
+        @app.route('/dhcp')
+        def dhcp():
+            return render_template('dhcp.html',
+                                   dhcp_statistics=_get_dhcp_statistics(),
+                                   dhcp_leases=_get_dhcp_leases())
 
-rabbit_mq_thread = threading.Thread(target=run_rabbitmq_consumer, daemon=True)
-rabbit_mq_thread.start()
+        @app.route('/dns')
+        def dns():
+            return render_template('dns.html',
+                                   dns_history=_get_dns_history(),
+                                   dns_statistics=_get_dns_statistics())
 
-app = Flask(__name__)
-app.logger = app_logger
+        @app.route('/config', methods=['GET'])
+        def get_config():
+            _config = {
+                "network": config.get("network", "lan"),
+                "dns": config.get("dns"),
+                "dhcp": config.get("dhcp"),
+            }
+            return render_template('config.html',
+                                   config=deepcopy(_config),
+                                   dns_control_list=_get_control_list())
 
+        @app.route('/logs')
+        def logs():
+            return render_template('logs.html',
+                                   system_logs=_get_system_logs())
 
-@app.route('/')
-def index():
-    return render_template(
-        'index.html',
-        system_stats=generate_system_stats(),
-        active_leases=len(LEASES))
-
-
-@app.route('/info')
-def info_and_statistics():
-    return render_template(
-        'info.html',
-        system_statistics=generate_system_stats(),
-        network_interfaces=get_network_interfaces()
-    )
-
-
-@app.route('/dhcp')
-def dhcp():
-    return render_template(
-        'dhcp.html',
-        dhcp_statistics=get_dhcp_statistics(),
-        dhcp_leases=get_dhcp_leases())
-
-
-@app.route('/dns')
-def dns():
-    return render_template(
-        'dns.html',
-        dns_history=get_dns_history(),
-        dns_statistics=get_dns_statistics()
-    )
-
-
-@app.route('/config', methods=['GET'])
-def config():
-    return render_template(
-        'config.html',
-        config=get_config(),
-        dns_control_list=get_control_list()
-    )
-
-
-@app.route('/logs')
-def logs():
-    return render_template(
-        'logs.html',
-        system_logs=get_system_logs()
-    )
-
-
-@app.errorhandler(404)
-def not_found(error):
-    return render_template('404.html'), 404
-
-
-if __name__ == '__main__':
-    print("Error: This script should be run as a module, not directly.")
-    # sys.exit(1)  # Exit with an error code (1) indicating incorrect execution
-    # app.run(debug=True, host='0.0.0.0', port=5000, threaded=True)
+        @app.errorhandler(404)
+        def not_found(error):
+            return render_template('404.html'), 404

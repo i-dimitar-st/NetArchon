@@ -1,77 +1,69 @@
 import threading
-import json
-import time
-import copy
+import yaml
+from copy import deepcopy
 from pathlib import Path
+from typing import Any
 from services.logger.logger import MainLogger
 
+
 ROOT_PATH = Path(__file__).resolve().parents[2]
-CONFIG_FULLPATH = ROOT_PATH / 'config' / 'config.json'
+CONFIG_FULLPATH = ROOT_PATH / 'config.yaml'
 
 
-config_logger = MainLogger.get_logger(service_name="CONFIG", log_level="debug")
+logger = MainLogger.get_logger(service_name="CONFIG", log_level="debug")
 
 
 class Config:
+    _self = None
     _lock = threading.RLock()
-    _is_init = False
 
-    @classmethod
-    def _init(cls):
+    def __new__(cls):
         with cls._lock:
+            if cls._self is None:
+                cls._self = super().__new__(cls)
+                cls._self._lock = threading.RLock()
+                cls._self._config = {}
+                cls._self._load_config()
+        return cls._self
 
-            if cls._is_init:
-                return
-
+    def _load_config(self, path: Path = CONFIG_FULLPATH):
+        with self._lock:
             try:
-                with open(CONFIG_FULLPATH, mode="r", encoding='utf-8') as file_handle:
-                    _config = json.load(file_handle)
+                with path.open("r", encoding="utf-8") as _fileHandle:
+                    self._config = yaml.safe_load(_fileHandle)
+                logger.debug(f"Config loaded from {path}")
+            except Exception as e:
+                logger.exception(f"Unexpected error loading config: {e}")
+                self._config = {}
 
-                    cls.timestamp = _config.get("timestamp", time.time())
-                    cls.server = _config.get("server", {})
-                    cls.dns = _config.get("dns", {})
-                    cls.dhcp = _config.get("dhcp", {})
-                    cls.paths = {
-                        "root": ROOT_PATH,
-                        "db": ROOT_PATH / "db",
-                        "config": ROOT_PATH / "config"
-                    }
-                    cls._is_init = True
-                    config_logger.debug("Config loaded successfully")
+    def reload(self, path: Path = CONFIG_FULLPATH):
+        self._load_config(path)
 
-            except Exception as err:
-                config_logger.error(f"Error loading config {str(err)}")
-                cls.timestamp = time.time()
-                cls.server = {}
-                cls.dns = {}
-                cls.dhcp = {}
-                cls._is_init = True
+    def get(self, section: str, key: str = "") -> Any:
+        with self._lock:
+            if not section:
+                raise ValueError("Section missing.")
 
-    @classmethod
-    def get_dns(cls):
-        with cls._lock:
-            return copy.deepcopy(cls.dns)
+            if not isinstance(section, str) or not isinstance(key, str):
+                raise TypeError("Strings expected")
 
-    @classmethod
-    def get_dhcp(cls):
-        with cls._lock:
-            return copy.deepcopy(cls.dhcp)
+            section_data = self._config.get(section)
+            if section_data is None:
+                raise KeyError(f"{section} not found.")
 
-    @classmethod
-    def get_server(cls):
-        with cls._lock:
-            return copy.deepcopy(cls.server)
+            # If key is empty, return the whole section regardless of type
+            if key == "":
+                return deepcopy(section_data)
 
-    @classmethod
-    def get_paths(cls):
-        with cls._lock:
-            return copy.deepcopy(cls.paths)
+            # Now key is non-empty, so section_data must be a dict to get the key
+            if not isinstance(section_data, dict):
+                raise ValueError(f"Section '{section}' is not a dictionary, cannot get key '{key}'.")
 
-    @classmethod
-    def reload(cls):
-        with cls._lock:
-            cls._is_init = False
-            cls._init()
+            value = section_data.get(key)
+            if value is None:
+                raise KeyError(f"Key '{key}' not found in section '{section}'.")
+
+            return deepcopy(value)
 
 
-Config._init()
+config = Config()
