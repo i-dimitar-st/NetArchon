@@ -5,7 +5,7 @@ from pathlib import Path
 
 from services.config.config import config
 from services.logger.logger import MainLogger
-from services.dhcp.dhcp_server import DHCPServer
+from services.dhcp.server import DHCPServer
 from services.dns.server import DNSServer
 from services.app.app import App
 from services.garbage_collection.service import GCMonitorService

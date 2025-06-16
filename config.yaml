@@ -40,7 +40,7 @@ dns:
   process_workers: 100
   external_workers: 300
   external_timeout: 15
-  local_timeout: 0.2
+  local_timeout: 0.5
   zones:
     home.lan:
       server: 192.168.20.100

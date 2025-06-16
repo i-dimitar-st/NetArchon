@@ -4,10 +4,13 @@ import threading
 import psutil
 from services.logger.logger import MainLogger
 
+INTERVAL = 300
+
 logger = MainLogger.get_logger(service_name="GC")
 
+
 class GCMonitorService:
-    def __init__(self, interval: int = 300):
+    def __init__(self, interval: int = INTERVAL):
         """GCMonitorService instance."""
         self._interval = interval
         self._event_stop = threading.Event()
@@ -27,6 +30,7 @@ class GCMonitorService:
     def _work(self):
         while not self._event_stop.is_set():
             try:
+                self._force_gc()
                 self._log_gc_stats()
             except Exception as err:
                 logger.warning(f"GC monitoring error: {str(err)}")
@@ -34,14 +38,12 @@ class GCMonitorService:
 
     def _log_gc_stats(self):
         _mem_used = psutil.Process(os.getpid()).memory_info().rss / 1024 / 1024
-        logger.debug(
-            f"GC: {', '.join(
-                f"Gen{_generation} c:{_stats['collected']}, uc:{_stats['uncollectable']}"
-                for _generation, _stats in enumerate(gc.get_stats()))} "
+        logger.debug(f"GC: {', '.join(
+            f"Gen{_generation} c:{_stats['collected']}, uc:{_stats['uncollectable']}"
+            for _generation, _stats in enumerate(gc.get_stats()))} "
             f"Tracked: {len(gc.get_objects())}, "
             f"Memory: {_mem_used:.2f} MB.")
-        self.force_gc()
 
-    def force_gc(self):
+    def _force_gc(self):
         collected = gc.collect()
-        logger.debug(f"Cleaning GC: collected {collected} unreachable objects.")
+        logger.debug(f"Cleaning collected {collected}.")

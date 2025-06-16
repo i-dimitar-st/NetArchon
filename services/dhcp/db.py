@@ -32,8 +32,8 @@ class DHCPStorage:
             return
 
         with cls._lock:
-            cls._conn = sqlite3.connect("file::memory:?cache=shared", 
-                                        uri=True, 
+            cls._conn = sqlite3.connect("file::memory:?cache=shared",
+                                        uri=True,
                                         check_same_thread=False)
             cls._cursor = cls._conn.cursor()
             cls._create_tables()
@@ -45,10 +45,9 @@ class DHCPStorage:
                     cls._conn and
                     cls._cursor)
 
-
     @classmethod
     def _create_tables(cls):
-       
+
         with cls._lock:
             try:
                 if cls._cursor and cls._conn:
@@ -65,7 +64,7 @@ class DHCPStorage:
             try:
                 if cls._conn:
                     with sqlite3.connect(DB_LEASES_FULLPATH) as _conn_disk:
-                                cls._conn.backup(_conn_disk)
+                        cls._conn.backup(_conn_disk)
             except Exception as err:
                 _logger.warning(f"Error during cache backup: {str(err)}")
 
@@ -74,7 +73,7 @@ class DHCPStorage:
                   mac: str,
                   ip: str,
                   hostname: str = 'unknown',
-                  lease_time: int = LEASE_TIME, 
+                  lease_time: int = LEASE_TIME,
                   lease_type: str = 'dynamic') -> None:
 
         with cls._lock:
@@ -99,7 +98,7 @@ class DHCPStorage:
     @classmethod
     def get_lease_by_mac(cls, mac: str) -> tuple | None:
         """Get the IP address assigned to a given MAC address."""
-        
+
         with cls._lock:
             try:
                 _statement = """
@@ -110,13 +109,13 @@ class DHCPStorage:
                 _values = (mac,)
                 if cls._cursor:
                     return cls._cursor\
-                    .execute(_statement,_values)\
-                    .fetchone()
-                else:
-                    return None
+                        .execute(_statement, _values)\
+                        .fetchone()
+
             except Exception as err:
                 _logger.error(f"Failed to get lease for {mac} {str(err)}")
-                return None
+
+            return None
 
     @classmethod
     def get_mac_by_ip(cls, ip: str) -> str | None:
@@ -139,24 +138,24 @@ class DHCPStorage:
                 return None
 
     @classmethod
-    def get_all_leased_ips(cls) -> set | None:
+    def get_all_leased_ips(cls) -> set:
         """Get a list of currently leased IPs."""
 
-        with cls._lock: 
+        with cls._lock:
             try:
-                if cls._cursor:                    
+                if cls._cursor:
                     _result = cls._cursor \
                         .execute('SELECT ip FROM leases') \
                         .fetchall()
                     return {lease[0] for lease in _result}
                 else:
-                    return None
+                    return set()
             except Exception as e:
                 _logger.error(f"Failed to get active leases: {e}")
-                return None
+                return set()
 
     @classmethod
-    def get_all_leases(cls) -> list | None:
+    def get_all_leases(cls) -> list:
         """Get all leases"""
 
         with cls._lock:
@@ -166,10 +165,10 @@ class DHCPStorage:
                         .execute('SELECT * FROM leases') \
                         .fetchall()
                 else:
-                    return None
+                    return []
             except Exception as err:
                 _logger.error(f"Failed to get active leases: {str(err)}")
-                return None
+                return []
 
     @classmethod
     def remove_lease_by_mac(cls, mac: str):
@@ -180,7 +179,7 @@ class DHCPStorage:
 
                 if cls._cursor and cls._conn:
                     _result = cls._cursor.execute("""DELETE FROM leases WHERE mac = ?""",
-                                                (mac,))
+                                                  (mac,))
                     cls._conn.commit()
                     if _result.rowcount:
                         _logger.debug(f"Lease DB removed {_result.rowcount} MAC:{mac}")
@@ -267,7 +266,7 @@ class DHCPStats:
         with cls._lock:
             if cls._cursor and cls._conn:
                 cls._cursor.execute(DBSchemas.dhcpStats)
-                cls._conn.commit()            
+                cls._conn.commit()
                 cls._cursor.execute("""
                                     INSERT OR IGNORE
                                     INTO stats (id,start_time)
@@ -277,7 +276,7 @@ class DHCPStats:
                 columns_info = cls._cursor \
                     .execute("PRAGMA table_info(stats)") \
                     .fetchall()
-                cls._valid_columns.update({ col[1] for col in columns_info })
+                cls._valid_columns.update({col[1] for col in columns_info})
 
     @classmethod
     def _is_key_valid(cls, key: str) -> bool:

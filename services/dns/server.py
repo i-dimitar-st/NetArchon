@@ -390,8 +390,7 @@ class ResolverService:
     @classmethod
     def _process_packets(cls):
         while not cls._stop_event.is_set():
-            _start = time.monotonic()
-
+            # _start = time.monotonic()
             try:
                 _dnsMessage: DnsMessage = cls._recv_queue.get(timeout=cls._local_timeout)
             except queue.Empty:
@@ -426,7 +425,7 @@ class ResolverService:
 
             finally:
                 cls._recv_queue.task_done()
-                Metrics.add_sample(time.monotonic()-_start)
+                # Metrics.add_sample(time.monotonic()-_start)
 
     @classmethod
     def start(cls):
@@ -469,7 +468,7 @@ class DNSServer:
             ForwarderService.init()
             ResolverService.init()
             BlacklistService.init()
-            Metrics.init(max_size=MAX_METRICS_SIZE)
+            # Metrics.init(max_size=MAX_METRICS_SIZE)
 
     def start(self):
         with self._lock:

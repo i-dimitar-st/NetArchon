@@ -40,9 +40,19 @@
       "*.adsmoloco.com",
       "*.ads.oveeo.com",
       "*ads.vidaahub.com",
-      "*.adsninja.ca"
+      "*.adsninja.ca",
+      "*.pubmatic.com",
+      "*.bids.ws",
+      "*.ads.vungle.com",
+      "*.ads.tremorhub.com"
     ],
     "urls": [
+      "cs.adingo.jp",
+      "adservice.google.com",
+      "adserver.mia.mk",
+      "www.googleadservices.com",
+      "securepubads.g.doubleclick.net",
+      "tlx.3lift.com",
       "adserver.mediahouse.com.mk",
       "noti-us.adsmoloco.com",
       "jadserve.postrelease.com",

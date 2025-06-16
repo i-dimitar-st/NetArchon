@@ -1,14 +1,35 @@
 import ipaddress
 from typing import Optional
+from typing import Tuple, Optional
+import scapy.all as scapy
+from pathlib import Path
+from scapy.layers.dhcp import DHCP, BOOTP
+from scapy.layers.l2 import Ether, ARP
+from scapy.layers.inet import IP, UDP
 from scapy.packet import Packet
-from scapy.layers.dhcp import DHCP
+
+
+def delete_files_in_dir(path: str, starts_with: str) -> list:
+    """Remove/Unlink all files in dir starting with provided match."""
+
+    _path = Path(path)
+    if not _path.is_dir():
+        raise FileNotFoundError("Missing directory")
+
+    deleted_files = []
+    for _file in _path.iterdir():
+        if _file.is_file() and _file.name.lower().startswith(starts_with.strip().lower()):
+            _file.unlink()
+            deleted_files.append(str(_file))
+
+    return deleted_files
 
 
 class DHCPUtilities:
 
     @staticmethod
     def convert_dhcp_lease_to_string(dhcpType: int = 1) -> str:
-        dhcp_types = {
+        DHCPTypes = {
             1: "discover",
             2: "offer",
             3: "request",
@@ -23,7 +44,7 @@ class DHCPUtilities:
             12: "lease_unknown",
             13: "lease_active",
         }
-        return dhcp_types.get(dhcpType, 'unknown')
+        return DHCPTypes.get(dhcpType, 'unknown')
 
     @staticmethod
     def extract_dhcp_type_from_packet(packet: Packet) -> int:
@@ -34,19 +55,19 @@ class DHCPUtilities:
         return -1
 
     @staticmethod
-    def extract_requested_addr_from_dhcp_packet(packet: Packet) -> str | None:
+    def extract_requested_addr_from_dhcp_packet(packet: Packet) -> str:
         """Extract the requested IP address from a DHCP packet."""
-        for option in packet[DHCP].options: 
+        for option in packet[DHCP].options:
             if option[0] == "requested_addr":
                 return option[1]
-        return None
+        return ""
 
     @staticmethod
-    def extract_server_id_from_dhcp_packet(packet: Packet) -> Optional[str]:
+    def extract_server_id_from_dhcp_packet(packet: Packet) -> str:
         for opt in packet[DHCP].options:
             if isinstance(opt, tuple) and opt[0] == 'server_id':
                 return opt[1]
-        return None
+        return ""
 
     @staticmethod
     def extract_hostname_from_dhcp_packet(packet: Packet) -> str:
@@ -56,12 +77,12 @@ class DHCPUtilities:
         return 'unknown'
 
     @staticmethod
-    def extract_client_param_req_list_from_dhcp_packet(packet: Packet) -> str:
+    def extract_param_req_list(packet: Packet) -> list[int]:
         """Extracts the 'param_req_list' from the DHCP packet."""
         for option in packet[DHCP].options:
             if option[0] == "param_req_list":
                 return option[1]
-        return ''
+        return []
 
     @staticmethod
     def convert_binary_to_string(data_to_convert: bytes) -> str:
