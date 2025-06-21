@@ -148,7 +148,7 @@ class BlacklistService:
         return False
 
 
-class ForwarderService:
+class DNSExternalResolverService:
     _rotate_lock = threading.Lock()
 
     @classmethod
@@ -196,7 +196,7 @@ class ForwarderService:
                         _future.cancel()
                     return reply
                 except Exception as err:
-                    dns_logger.error(f"Error getting DNS reply from {_ip} {str(err)}.")
+                    dns_logger.error(f"Error getting DNS reply from {_ip}:{str(err)}.")
 
         except Exception as err:
             dns_logger.error(f"Error waiting for DNS futures: {str(err)}.")
@@ -213,12 +213,13 @@ class ForwarderService:
             _dns_socket.settimeout(cls._timeout)
 
             try:
-                _dns_socket.sendto(request.pack(), (dns_server, cls._port))
+                _dns_socket.sendto(request.pack(), (str(dns_server), int(cls._port)))
                 _reply_raw, _ = _dns_socket.recvfrom(cls._max_msg_size)
                 _reply = DNSRecord.parse(_reply_raw)
 
                 if _reply.header.id != request.header.id:
                     raise ValueError(f"Mismatched DNS Transaction ID from {dns_server}.")
+
                 return _reply
 
             except socket.timeout:
@@ -228,7 +229,7 @@ class ForwarderService:
                 raise RuntimeError(f"Error contacting upstream {dns_server}: {str(_err)}.")
 
 
-class ResolverService:
+class DNSLocalResolverService:
     _is_init = False
     _listener_thread = None
     _worker_threads = []
@@ -328,7 +329,7 @@ class ResolverService:
         """
 
         try:
-            reply = ForwarderService.resolve_external(dnsMessage.dns_message)
+            reply = DNSExternalResolverService.resolve_external(dnsMessage.dns_message)
             if reply:
                 DnsStatsDb.increment('request_external')
                 cls._dns_cache.add(key=dnsMessage.cache_key,
@@ -464,8 +465,8 @@ class DNSServer:
             DnsStatsDb.init()
             DnsHistoryDb.init()
             DbPersistenceService.init()
-            ForwarderService.init()
-            ResolverService.init()
+            DNSExternalResolverService.init()
+            DNSLocalResolverService.init()
             BlacklistService.init()
 
             cls._initialised = True
@@ -482,9 +483,9 @@ class DNSServer:
 
         with cls._lock:
             DbPersistenceService.start()
-            ForwarderService.start()
+            DNSExternalResolverService.start()
             BlacklistService.start()
-            ResolverService.start()
+            DNSLocalResolverService.start()
 
             cls._running = True
             dns_logger.info("DNS server started.")
@@ -497,9 +498,9 @@ class DNSServer:
 
         with cls._lock:
             DbPersistenceService.stop()
-            ForwarderService.stop()
+            DNSExternalResolverService.stop()
             BlacklistService.stop()
-            ResolverService.stop()
+            DNSLocalResolverService.stop()
 
             dns_logger.info("Server stopped.")
             cls._running = False
