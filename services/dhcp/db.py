@@ -205,8 +205,8 @@ class DHCPStorage:
                 if cls._cursor and cls._conn:
                     _result = cls._cursor.execute(_statement, _value)
                     cls._conn.commit()
-                    if _result.rowcount > 0:
-                        _logger.debug(f"DB -> Deleted {_result.rowcount} lease(s). Removed MACs: {set(macs)}")
+                    if _result.rowcount:
+                        _logger.debug(f"DB -> Deleted {_result.rowcount} lease(s). Removed MACs: {set(macs)}.")
 
             except Exception as err:
                 _logger.error(f"DB -> failed to remove leases: {str(err)}")
@@ -215,16 +215,16 @@ class DHCPStorage:
     def remove_expired_leases(cls):
         """Remove expired leases."""
 
-        _logger.debug(f"Checking for expired leases ...")
         with cls._lock:
             try:
                 if cls._cursor and cls._conn:
                     cls._cursor.execute("DELETE FROM leases WHERE expiry_time < ?",
                                         (int(time.time()),))
                     cls._conn.commit()
-                    _logger.debug(f"Found/deleted {cls._cursor.rowcount} expired leases")
-            except Exception as e:
-                _logger.error(f"Error during lease cleanup: {e}")
+                    if cls._cursor.rowcount:
+                        _logger.debug(f"Found/deleted {cls._cursor.rowcount} expired leases.")
+            except Exception as err:
+                _logger.error(f"Error during lease cleanup: {str(err)}")
 
     @classmethod
     def close(cls):

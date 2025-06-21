@@ -1,28 +1,12 @@
 import ipaddress
 from typing import Optional
-from typing import Tuple, Optional
+from typing import Tuple, Optional, List
 import scapy.all as scapy
 from pathlib import Path
 from scapy.layers.dhcp import DHCP, BOOTP
 from scapy.layers.l2 import Ether, ARP
 from scapy.layers.inet import IP, UDP
 from scapy.packet import Packet
-
-
-def delete_files_in_dir(path: str, starts_with: str) -> list:
-    """Remove/Unlink all files in dir starting with provided match."""
-
-    _path = Path(path)
-    if not _path.is_dir():
-        raise FileNotFoundError("Missing directory")
-
-    deleted_files = []
-    for _file in _path.iterdir():
-        if _file.is_file() and _file.name.lower().startswith(starts_with.strip().lower()):
-            _file.unlink()
-            deleted_files.append(str(_file))
-
-    return deleted_files
 
 
 class DHCPUtilities:
@@ -91,13 +75,7 @@ class DHCPUtilities:
 
     @staticmethod
     def is_ip_in_subnet(ip_to_validate: str, subnet: str = "192.168.20.0/24") -> bool:
-        """
-        Checks if an IP address is in the specified subnet.
-
-        :param ip_to_validate: IP address to check.
-        :param subnet: The subnet to check against (e.g., '192.168.1.0/24').
-        :return: True if the IP is within the subnet, False otherwise.
-        """
+        """Checks if an IP address is in the specified subnet."""
         if not ip_to_validate:
             return False
         ip = ipaddress.ip_address(ip_to_validate)

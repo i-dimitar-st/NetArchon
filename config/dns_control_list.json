@@ -44,9 +44,12 @@
       "*.pubmatic.com",
       "*.bids.ws",
       "*.ads.vungle.com",
-      "*.ads.tremorhub.com"
+      "*.ads.tremorhub.com",
+      "*.googlesyndication.com"
     ],
     "urls": [
+      "track.analytics-data.io",
+      "mobiadvert.livesportmedia.eu",
       "cs.adingo.jp",
       "adservice.google.com",
       "adserver.mia.mk",

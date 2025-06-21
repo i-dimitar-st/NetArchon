@@ -1,14 +1,89 @@
 import time
-from typing import Optional, Set, List
-from collections import deque
+import logging
+from enum import Enum, unique
 from enum import IntEnum
-from dnslib import DNSRecord, QTYPE, RR, A
+from dnslib import DNSRecord
 from services.dns.utils import DNSUtils
 from scapy.packet import Packet
 from scapy.layers.l2 import Ether
 from scapy.layers.inet import IP, UDP
 from scapy.layers.dhcp import BOOTP, DHCP
 from services.dhcp.utils import DHCPUtilities
+
+
+@unique
+class DnsResponseCode(IntEnum):
+    NO_ERROR = 0
+    FORMAT_ERROR = 1
+    SERVER_FAILURE = 2
+    NAME_ERROR = 3
+    NOT_IMPLEMENTED = 4
+    REFUSED = 5
+
+    def __str__(self) -> int:
+        return self.value
+
+
+@unique
+class DnsRequestType(IntEnum):
+    A = 1
+    NS = 2
+    CNAME = 5
+    SOA = 6
+    PTR = 12
+    MX = 15
+    TXT = 16
+    AAAA = 28
+    SRV = 33
+    NAPTR = 35
+    KX = 36
+    CERT = 37
+    A6 = 38
+    DNAME = 39
+    DS = 43
+    SSHFP = 44
+    RRSIG = 46
+    NSEC = 47
+    DNSKEY = 48
+    NSEC3 = 50
+    NSEC3PARAM = 51
+    TLSA = 52
+    SMIMEA = 53
+    HIP = 55
+    CDS = 59
+    CDNSKEY = 60
+    OPENPGPKEY = 61
+    SVCB = 64
+    HTTPS = 65
+    SPF = 99
+    EUI48 = 108
+    EUI64 = 109
+    TKEY = 249
+    TSIG = 250
+    IXFR = 251
+    AXFR = 252
+    ANY = 255
+    URI = 256
+    CAA = 257
+    TA = 32768
+    DLV = 32769
+
+    def __str__(self) -> str:
+        return f"request_type_{self.name.lower()}"
+
+
+@unique
+class LogLevel(Enum):
+    DEBUG = logging.DEBUG
+    INFO = logging.INFO
+    WARNING = logging.WARNING
+    ERROR = logging.ERROR
+    CRITICAL = logging.CRITICAL
+
+    @classmethod
+    def from_string(cls, level_str: str):
+        return cls.__members__.get(level_str.strip().upper(),
+                                   cls.DEBUG).value
 
 
 class DnsMessage:
@@ -207,18 +282,6 @@ class DBSchemas:
             request_cache_expired INTEGER DEFAULT 0,
             request_external INTEGER DEFAULT 0,
             request_external_failed INTEGER DEFAULT 0,
-            request_type_a INTEGER DEFAULT 0,
-            request_type_aaaa INTEGER DEFAULT 0,
-            request_type_ptr INTEGER DEFAULT 0,
-            request_type_mx INTEGER DEFAULT 0,
-            request_type_svcb INTEGER DEFAULT 0,
-            request_type_https INTEGER DEFAULT 0,
-            request_type_cname INTEGER DEFAULT 0,
-            request_type_ns INTEGER DEFAULT 0,
-            request_type_soa INTEGER DEFAULT 0,
-            request_type_txt INTEGER DEFAULT 0,
-            request_type_srv INTEGER DEFAULT 0,
-            request_type_any INTEGER DEFAULT 0,
             response_total INTEGER DEFAULT 0,
             response_external INTEGER DEFAULT 0,
             response_no_error INTEGER DEFAULT 0,
@@ -253,6 +316,7 @@ class ArpClient:
                 "ip": self.ip}
 
 
+@unique
 class DHCPType(IntEnum):
     DISCOVER = 1
     OFFER = 2
@@ -262,6 +326,9 @@ class DHCPType(IntEnum):
     NAK = 6
     RELEASE = 7
     INFORM = 8
+
+    def __str__(self) -> str:
+        return str(self.value)
 
 
 class DhcpMessage:
@@ -281,13 +348,12 @@ class DhcpMessage:
         self.server_id: str = DHCPUtilities.extract_server_id_from_dhcp_packet(packet)  # Server identifier (Option 54)
         self.param_req_list: list[int] = DHCPUtilities.extract_param_req_list(packet)  # List of requested option codes (Option 55)
 
-    def to_log(self) -> str:
+    def log(self) -> str:
         return (f"TYPE:{self.dhcp_type}, "
                 f"XID:{self.xid}, "
                 f"MAC:{self.mac}, IP_req:{self.requested_ip}, "
                 f"HOSTNAME:{self.hostname}.")
 
-    # Used for deduplication logic: (Transaction ID, MAC, Type)
     @property
     def dedup_key(self) -> tuple[int, str, int]:
         return (self.xid, self.mac, self.dhcp_type)

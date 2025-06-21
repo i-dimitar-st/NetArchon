@@ -1,95 +1,18 @@
 import re
 import time
 import threading
-from pathlib import Path
 from typing import Optional, Tuple, Any
 from collections import deque, OrderedDict
 from dnslib import DNSRecord, DNSLabel
+
 
 TTL_MAX_SIZE = 100
 TTL_DEFAULT = 600
 MRU_MAX_sIZE = 100
 
 
-def delete_files_in_dir(path: str, starts_with: str) -> list:
-    """Remove/Unlink all files in dir starting with provided match."""
-
-    _path = Path(path)
-    if not _path.is_dir():
-        raise FileNotFoundError("Missing directory")
-
-    deleted_files = []
-    for _file in _path.iterdir():
-        if _file.is_file() and _file.name.lower().startswith(starts_with.strip().lower()):
-            _file.unlink()
-            deleted_files.append(str(_file))
-
-    return deleted_files
-
-
 class DNSUtils:
     """DNS utility functions."""
-
-    @staticmethod
-    def convert_request_type(request_type: int = 1) -> str:
-        """Convert DNS request type number to string."""
-        query_type_map = {
-            1: 'request_type_a',
-            2: 'request_type_ns',
-            5: 'request_type_cname',
-            6: 'request_type_soa',
-            12: 'request_type_ptr',
-            15: 'request_type_mx',
-            16: 'request_type_txt',
-            28: 'request_type_aaaa',
-            33: 'request_type_srv',
-            35: 'request_type_naptr',
-            36: 'request_type_kx',
-            37: 'request_type_cert',
-            38: 'request_type_a6',
-            39: 'request_type_dname',
-            43: 'request_type_ds',
-            44: 'request_type_sshfp',
-            46: 'request_type_rrsig',
-            47: 'request_type_nsec',
-            48: 'request_type_dnskey',
-            50: 'request_type_nsec3',
-            51: 'request_type_nsec3param',
-            52: 'request_type_tlsa',
-            53: 'request_type_smimea',
-            55: 'request_type_hip',
-            59: 'request_type_cds',
-            60: 'request_type_cdnskey',
-            61: 'request_type_openpgpkey',
-            64: 'request_type_svcb',
-            65: 'request_type_https',
-            99: 'request_type_spf',
-            108: 'request_type_eui48',
-            109: 'request_type_eui64',
-            249: 'request_type_tkey',
-            250: 'request_type_tsig',
-            251: 'request_type_ixfr',
-            252: 'request_type_axfr',
-            255: 'request_type_any',
-            256: 'request_type_uri',
-            257: 'request_type_caa',
-            32768: 'request_type_ta',
-            32769: 'request_type_dlv',
-        }
-        return query_type_map.get(request_type, 'unknown')
-
-    @staticmethod
-    def convert_response_code(rcode: int = 0) -> str:
-        """Convert DNS response code number to string."""
-        response_code_map = {
-            0: 'no_error',
-            1: 'format_error',
-            2: 'server_failure',
-            3: 'name_error',
-            4: 'not_implemented',
-            5: 'refused'
-        }
-        return response_code_map.get(rcode, 'server_failure')
 
     @staticmethod
     def normalize_domain(domain: str) -> str:
@@ -220,65 +143,73 @@ class MRUCache:
 
 
 class TTLCache:
-    """Thread-safe TTL cache with fixed max size. TTL only, no ordering."""
+    """Simple, thread-safe, one-directional TTL cache (key → value)."""
 
-    def __init__(self, max_size: int = TTL_MAX_SIZE, ttl: int = TTL_DEFAULT):
+    def __init__(self, max_size: int = 100, ttl: int = 60):
         self._lock = threading.RLock()
-        self._cache: dict[Tuple, Tuple[Any, float]] = {}  # key: (value, expiry_timestamp)
+        self._cache: dict[Any, tuple[Any, float]] = {}  # key → (value, expiry)
         self._max_size = max_size
         self._ttl = ttl
 
-    def add(self, key: tuple, value: Any, _ttl: Optional[int] = None) -> Optional[Tuple]:
-        """
-        Add or update key with TTL.
-        Overwrite oldest (earliest expiry) if max size reached.
-        Returns evicted key if any.
-        """
+    def add(self, key: Any, value: Any, ttl: Optional[int] = None):
+        """Add or update key with TTL. Evict oldest if full."""
         with self._lock:
             self._cleanup_expired()
-            _ttl = _ttl if (_ttl is not None and _ttl > 0) else self._ttl
 
             if key not in self._cache and len(self._cache) >= self._max_size:
-                _oldest = min(self._cache,
-                              key=lambda _key: self._cache[_key][1])
-                self._cache.pop(_oldest)
-            _expiry = time.time() + _ttl
-            self._cache[key] = (value, _expiry)
-            return None
+                self._evict_oldest()
 
-    def get(self, key: tuple) -> Optional[Any]:
+            expiry = time.time() + (ttl if ttl and ttl > 0 else self._ttl)
+            self._cache[key] = (value, expiry)
+
+    def get(self, key: Any) -> Optional[Any]:
         """Return value if present and not expired; else None."""
         with self._lock:
             self._cleanup_expired()
-            _item = self._cache.get(key)
-            if not _item:
+            item = self._cache.get(key)
+            if not item:
                 return None
-            value, _expiry = _item
-            if _expiry < time.time():
-                self._cache.pop(key)
-                return None
+            value, _ = item
             return value
 
-    def remove(self, key: tuple) -> None:
-        """Remove a key from cache."""
+    def get_by_value(self, value: Any) -> Optional[Any]:
+        """Return key by value."""
+        with self._lock:
+            self._cleanup_expired()
+            for _key, (_value, _ttl) in self._cache.items():
+                if value == _value:
+                    return _key
+            return None
+
+    def remove(self, key: Any) -> None:
+        """Remove key from cache."""
         with self._lock:
             self._cache.pop(key, None)
 
     def size(self) -> int:
-        """Return number of non-expired items."""
+        """Return number of valid items."""
         with self._lock:
             self._cleanup_expired()
             return len(self._cache)
 
     def clear(self) -> None:
-        """Clear the cache."""
+        """Clear entire cache."""
         with self._lock:
             self._cache.clear()
 
+    def keys(self) -> list:
+        """Return list of valid keys."""
+        with self._lock:
+            self._cleanup_expired()
+            return list(self._cache.keys())
+
     def _cleanup_expired(self) -> None:
-        """Remove all expired items."""
+        """Remove expired entries in-place."""
         _now = time.time()
-        _expired = [k for k, (_, exp) in self._cache.items() if exp < _now]
-        if _expired:
-            for key in _expired:
-                self._cache.pop(key)
+        for _key in list(self._cache):
+            if self._cache[_key][1] < _now:
+                self._cache.pop(_key)
+
+    def _evict_oldest(self):
+        oldest = min(self._cache.items(), key=lambda x: x[1][1])[0]
+        self._cache.pop(oldest)

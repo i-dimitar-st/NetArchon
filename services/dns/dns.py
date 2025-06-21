@@ -1,4 +1,3 @@
-#!/usr/bin/env python3.12
 import time
 import json
 import queue
@@ -10,11 +9,11 @@ from collections import deque
 from pathlib import Path
 from concurrent.futures import ThreadPoolExecutor, as_completed, TimeoutError
 from dnslib import DNSRecord, QTYPE, RR, A
-from models.models import DnsMessage
+from models.models import DnsMessage, DnsResponseCode
 from services.config.config import config
 from services.logger.logger import MainLogger
 from services.dns.db import DnsHistoryDb, DnsStatsDb
-from services.dns.utils import DNSUtils, Metrics, delete_files_in_dir, TTLCache, MRUCache
+from services.dns.utils import DNSUtils, Metrics, TTLCache, MRUCache
 
 dns_logger = MainLogger.get_logger(service_name="DNS", log_level="debug")
 
@@ -45,20 +44,20 @@ MAX_CACHE_SIZE = 100
 
 
 class DbPersistenceService:
-    _stop_event = threading.Event()
 
     @classmethod
     def init(cls, interval: int = DB_PERSISTENCE_INTERVAL):
+        cls._stop_event = threading.Event()
         cls._interval = interval
-        cls._stop_event.clear()
         cls._worker = threading.Thread(target=cls._work, daemon=True)
 
     @classmethod
     def start(cls):
-        if not cls._worker:
+        if cls._worker is None:
             raise RuntimeError("Init missing")
         if cls._worker.is_alive():
             raise RuntimeError("Error already started")
+        cls._stop_event.clear()
         cls._worker.start()
         dns_logger.info("ServicesPersistence started.")
 
@@ -82,18 +81,14 @@ class DbPersistenceService:
 
 class BlacklistService:
 
-    _lock = threading.RLock()
-    _interval = None
-    _stop_event = threading.Event()
-    _worker = None
-    _blacklists = {"blacklist": set(),
-                   "blacklist_rules": set(),
-                   "whitelist": set()}
-
     @classmethod
     def init(cls, interval: int = BLACKLISTS_LOADING_INTERVAL):
+        cls._lock = threading.RLock()
+        cls._stop_event = threading.Event()
+        cls._blacklists = {"blacklist": set(),
+                           "blacklist_rules": set(),
+                           "whitelist": set()}
         cls._interval = interval
-        cls._stop_event.clear()
         cls._worker = threading.Thread(target=cls._work, daemon=True)
 
     @classmethod
@@ -214,7 +209,7 @@ class ForwarderService:
         if not request or not dns_server:
             raise ValueError("Missing data or upstream DNS server.")
 
-        with socket.socket(socket.AF_INET, socket.SOCK_DGRAM) as _dns_socket:
+        with socket.socket(socket.AF_INET, int(socket.SOCK_DGRAM)) as _dns_socket:
             _dns_socket.settimeout(cls._timeout)
 
             try:
@@ -280,7 +275,7 @@ class ResolverService:
         if BlacklistService.is_blacklisted(dnsMessage.domain):
             DnsStatsDb.increment(key='request_blacklisted')
             reply = dnsMessage.dns_message.reply()
-            reply.header.rcode = 5
+            reply.header.rcode = DnsResponseCode.REFUSED
             cls._send_reply(dnsMessage, reply)
 
             return True
@@ -301,7 +296,7 @@ class ResolverService:
             if _hostname_ip:
                 DnsStatsDb.increment(key='request_local')
                 reply = dnsMessage.dns_message.reply()
-                reply.header.rcode = 0
+                reply.header.rcode = DnsResponseCode.NO_ERROR
                 reply.add_answer(RR(rname=dnsMessage.dns_message.q.qname,
                                     rtype=QTYPE.A,
                                     rclass=1,
@@ -336,7 +331,9 @@ class ResolverService:
             reply = ForwarderService.resolve_external(dnsMessage.dns_message)
             if reply:
                 DnsStatsDb.increment('request_external')
-                cls._dns_cache.add(key=dnsMessage.cache_key, _ttl=dnsMessage.ttl, value=reply)
+                cls._dns_cache.add(key=dnsMessage.cache_key,
+                                   ttl=dnsMessage.ttl,
+                                   value=reply)
                 cls._send_reply(dnsMessage, reply)
                 return True
 
@@ -354,7 +351,7 @@ class ResolverService:
         """
         try:
             reply = dnsMessage.dns_message.reply()
-            reply.header.rcode = 2
+            reply.header.rcode = DnsResponseCode.SERVER_FAILURE
             cls._send_reply(dnsMessage, reply)
             return True
         except Exception as _err:
@@ -367,7 +364,6 @@ class ResolverService:
 
         try:
             DnsStatsDb.increment(key="response_total")
-            DnsStatsDb.increment(key=f"response_{DNSUtils.convert_response_code(reply.header.rcode)}")
             reply.header.id = dnsMessage.dns_message.header.id
             with cls._dns_socket_lock:
                 cls._dns_socket.sendto(reply.pack(), dnsMessage.addr)
@@ -429,11 +425,10 @@ class ResolverService:
 
     @classmethod
     def start(cls):
-        if not cls._is_init:
-            raise RuntimeError("Must init")
-        if cls._stop_event.is_set():
-            raise RuntimeError("Already started")
         with cls._startup_lock:
+            if not cls._is_init:
+                raise RuntimeError("Must init")
+            cls._stop_event.clear()
             cls._listener_thread = threading.Thread(target=cls._listen_traffic, daemon=True)
             cls._listener_thread.start()
             for _ in range(cls._max_processor_thread):
@@ -455,33 +450,56 @@ class ResolverService:
 
 class DNSServer:
 
-    def __init__(self):
-        self._lock = threading.Lock()
-        self._init()
+    _lock = threading.Lock()
+    _initialised = False
+    _running = False
 
-    def _init(self):
-        with self._lock:
-            delete_files_in_dir(path=DB_PATH, starts_with="dns")
+    @classmethod
+    def _init(cls):
+        with cls._lock:
+
+            if cls._initialised:
+                raise RuntimeError("Already Init")
+
             DnsStatsDb.init()
             DnsHistoryDb.init()
             DbPersistenceService.init()
             ForwarderService.init()
             ResolverService.init()
             BlacklistService.init()
+
+            cls._initialised = True
             # Metrics.init(max_size=MAX_METRICS_SIZE)
 
-    def start(self):
-        with self._lock:
+    @classmethod
+    def start(cls):
+
+        if not cls._initialised:
+            cls._init()
+
+        if cls._running:
+            raise RuntimeError("Server already running.")
+
+        with cls._lock:
             DbPersistenceService.start()
             ForwarderService.start()
             BlacklistService.start()
             ResolverService.start()
+
+            cls._running = True
             dns_logger.info("DNS server started.")
 
-    def stop(self):
-        with self._lock:
+    @classmethod
+    def stop(cls):
+
+        if not cls._running:
+            raise RuntimeError("Server not running.")
+
+        with cls._lock:
             DbPersistenceService.stop()
             ForwarderService.stop()
             BlacklistService.stop()
             ResolverService.stop()
+
             dns_logger.info("Server stopped.")
+            cls._running = False

@@ -1,17 +1,13 @@
 import os
-import sys
 import sqlite3
 from pathlib import Path
 from typing import List, Tuple
+import torch
+from torch.utils.data import DataLoader
+import torch.optim as optim
+import torch.nn as nn
+import torch.nn.functional as F
 
-# fmt: off
-sys.path.append('/projects/gitlab/netarchon/venv/lib/python3.12/site-packages')
-import torch # type: ignore
-from torch.utils.data import DataLoader, Dataset # type: ignore
-import torch.optim as optim # type: ignore
-import torch.nn as nn # type: ignore
-import torch.nn.functional as F # type: ignore
-# fmt: on
 
 ROOT_PATH = Path(__file__).resolve().parents[1]
 DNS_CONTROL_LISTS_PATH = ROOT_PATH / 'config' / 'dns_control_list.json'
@@ -56,17 +52,17 @@ def filter_domain(input_string: str) -> str:
 
 def collate_fn(batch: List[Tuple[str, int]]) -> Tuple[torch.Tensor, torch.Tensor]:
     max_domain_length = max(len(_domain[0]) for _domain in batch)
-    
+
     padded_inputs = [
         torch.tensor([ALLOWED_CHARS.find(char) + 1 for char in _domain[0]])
         for _domain in batch
     ]
-    
+
     padded_inputs = [
-        F.pad(_domain, (0, max_domain_length - len(_domain))) 
+        F.pad(_domain, (0, max_domain_length - len(_domain)))
         for _domain in padded_inputs
     ]
-    
+
     labels = [_domain[1] for _domain in batch]
     return torch.stack(padded_inputs, 0), torch.tensor(labels)
 
@@ -90,20 +86,20 @@ def generate_training_dataset():
         "api.ad.intl.xiaomi.com": 1,
         "venetia.iad.appboy.com": 1,
         "mybank.secure-login.com": 1,
-        "x.blueduckredapple.com":1,
-        "x.everestop.io":1,
-        "x.thecatmachine.com":1,
-        "api.ad.intl.xiaomi.com":1,
-        "adxbid.info":1,
+        "x.blueduckredapple.com": 1,
+        "x.everestop.io": 1,
+        "x.thecatmachine.com": 1,
+        "api.ad.intl.xiaomi.com": 1,
+        "adxbid.info": 1,
         "news.bbc.co.uk": 0,
-        ".googlevideo.com":0,
-        "google-analytics.com":0,
+        ".googlevideo.com": 0,
+        "google-analytics.com": 0,
         "github.com": 0,
         "stackoverflow.com": 0,
         "google.com": 0,
         "microsoft.com": 0,
         "apple.com": 0,
-        "chromesyncpasswords-pa.googleapis.com":0,
+        "chromesyncpasswords-pa.googleapis.com": 0,
         "amazon.com": 0,
         "facebook.com": 0,
         "youtube.com": 0,
@@ -121,31 +117,31 @@ def generate_training_dataset():
         "adobe.com": 0,
         "cnn.com": 0,
         "mozilla.org": 0,
-        "mtalk.google.com":0,
-        "apple.com":0,
-        "yahoo.com":0,
-        "googlevideo.com":0,
-        "vidaahub.com":0,
-        "netflix.com":0,
-        "netflix.net":0,
-        "clients.google.com":0,
-        "googleapis.com":0,
-        "temu.com":0,
-        "ads.io":1,
-        "30f97533-7ee1-488c-9942-ffaf4a9657c6-netseer-ipaddr-assoc.xz.fbcdn.net":1,
-        "5529f505-9e16-44b5-a4aa-bef8e56e98cf.goliath.atlas.bi.miniclippt.com":1,
-        "adexp.liftoff.io":1,
-        "h6dw19vmgf8p4dpzpidtfedwqcyam1746882909.darnuid.imrworldwide.com":1,
-        "_dns.resolver.arpa":0,
-        "android.clients.google.com":0,
-        "chat.signal.org ":0,
-        "chat.google.com":1,
-        "yandex.ru":1,
-        "brave.com":0,
-        "weather-data.apple.com":0,
-        "web.facebook.com":0,
-        "www.turkishairlines.com":0,
-        "weather-data.apple.com":0
+        "mtalk.google.com": 0,
+        "apple.com": 0,
+        "yahoo.com": 0,
+        "googlevideo.com": 0,
+        "vidaahub.com": 0,
+        "netflix.com": 0,
+        "netflix.net": 0,
+        "clients.google.com": 0,
+        "googleapis.com": 0,
+        "temu.com": 0,
+        "ads.io": 1,
+        "30f97533-7ee1-488c-9942-ffaf4a9657c6-netseer-ipaddr-assoc.xz.fbcdn.net": 1,
+        "5529f505-9e16-44b5-a4aa-bef8e56e98cf.goliath.atlas.bi.miniclippt.com": 1,
+        "adexp.liftoff.io": 1,
+        "h6dw19vmgf8p4dpzpidtfedwqcyam1746882909.darnuid.imrworldwide.com": 1,
+        "_dns.resolver.arpa": 0,
+        "android.clients.google.com": 0,
+        "chat.signal.org ": 0,
+        "chat.google.com": 1,
+        "yandex.ru": 1,
+        "brave.com": 0,
+        "weather-data.apple.com": 0,
+        "web.facebook.com": 0,
+        "www.turkishairlines.com": 0,
+        "weather-data.apple.com": 0
     }
     return list(domains_with_labels.keys()), list(domains_with_labels.values())
 
@@ -217,7 +213,7 @@ def get_dns_history() -> set:
 
 
 if __name__ == "__main__":
-    
+
     print("DNS Query Classifier")
 
     training_domains_normalized = []

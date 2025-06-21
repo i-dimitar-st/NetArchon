@@ -51,12 +51,25 @@ dhcp:
   host: "0.0.0.0"
   port: 67
   router_ip: "192.168.20.1"
-  dns_ip: "192.168.20.100"
-  ntp_server: "pool.ntp.org"
+  ip: "192.168.20.100"
+  mac: "18:c0:4d:46:f4:11"
+  broadcast_ip: "255.255.255.255"
+  broadcast_mac: "ff:ff:ff:ff:ff:ff"
+  subnet: "255.255.255.0"
+  ntp_server: "192.168.20.100"
   ip_pool_start: "192.168.20.101"
   ip_pool_end: "192.168.20.254"
+  cidr: 24
   lease_time_seconds: 1209600
   mtu: 1500
+  rcvd_queue_size: 100
+  deque_size: 100
+  timeouts:
+    arp: 3
+    worker_get: 0.2
+    worker_sleep: 0.1
+    lease_discovery: 300
+    persistence: 60
 
 database:
   persistence_interval: 30

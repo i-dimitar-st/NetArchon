@@ -1,20 +1,14 @@
 
 import os
-import sys
 import math
-import fnmatch
 import sqlite3
 from pathlib import Path
-import json
 from collections import Counter
 from typing import List, Tuple
-# fmt: off
-sys.path.append('/projects/gitlab/netarchon/venv/lib/python3.12/site-packages')
-import torch                   # type: ignore
-import torch.nn as neural_net  # type: ignore
-import torch.optim as optim    # type: ignore
-from torch.optim import AdamW  # type: ignore
-# fmt: on
+import torch
+import torch.nn as neural_net
+from torch.optim import AdamW
+
 
 ROOT_PATH = Path(__file__).resolve().parents[1]
 DNS_CONTROL_LISTS_PATH = ROOT_PATH / 'config' / 'dns_control_list.json'
@@ -55,7 +49,7 @@ def calculate_entropy(s: str) -> float:
 
 
 def extract_features(domain: str) -> List[float]:
-    MAX_LENGTH = 500 
+    MAX_LENGTH = 500
     normalized_domain = [ord(c)/(1+ord(c)) for c in domain[:MAX_LENGTH]]
     if len(normalized_domain) < MAX_LENGTH:
         normalized_domain.extend([0.0] * (MAX_LENGTH - len(normalized_domain)))
@@ -69,7 +63,7 @@ class DNSQueryClassifier(neural_net.Module):
         self.fc1 = neural_net.Linear(input_size, 64)
         self.dropout = neural_net.Dropout(0.4)
 
-        self.fc2 = neural_net.Linear(64, 32) 
+        self.fc2 = neural_net.Linear(64, 32)
         self.dropout = neural_net.Dropout(0.4)
 
         self.fc3 = neural_net.Linear(32, 16)
@@ -87,7 +81,7 @@ class DNSQueryClassifier(neural_net.Module):
         x = self.relu(self.fc1(x))
         x = self.relu(self.fc2(x))
         x = self.relu(self.fc3(x))
-        x = self.relu(self.fc4(x))  
+        x = self.relu(self.fc4(x))
         x = self.sigmoid(self.fc5(x))
         return x
 
@@ -173,18 +167,18 @@ def generate_dataset() -> dict[str:int]:
         "api.ad.intl.xiaomi.com": 1,
         "venetia.iad.appboy.com": 1,
         "mybank.secure-login.com": 1,
-        "x.blueduckredapple.com":1,
-        "x.everestop.io":1,
-        "x.thecatmachine.com":1,
-        "api.ad.intl.xiaomi.com":1,
-        "adxbid.info":1,
+        "x.blueduckredapple.com": 1,
+        "x.everestop.io": 1,
+        "x.thecatmachine.com": 1,
+        "api.ad.intl.xiaomi.com": 1,
+        "adxbid.info": 1,
         "news.bbc.co.uk": 0,
         "github.com": 0,
         "stackoverflow.com": 0,
         "google.com": 0,
         "microsoft.com": 0,
         "apple.com": 0,
-        "chromesyncpasswords-pa.googleapis.com":0,
+        "chromesyncpasswords-pa.googleapis.com": 0,
         "amazon.com": 0,
         "facebook.com": 0,
         "youtube.com": 0,
@@ -202,16 +196,16 @@ def generate_dataset() -> dict[str:int]:
         "adobe.com": 0,
         "cnn.com": 0,
         "mozilla.org": 0,
-        "mtalk.google.com":0,
-        "apple.com":0,
-        "yahoo.com":0,
-        "googlevideo.com":0,
-        "vidaahub.com":0,
-        "netflix.com":0,
-        "clients.google.com":0,
-        "googleapis.com":0,
-        "temu.com":0,
-        "ads.io":1,
+        "mtalk.google.com": 0,
+        "apple.com": 0,
+        "yahoo.com": 0,
+        "googlevideo.com": 0,
+        "vidaahub.com": 0,
+        "netflix.com": 0,
+        "clients.google.com": 0,
+        "googleapis.com": 0,
+        "temu.com": 0,
+        "ads.io": 1,
     }
 
     features = [extract_features(domain) for domain in domains_with_labels.keys()]

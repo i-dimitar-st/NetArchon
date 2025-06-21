@@ -9,7 +9,7 @@ from pathlib import Path
 
 root_dir = Path(__file__).parent.parent.resolve()
 sys.path.insert(0, str(root_dir))
-from services.dns.server import DNSUtils
+from services.dns.dns import DNSUtils
 
 root_dir = Path(__file__).parent.parent.resolve()
 TIMEOUT = 15

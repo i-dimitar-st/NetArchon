@@ -1,81 +1,60 @@
 # NetArchon
 
-## Description
+## Overview
 
-Project to take control of your local network by using a machine(Pi or other).
-Main features:
+NetArchon is a local network control platform designed to run on a dedicated device (Raspberry Pi or similar). It empowers you to manage your LAN with:
 
-- DHCP server => `scapy`
-  - Configurable clients with time based access restriction
-- DNS server => `dnslib`
-  - To block unwanted IPs/Hosnames/URLs
-- Network Statistics monitor => `scapy`
-- Configuration and main Overview GUI => `Flask`
-- Visualization => `Grafana`
+- **DHCP server** (using `scapy`)
+  - Full DHCP protocol handling (DISCOVER, OFFER, REQUEST, etc.)
+  - Client-specific time-based access control
+  - IP conflict detection via ARP
+  - Persistent leases and TTL-based reservations
+- **DNS server** (using `dnslib`)
+  - Block unwanted IPs, hostnames, **domains, and full URLs with pattern matching**
+  - Custom filtering policies for network-wide DNS control
+- **Network traffic monitoring** (using `scapy`)
+- **Web GUI dashboard** (Flask-based)
+  - Real-time overview and configuration
+- **Visualization via Grafana**
+  - Detailed network stats and history
 
-```
-cd existing_repo
-git remote add origin https://gitlab.com/i.dimitar.st/netarchon.git
-git branch -M main
-git push -uf origin main
-```
+NetArchon aims to give you full control over your home or small office network with open-source tools.
 
-## Integrate with your tools
+---
 
-- [ ] [Set up project integrations](https://gitlab.com/i.dimitar.st/netarchon/-/settings/integrations)
+## Features
 
-## Collaborate with your team
-
-- [ ] [Invite team members and collaborators](https://docs.gitlab.com/ee/user/project/members/)
-- [ ] [Create a new merge request](https://docs.gitlab.com/ee/user/project/merge_requests/creating_merge_requests.html)
-- [ ] [Automatically close issues from merge requests](https://docs.gitlab.com/ee/user/project/issues/managing_issues.html#closing-issues-automatically)
-- [ ] [Enable merge request approvals](https://docs.gitlab.com/ee/user/project/merge_requests/approvals/)
-- [ ] [Set auto-merge](https://docs.gitlab.com/ee/user/project/merge_requests/merge_when_pipeline_succeeds.html)
-
-## Test and Deploy
-
-Use the built-in continuous integration in GitLab.
-
-- [ ] [Get started with GitLab CI/CD](https://docs.gitlab.com/ee/ci/quick_start/index.html)
-- [ ] [Analyze your code for known vulnerabilities with Static Application Security Testing (SAST)](https://docs.gitlab.com/ee/user/application_security/sast/)
-- [ ] [Deploy to Kubernetes, Amazon EC2, or Amazon ECS using Auto Deploy](https://docs.gitlab.com/ee/topics/autodevops/requirements.html)
-- [ ] [Use pull-based deployments for improved Kubernetes management](https://docs.gitlab.com/ee/user/clusters/agent/)
-- [ ] [Set up protected environments](https://docs.gitlab.com/ee/ci/environments/protected_environments.html)
+- Fully featured DHCP server with conflict detection and lease management
+- DNS filtering and blocking at the DNS level
+- Network statistics collection and monitoring
+- Web interface for easy management and overview
+- Extensible and modular architecture
 
 ---
 
 ## Installation
 
-Within a particular ecosystem, there may be a common way of installing things, such as using Yarn, NuGet, or Homebrew. However, consider the possibility that whoever is reading your README is a novice and would like more guidance. Listing specific steps helps remove ambiguity and gets people to using your project as quickly as possible. If it only runs in a specific context like a particular programming language version or operating system or has dependencies that have to be installed manually, also add a Requirements subsection.
+### Requirements
 
-## Usage
+- Linux-based system (Raspberry Pi OS, Ubuntu, Debian recommended)
+- Python 3.8+
+- `scapy`, `dnslib`, `flask`, and other Python dependencies (install with `pip`)
+- Optional: Grafana for visualization
 
-Use examples liberally, and show the expected output if you can. It's helpful to have inline the smallest example of usage that you can demonstrate, while providing links to more sophisticated examples if they are too long to reasonably include in the README.
+### Quick Setup
 
-## Support
+```bash
+# Clone repository
+git clone https://gitlab.com/i.dimitar.st/netarchon.git
+cd netarchon
 
-Tell people where they can go to for help. It can be any combination of an issue tracker, a chat room, an email address, etc.
+# Create Python virtual environment and activate
+python3 -m venv venv
+source venv/bin/activate
 
-## Roadmap
+# Install dependencies
+pip install -r requirements.txt
 
-If you have ideas for releases in the future, it is a good idea to list them in the README.
-
-## Contributing
-
-State if you are open to contributions and what your requirements are for accepting them.
-
-For people who want to make changes to your project, it's helpful to have some documentation on how to get started. Perhaps there is a script that they should run or some environment variables that they need to set. Make these steps explicit. These instructions could also be useful to your future self.
-
-You can also document commands to lint the code or run tests. These steps help to ensure high code quality and reduce the likelihood that the changes inadvertently break something. Having instructions for running tests is especially helpful if it requires external setup, such as starting a Selenium server for testing in a browser.
-
-## Authors and acknowledgment
-
-Show your appreciation to those who have contributed to the project.
-
-## License
-
-For open source projects, say how it is licensed.
-
-## Project status
-
-If you have run out of energy or time for your project, put a note at the top of the README saying that development has slowed down or stopped completely. Someone may choose to fork your project or volunteer to step in as a maintainer or owner, allowing your project to keep going. You can also make an explicit request for maintainers.
+# To finish
+run.sh
+```

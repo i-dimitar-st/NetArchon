@@ -1,6 +1,6 @@
+import time
 import threading
 import sqlite3
-import time
 from pathlib import Path
 from services.config.config import config
 from services.logger.logger import MainLogger
@@ -163,14 +163,12 @@ class DnsStatsDb:
             raise ValueError("Connection and Cursor are missing")
 
         with cls._lock:
-
             if not cls._is_key_valid(key):
                 db_logger.warning(f"Invalid key: {key}")
                 return
             cls._cursor.execute(f"""
                                 UPDATE stats
-                                SET
-                                    {key} = {key} + ?,
+                                SET {key} = {key} + ?,
                                     last_updated = ?
                                 WHERE id = 1
                                 """, (count, int(time.time())))
