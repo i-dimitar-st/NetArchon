@@ -1,7 +1,7 @@
 
 import unittest
 from unittest.mock import patch
-from services.config.config import Config
+from config.config import Config
 
 
 class TestConfig(unittest.TestCase):

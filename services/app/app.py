@@ -4,19 +4,23 @@ import platform
 import json
 import multiprocessing
 import socket
+import logging
 from copy import deepcopy
 import sqlite3
 import psutil
 from pathlib import Path
 from flask import Flask, render_template
 from services.logger.logger import MainLogger
-from services.config.config import config
+from config.config import config
 
-ROOT_PATH = Path("/projects/gitlab/netarchon")
-DNS_HISTORY_DB = ROOT_PATH / "db" / "dns_history.sqlite3"
-DNS_STATS_DB = ROOT_PATH / "db" / "dns_stats.sqlite3"
-DHCP_LEASES_DB = ROOT_PATH / "db" / "dhcp_leases.sqlite3"
-DHCP_STATS_DB = ROOT_PATH / "db" / "dhcp_stats.sqlite3"
+PATHS = config.get("paths")
+ROOT_PATH = Path(PATHS.get("root"))
+DB_PATH = ROOT_PATH / PATHS.get("database")
+
+DNS_HISTORY_DB = DB_PATH / "dns_history.sqlite3"
+DNS_STATS_DB = DB_PATH / "dns_stats.sqlite3"
+DHCP_LEASES_DB = DB_PATH / "dhcp_leases.sqlite3"
+DHCP_STATS_DB = DB_PATH / "dhcp_stats.sqlite3"
 DNS_CONTROL_LIST = ROOT_PATH / "config" / "dns_control_list.json"
 LOG_FILE_PATH = ROOT_PATH / "logs" / "main.log"
 
@@ -26,7 +30,7 @@ DHCP_STATISTICS = {}
 LEASES = []
 
 
-app_logger = MainLogger.get_logger(service_name="GUI", log_level="debug")
+_logger = MainLogger.get_logger(service_name="GUI", log_level="debug")
 
 
 def _generate_system_stats() -> dict:
@@ -194,7 +198,7 @@ def _get_dhcp_leases() -> list:
             return result
 
     except Exception as e:
-        app_logger.exception(f"Error: Failed to read {DHCP_LEASES_DB} - {e}")
+        _logger.error(f"Error: Failed to read {DHCP_LEASES_DB} - {e}")
         return []
 
 
@@ -206,9 +210,7 @@ def _get_dns_history() -> list:
             _cursor = _conn.cursor().execute("PRAGMA table_info(history)")
             _columns: list[str] = [_column[1] for _column in _cursor.fetchall()]
 
-            _history_records: list[tuple] = _cursor.execute(
-                "SELECT * FROM history"
-            ).fetchall()
+            _history_records: list[tuple] = _cursor.execute("SELECT * FROM history").fetchall()
 
             dns_records = []
             for history_record in _history_records:
@@ -217,7 +219,7 @@ def _get_dns_history() -> list:
             return dns_records
 
     except Exception as e:
-        app_logger.error(f"Error: Failed to read {DNS_HISTORY_DB} - {e}")
+        _logger.error(f"Error: Failed to read {DNS_HISTORY_DB} - {e}")
         return []
 
 
@@ -230,11 +232,11 @@ def _get_dns_statistics() -> dict:
             _row: tuple | None = _cursor.execute("SELECT * FROM stats").fetchone()
             if _row and _columns:
                 if len(_columns) != len(_row):
-                    app_logger.warning(f"Column count ({len(_columns)}) != Row length ({len(_row)})")
+                    _logger.warning(f"Column count ({len(_columns)}) != Row length ({len(_row)})")
                 return dict(zip(_columns, _row))
 
     except Exception as e:
-        app_logger.error(f"Failed to read {DNS_STATS_DB} - {e}")
+        _logger.error(f"Failed to read {DNS_STATS_DB} - {e}")
 
     return {}
 
@@ -251,11 +253,13 @@ def _get_dhcp_statistics() -> dict:
 
             if row and columns:
                 if len(columns) != len(row):
-                    app_logger.warning(f"[get_dns_statistics] Column count ({len(columns)}) != Row length ({len(row)})")
+                    _logger.warning(
+                        f"[get_dns_statistics] Column count ({len(columns)}) != Row length ({len(row)})"
+                    )
                 return dict(zip(columns, row))
 
     except Exception as e:
-        app_logger.error(f"[get_dns_statistics]  Failed to read {DHCP_STATS_DB} - {e}")
+        _logger.error(f"[get_dns_statistics]  Failed to read {DHCP_STATS_DB} - {e}")
 
     return {}
 
@@ -270,7 +274,7 @@ def _get_control_list() -> list:
                 blacklist_rules.extend(_value)
             return sorted(blacklist_rules)
     except Exception as e:
-        app_logger.error(f"Error: Failed to read {DNS_CONTROL_LIST} - {e}")
+        _logger.error(f"Error: Failed to read {DNS_CONTROL_LIST} - {e}")
 
     return []
 
@@ -283,7 +287,10 @@ def _get_system_logs() -> list:
             for line in file_handle:
                 if not line:
                     continue
+                # line_array = line.encode("unicode_escape").decode("utf-8").strip().split("|")
                 line_array = line.strip().split("|")
+                if len(line_array) != 4:
+                    continue
                 log_entries.append(
                     {
                         "timestamp": line_array[0].strip(),
@@ -294,87 +301,112 @@ def _get_system_logs() -> list:
                 )
             return log_entries
     except Exception as e:
-        app_logger.error(f"Failed to read {LOG_FILE_PATH} - {e}")
+        _logger.error(f"Failed to read {LOG_FILE_PATH} - {e}")
         return []
 
 
 class App:
     _worker: multiprocessing.Process | None = None
     _app: Flask | None = None
-    _logger = app_logger
 
     @classmethod
-    def _init(cls, ssl_context: tuple, host: str = "0.0.0.0", port: int = 8080):
+    def init(cls, ssl_context: tuple, host: str = "0.0.0.0", port: int = 8080):
         cls._ssl_context = ssl_context
         cls._host = host
         cls._port = port
 
     @classmethod
-    def start(cls, ssl_context: tuple, host: str = "0.0.0.0", port: int = 8080):
+    def start(cls):
         if cls._worker and cls._worker.is_alive():
             raise RuntimeError("Flask App already running")
-        cls._init(ssl_context=ssl_context, host=host, port=port)
-        cls._logger.info(f"Starting Flask App at {cls._host}:{cls._port}.")
         cls._worker = multiprocessing.Process(target=cls._work)
         cls._worker.start()
+        _logger.info(f"Starting Flask App at {cls._host}:{cls._port}.")
 
     @classmethod
     def stop(cls):
-        cls._logger.info("Shutting Flask App")
+        _logger.info("Shutting Flask App")
         if cls._worker and cls._worker.is_alive():
             cls._worker.terminate()
             cls._worker.join(timeout=1)
             if cls._worker.is_alive():
-                cls._logger.warning("Flask app process did not stop; killing forcefully.")
+                _logger.warning("Flask app process did not stop; killing forcefully.")
                 cls._worker.kill()
                 cls._worker.join(timeout=1)
-            cls._logger.info("App stopped.")
+            _logger.info("App stopped.")
             cls._app = None
 
     @classmethod
     def _work(cls):
         cls._app = Flask(__name__)
+
+        cls._bootstrap_loggers()
         cls._define_routes()
-        cls._app.run(host=cls._host,
-                     port=cls._port,
-                     ssl_context=cls._ssl_context)
+
+        cls._app.run(host=cls._host, port=cls._port, ssl_context=cls._ssl_context)
+
+    @classmethod
+    def _bootstrap_loggers(cls):
+        if cls._app:
+
+            cls._app.logger.handlers.clear()
+            cls._app.logger.propagate = True
+            for handler in _logger.handlers:
+                cls._app.logger.addHandler(handler)
+            cls._app.logger.setLevel(logging.WARNING)
+
+        werkzeug_logger = logging.getLogger("werkzeug")
+        werkzeug_logger.handlers.clear()
+        werkzeug_logger.propagate = True
+        for handler in _logger.handlers:
+            werkzeug_logger.addHandler(handler)
+        werkzeug_logger.setLevel(logging.WARNING)
 
     @classmethod
     def _define_routes(cls):
 
         if cls._app:
+
             @cls._app.route("/")
             def index():
-                return render_template("index.html",
-                                       system_stats=_generate_system_stats(),
-                                       active_leases=len(_get_dhcp_leases()))
+                return render_template(
+                    "index.html",
+                    system_stats=_generate_system_stats(),
+                    active_leases=len(_get_dhcp_leases()),
+                )
 
             @cls._app.route("/info")
             def info():
-                return render_template("info.html",
-                                       system_statistics=_generate_system_stats(),
-                                       network_interfaces=_get_network_interfaces())
+                return render_template(
+                    "info.html",
+                    system_statistics=_generate_system_stats(),
+                    network_interfaces=_get_network_interfaces(),
+                )
 
             @cls._app.route("/dhcp")
             def dhcp():
-                return render_template("dhcp.html",
-                                       dhcp_statistics=_get_dhcp_statistics(),
-                                       dhcp_leases=_get_dhcp_leases())
+                return render_template(
+                    "dhcp.html",
+                    dhcp_statistics=_get_dhcp_statistics(),
+                    dhcp_leases=_get_dhcp_leases(),
+                )
 
             @cls._app.route("/dns")
             def dns():
-                return render_template("dns.html",
-                                       dns_history=_get_dns_history(),
-                                       dns_statistics=_get_dns_statistics())
+                return render_template(
+                    "dns.html", dns_history=_get_dns_history(), dns_statistics=_get_dns_statistics()
+                )
 
             @cls._app.route("/config", methods=["GET"])
             def get_config():
-                _config = {"network": config.get("network", "lan"),
-                           "dns": config.get("dns"),
-                           "dhcp": config.get("dhcp")}
-                return render_template("config.html",
-                                       config=deepcopy(_config),
-                                       dns_control_list=_get_control_list())
+                _config = {
+                    "network": config.get("network").get("lan"),
+                    "dns": config.get("dns"),
+                    "dhcp": config.get("dhcp"),
+                }
+                return render_template(
+                    "config.html", config=deepcopy(_config), dns_control_list=_get_control_list()
+                )
 
             @cls._app.route("/logs")
             def logs():

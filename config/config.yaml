@@ -1,22 +1,21 @@
 meta:
   name: NetArchon
   version: 0.1.0
-  date: "2020-06-01"
+  date: "2025-06-01"
 
 app:
   host: "0.0.0.0"
   port: 8443
-  threaded: True
-
-certificates:
-  cert: services/app/certificates/cert.pem
-  key: services/app/certificates/key.pem
 
 paths:
   root: /projects/gitlab/netarchon
   database: db
   logs: logs
-  certificates_dir: services/app/certificates
+  certificates: services/app/certificates
+
+certificates:
+  cert: cert.pem
+  key: key.pem
 
 network:
   lan:
@@ -71,16 +70,19 @@ dhcp:
     lease_discovery: 300
     persistence: 60
 
+memory_management:
+  interval: 300
+
 database:
   persistence_interval: 30
   blacklists_loading_interval: 30
   dhcp:
     stats:
       type: sqlite
-      path: db/dhcp_stats.sqlite3
+      path: dhcp_stats.sqlite3
     leases:
       type: sqlite
-      path: db/dhcp_leases.sqlite3
+      path: dhcp_leases.sqlite3
   dns:
     history:
       type: sqlite
@@ -91,6 +93,7 @@ database:
       path: db/dns_stats.sqlite3
 
 logging:
+  version: 1
   levels:
     debug: DEBUG
     info: INFO
@@ -99,7 +102,7 @@ logging:
     critical: CRITICAL
   formatters:
     default:
-      format: "%(asctime)s.%(msecs)03d | %(levelname)s | %(message)s"
+      format: "%(asctime)s.%(msecs)03d | %(levelname)s | %(name)s | %(message)s"
       datefmt: "%Y-%m-%d %H:%M:%S"
   handlers:
     file:
@@ -111,6 +114,13 @@ logging:
       mode: a
       level: DEBUG
       formatter: default
+
+    console:
+      class: logging.StreamHandler
+      level: ERROR
+      formatter: default
+      stream: ext://sys.stdout
+
   root:
     level: INFO
-    handlers: [file]
+    handlers: [file, console]

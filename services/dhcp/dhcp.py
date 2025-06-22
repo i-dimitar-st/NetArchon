@@ -11,12 +11,12 @@ from scapy.layers.dhcp import BOOTP
 from scapy.layers.l2 import Ether, ARP
 from scapy.packet import Packet
 
-from models.models import DHCPResponseFactory, ArpClient, DhcpMessage, DHCPType
+from models.models import DHCPResponseFactory, ArpClient, DhcpMessage, DHCPType, DHCPLeaseType
 from services.dhcp.db import DHCPStorage, DHCPStats
 from services.dns.utils import TTLCache
 from services.dhcp.utils import DHCPUtilities
 from services.logger.logger import MainLogger
-from services.config.config import config
+from config.config import config
 
 
 DHCP_CONFIG = config.get("dhcp")
@@ -34,8 +34,8 @@ IP_RANGE_START = DHCP_CONFIG.get("ip_pool_start")
 IP_RANGE_END = DHCP_CONFIG.get("ip_pool_end")
 CIDR = DHCP_CONFIG.get("cidr")
 LEASE_TIME = DHCP_CONFIG.get("lease_time_seconds")
-REBINDING_TIME = int(LEASE_TIME*0.875)
-RENEWAL_TIME = int(LEASE_TIME*0.5)
+REBINDING_TIME = int(LEASE_TIME * 0.875)
+RENEWAL_TIME = int(LEASE_TIME * 0.5)
 MTU = DHCP_CONFIG.get("mtu")
 
 RECEIVED_QUEUE_SIZE = 100
@@ -46,7 +46,7 @@ DHCP_PARAMS = [12, 43, 60, 61, 81]
 DB_PERSISTENCE_INTERVAL = 60
 
 DHCP_WORKERS = 10
-ARP_TIMEOUT = 3
+ARP_TIMEOUT = 1
 WORKER_GET_TIMEOUT = 0.2
 WORKER_SLEEP_TIMEOUT = 0.1
 
@@ -78,7 +78,7 @@ class BackgroundServices:
     @classmethod
     def stop(cls):
         cls._stop_event.set()
-        cls._worker.join(timeout=2)
+        cls._worker.join(timeout=1)
 
     @classmethod
     def _work(cls):
@@ -103,28 +103,25 @@ class ClientDiscovery:
     _reserved_ips: set[str] = set()
 
     @staticmethod
-    def discover_client_via_arp(ip: str = '',
-                                iface: str = INTERFACE,
-                                source_ip: str = SERVER_IP,
-                                source_mac: str = SERVER_MAC,
-                                broadcast_mac: str = BROADCAST_MAC,
-                                timeout: float = ARP_TIMEOUT) -> Optional[ArpClient]:
+    def discover_client_via_arp(
+        ip: str = '',
+        iface: str = INTERFACE,
+        source_ip: str = SERVER_IP,
+        source_mac: str = SERVER_MAC,
+        broadcast_mac: str = BROADCAST_MAC,
+        timeout: float = ARP_TIMEOUT,
+    ) -> Optional[ArpClient]:
         """Send an ARP request to check if the IP is still busy."""
         try:
 
-            _packet = (Ether(dst=broadcast_mac, src=source_mac) /
-                       ARP(pdst=ip, psrc=source_ip, op=1))
+            _packet = Ether(dst=broadcast_mac, src=source_mac) / ARP(pdst=ip, psrc=source_ip, op=1)
 
             _answered: SndRcvList
-            _answered, _unanswered = scapy.srp(_packet,
-                                               timeout=timeout,
-                                               verbose=False,
-                                               iface=iface)
+            _answered, _unanswered = scapy.srp(_packet, timeout=timeout, verbose=False, iface=iface)
 
             if _answered:
                 _sent, _received = _answered[0]
-                return ArpClient(mac=_received[ARP].hwsrc,
-                                 ip=_received[ARP].psrc)
+                return ArpClient(mac=_received[ARP].hwsrc, ip=_received[ARP].psrc)
 
         except Exception as err:
             dhcp_logger.error(f"Unexpected error sending ARP request to {ip}: {err}")
@@ -132,30 +129,31 @@ class ClientDiscovery:
         return None
 
     @staticmethod
-    def discover_clients_via_arp(iface: str = INTERFACE,
-                                 server_ip: str = SERVER_IP,
-                                 server_mac: str = SERVER_MAC,
-                                 broadcast_mac: str = BROADCAST_MAC,
-                                 timeout: float = ARP_TIMEOUT,
-                                 cidr: str = CIDR) -> List[ArpClient]:
+    def discover_clients_via_arp(
+        iface: str = INTERFACE,
+        server_ip: str = SERVER_IP,
+        server_mac: str = SERVER_MAC,
+        broadcast_mac: str = BROADCAST_MAC,
+        timeout: float = ARP_TIMEOUT,
+        cidr: str = CIDR,
+    ) -> List[ArpClient]:
         """Send a broadcast ARP request to discover all active clients on the network."""
         discovered_clients = []
         try:
             _network = ipaddress.IPv4Network(f"{server_ip}/{cidr}", strict=False)
             _subnet = str(_network.network_address) + f"/{cidr}"
 
-            _packet = (Ether(dst=broadcast_mac, src=server_mac) /
-                       ARP(pdst=_subnet, psrc=server_ip, op=1))
+            _packet = Ether(dst=broadcast_mac, src=server_mac) / ARP(
+                pdst=_subnet, psrc=server_ip, op=1
+            )
 
             _answered: SndRcvList
-            _answered, _unanswered = scapy.srp(_packet,
-                                               timeout=timeout,
-                                               verbose=False,
-                                               iface=iface)
+            _answered, _unanswered = scapy.srp(_packet, timeout=timeout, verbose=False, iface=iface)
             discovered_clients = []
             for _sent, _received in _answered:
-                discovered_clients.append(ArpClient(mac=_received[ARP].hwsrc,
-                                                    ip=_received[ARP].psrc))
+                discovered_clients.append(
+                    ArpClient(mac=_received[ARP].hwsrc, ip=_received[ARP].psrc)
+                )
             return discovered_clients
 
         except Exception as err:
@@ -174,9 +172,11 @@ class ClientDiscovery:
         for _ip_int in range(_start_int, _end_int + 1):
             candidate_ip = str(ipaddress.IPv4Address(_ip_int))
 
-            if (DHCPReservationCache.get_mac(candidate_ip) or
-                candidate_ip in _leased_ips or
-                    candidate_ip in _discovered_ips):
+            if (
+                DHCPReservationCache.get_mac(candidate_ip)
+                or candidate_ip in _leased_ips
+                or candidate_ip in _discovered_ips
+            ):
                 continue
 
             if cls.discover_client_via_arp(ip=candidate_ip):
@@ -231,13 +231,15 @@ class DHCPLogger:
     def log_inbound(dhcp_message: DhcpMessage):
         """Logs details of an inbound DHCP packet."""
         DHCPStats.increment(key="received_total_valid")
-        DHCPStats.increment(key=f"received_{DHCPUtilities.convert_dhcp_lease_to_string(dhcp_message.dhcp_type)}")
+        DHCPStats.increment(key=f"received_{DHCPLeaseType(dhcp_message.dhcp_type).name.lower()}")
 
     @staticmethod
     def log_outbound(packet: Packet):
         """Logs details of an outbound DHCP packet."""
         DHCPStats.increment(key="sent_total")
-        DHCPStats.increment(key=f"sent_{DHCPUtilities.convert_dhcp_lease_to_string(DHCPUtilities.extract_dhcp_type_from_packet(packet))}")
+        DHCPStats.increment(
+            key=f"sent_{DHCPLeaseType(DHCPUtilities.extract_dhcp_type_from_packet(packet)).name.lower()}"
+        )
 
 
 class DHCPHandler:
@@ -270,9 +272,9 @@ class DHCPHandler:
         """Handles DHCPDISCOVER messages (RFC 2131, Section 4.1) sent by clients to discover DHCP servers."""
         with cls._lock:
 
-            dhcp_logger.debug(f"Received DISCOVER "
-                              f"XID={dhcp_message.xid}, "
-                              f"MAC={dhcp_message.mac}.")
+            dhcp_logger.debug(
+                f"Received DISCOVER " f"XID={dhcp_message.xid}, " f"MAC={dhcp_message.mac}."
+            )
 
             proposed_ip = ClientDiscovery.discover_available_ip()
             if not proposed_ip:
@@ -280,19 +282,21 @@ class DHCPHandler:
                 return
 
             DHCPReservationCache.reserve(ip=proposed_ip, mac=dhcp_message.mac)
-            offer = DHCPResponseFactory.build(dhcp_type=DHCPType.OFFER,
-                                              your_ip=proposed_ip,
-                                              request_packet=dhcp_message.packet)
+            offer = DHCPResponseFactory.build(
+                dhcp_type=DHCPType.OFFER, your_ip=proposed_ip, request_packet=dhcp_message.packet
+            )
             cls._send_response(offer)
 
     @classmethod
     def _handle_request(cls, dhcp_message: DhcpMessage):
 
-        dhcp_logger.debug(f"DHCP REQUEST "
-                          f"XID:{dhcp_message.xid}, "
-                          f"MAC:{dhcp_message.mac}, "
-                          f"IP_req:{dhcp_message.requested_ip}, "
-                          f"HOSTNAME:{dhcp_message.hostname}.")
+        dhcp_logger.debug(
+            f"DHCP REQUEST "
+            f"XID:{dhcp_message.xid}, "
+            f"MAC:{dhcp_message.mac}, "
+            f"IP_req:{dhcp_message.requested_ip}, "
+            f"HOSTNAME:{dhcp_message.hostname}."
+        )
 
         with cls._lock:
             dhcp_type = DHCPType.NAK
@@ -300,11 +304,22 @@ class DHCPHandler:
             lease = DHCPStorage.get_lease_by_mac(dhcp_message.mac)
 
             # 1) REQUEST after OFFER
-            if dhcp_message.requested_ip and dhcp_message.server_id and dhcp_message.ciaddr == "0.0.0.0":
-                if dhcp_message.server_id == SERVER_IP and DHCPUtilities.is_ip_in_subnet(dhcp_message.requested_ip):
+            if (
+                dhcp_message.requested_ip
+                and dhcp_message.server_id
+                and dhcp_message.ciaddr == "0.0.0.0"
+            ):
+                if dhcp_message.server_id == SERVER_IP and DHCPUtilities.is_ip_in_subnet(
+                    dhcp_message.requested_ip
+                ):
                     offered_ip = DHCPReservationCache.get_ip(dhcp_message.mac)
                     if offered_ip == dhcp_message.requested_ip:
-                        DHCPStorage.add_lease(dhcp_message.mac, dhcp_message.requested_ip, dhcp_message.hostname, LEASE_TIME)
+                        DHCPStorage.add_lease(
+                            dhcp_message.mac,
+                            dhcp_message.requested_ip,
+                            dhcp_message.hostname,
+                            LEASE_TIME,
+                        )
                         DHCPReservationCache.unreserve(dhcp_message.requested_ip, dhcp_message.mac)
                         dhcp_type, your_ip = DHCPType.ACK, dhcp_message.requested_ip
                     else:
@@ -316,8 +331,15 @@ class DHCPHandler:
                     arp_client = ClientDiscovery.discover_client_via_arp(dhcp_message.requested_ip)
                     if not arp_client or arp_client.mac == dhcp_message.mac:
                         if lease and lease[1] == dhcp_message.requested_ip or not arp_client:
-                            DHCPStorage.add_lease(dhcp_message.mac, dhcp_message.requested_ip, dhcp_message.hostname, LEASE_TIME)
-                            DHCPReservationCache.unreserve(dhcp_message.requested_ip, dhcp_message.mac)
+                            DHCPStorage.add_lease(
+                                dhcp_message.mac,
+                                dhcp_message.requested_ip,
+                                dhcp_message.hostname,
+                                LEASE_TIME,
+                            )
+                            DHCPReservationCache.unreserve(
+                                dhcp_message.requested_ip, dhcp_message.mac
+                            )
                             dhcp_type, your_ip = DHCPType.ACK, dhcp_message.requested_ip
                         else:
                             dhcp_logger.debug("NAK INIT-REBOOT no matching lease and IP in use")
@@ -331,7 +353,9 @@ class DHCPHandler:
                 if DHCPUtilities.is_ip_in_subnet(dhcp_message.ciaddr):
                     arp_client = ClientDiscovery.discover_client_via_arp(dhcp_message.ciaddr)
                     if not arp_client or (lease and lease[1] == dhcp_message.ciaddr):
-                        DHCPStorage.add_lease(dhcp_message.mac, dhcp_message.ciaddr, dhcp_message.hostname, LEASE_TIME)
+                        DHCPStorage.add_lease(
+                            dhcp_message.mac, dhcp_message.ciaddr, dhcp_message.hostname, LEASE_TIME
+                        )
                         DHCPReservationCache.unreserve(dhcp_message.ciaddr, dhcp_message.mac)
                         dhcp_type, your_ip = DHCPType.ACK, dhcp_message.ciaddr
                     else:
@@ -345,7 +369,9 @@ class DHCPHandler:
             else:
                 dhcp_logger.debug("Invalid REQUEST: Missing valid IP info")
 
-            response = DHCPResponseFactory.build(dhcp_type=dhcp_type, your_ip=your_ip, request_packet=dhcp_message.packet)
+            response = DHCPResponseFactory.build(
+                dhcp_type=dhcp_type, your_ip=your_ip, request_packet=dhcp_message.packet
+            )
             cls._send_response(response)
 
     @classmethod
@@ -354,24 +380,30 @@ class DHCPHandler:
 
         _declined_ip = dhcp_message.requested_ip
         DHCPReservationCache.unreserve(ip=dhcp_message.requested_ip, mac=dhcp_message.mac)
-        dhcp_logger.debug(f"Received DHCPDECLINE "
-                          f"XID={dhcp_message.xid}, "
-                          f"IP={_declined_ip}, "
-                          f"MAC={dhcp_message.mac}.")
+        dhcp_logger.debug(
+            f"Received DHCPDECLINE "
+            f"XID={dhcp_message.xid}, "
+            f"IP={_declined_ip}, "
+            f"MAC={dhcp_message.mac}."
+        )
 
         with cls._lock:
             _existing_lease = DHCPStorage.get_lease_by_mac(dhcp_message.mac)
             # Case 1: The client has a lease and it is for the declined IP
             if _existing_lease and _existing_lease[1] == _declined_ip:
-                dhcp_logger.debug(f"MAC:{dhcp_message.mac} declined IP:{_declined_ip}, removing lease from database.")
+                dhcp_logger.debug(
+                    f"MAC:{dhcp_message.mac} declined IP:{_declined_ip}, removing lease from database."
+                )
                 DHCPStorage.remove_lease_by_mac(dhcp_message.mac)
             else:
                 # Case 2: The client declined the IP and doesnt have active lease
-                dhcp_logger.debug(f"Client {dhcp_message.mac} declined IP {_declined_ip}, but no lease found.")
+                dhcp_logger.debug(
+                    f"Client {dhcp_message.mac} declined IP {_declined_ip}, but no lease found."
+                )
 
-            response = DHCPResponseFactory.build(dhcp_type=DHCPType.NAK,
-                                                 your_ip="0.0.0.0",
-                                                 request_packet=dhcp_message.packet)
+            response = DHCPResponseFactory.build(
+                dhcp_type=DHCPType.NAK, your_ip="0.0.0.0", request_packet=dhcp_message.packet
+            )
 
             cls._send_response(response)
 
@@ -379,27 +411,33 @@ class DHCPHandler:
     def _handle_release(cls, dhcp_message: DhcpMessage):
         """DHCP Release (Section 4.4 of RFC 2131) sent by the client to release an IP address that it no longer needs."""
 
-        dhcp_logger.debug(f"Received DHCPRELEASE "
-                          f"XID={dhcp_message.xid}, "
-                          f"IP={dhcp_message.src_ip}, "
-                          f"MAC={dhcp_message.mac}.")
+        dhcp_logger.debug(
+            f"Received DHCPRELEASE "
+            f"XID={dhcp_message.xid}, "
+            f"IP={dhcp_message.src_ip}, "
+            f"MAC={dhcp_message.mac}."
+        )
 
         with cls._lock:
             DHCPStorage.remove_lease_by_mac(dhcp_message.mac)
 
     @classmethod
-    def _handle_inform(cls,  dhcp_message: DhcpMessage):
+    def _handle_inform(cls, dhcp_message: DhcpMessage):
         """DHCPINFORM (Section 3.3.2 of RFC 2131)"""
 
-        dhcp_logger.debug(f"Received DHCPINFORM "
-                          f"XID={dhcp_message.xid}, "
-                          f"IP={dhcp_message.src_ip}, "
-                          f"Requested={dhcp_message.param_req_list}.")
+        dhcp_logger.debug(
+            f"Received DHCPINFORM "
+            f"XID={dhcp_message.xid}, "
+            f"IP={dhcp_message.src_ip}, "
+            f"Requested={dhcp_message.param_req_list}."
+        )
 
         with cls._lock:
-            ack = DHCPResponseFactory.build(dhcp_type=DHCPType.ACK,
-                                            your_ip=dhcp_message.src_ip,
-                                            request_packet=dhcp_message.packet)
+            ack = DHCPResponseFactory.build(
+                dhcp_type=DHCPType.ACK,
+                your_ip=dhcp_message.src_ip,
+                request_packet=dhcp_message.packet,
+            )
             cls._send_response(ack)
 
     @classmethod
@@ -407,10 +445,12 @@ class DHCPHandler:
         """Send a DHCP packet on the configured interface."""
         try:
             DHCPLogger.log_outbound(packet)
-            dhcp_logger.debug(f"Send: TYPE:{DHCPUtilities.extract_dhcp_type_from_packet(packet)}, "
-                              f"XID:{packet[BOOTP].xid}, "
-                              f"CHADDR:{packet[BOOTP].chaddr[:6].hex(':')}, "
-                              f"YIADDR:{packet[BOOTP].yiaddr}.")
+            dhcp_logger.debug(
+                f"Send: TYPE:{DHCPUtilities.extract_dhcp_type_from_packet(packet)}, "
+                f"XID:{packet[BOOTP].xid}, "
+                f"CHADDR:{packet[BOOTP].chaddr[:6].hex(':')}, "
+                f"YIADDR:{packet[BOOTP].yiaddr}."
+            )
             scapy.sendp(packet, iface=INTERFACE, verbose=False)
         except Exception as err:
             dhcp_logger.error(f"Failed to send DHCP response: {str(err)}")
@@ -435,7 +475,7 @@ class DHCPServer:
 
     @classmethod
     def start(cls):
-        """ Start all necessary threads """
+        """Start all necessary threads"""
 
         if not cls._initialised:
             cls._init()
@@ -448,45 +488,49 @@ class DHCPServer:
             DHCPStorage.init()
             DHCPStats.init()
             BackgroundServices.start()
-            DHCPResponseFactory.initialize(server_ip=SERVER_IP,
-                                           server_mac=SERVER_MAC,
-                                           port=PORT,
-                                           broadcast_mac=BROADCAST_MAC,
-                                           broadcast_ip=BROADCAST_IP,
-                                           flags=BOOTP_FLAG_BROADCAST,
-                                           router=ROUTER,
-                                           subnet_mask=SUBNET_MASK,
-                                           name_server=NAME_SERVER,
-                                           lease_time=LEASE_TIME,
-                                           renewal_time=RENEWAL_TIME,
-                                           rebinding_time=REBINDING_TIME,
-                                           mtu=MTU)
+            DHCPResponseFactory.initialize(
+                server_ip=SERVER_IP,
+                server_mac=SERVER_MAC,
+                port=PORT,
+                broadcast_mac=BROADCAST_MAC,
+                broadcast_ip=BROADCAST_IP,
+                flags=BOOTP_FLAG_BROADCAST,
+                router=ROUTER,
+                subnet_mask=SUBNET_MASK,
+                name_server=NAME_SERVER,
+                lease_time=LEASE_TIME,
+                renewal_time=RENEWAL_TIME,
+                rebinding_time=REBINDING_TIME,
+                mtu=MTU,
+            )
 
-            _traffic_listener = threading.Thread(target=cls._traffic_listener,
-                                                 name="dhcp-traffic-listener",
-                                                 daemon=True)
+            _traffic_listener = threading.Thread(
+                target=cls._traffic_listener, name="dhcp-traffic-listener", daemon=True
+            )
             _traffic_listener.start()
             cls._workers["traffic_listener"] = _traffic_listener
 
             for _index in range(DHCP_WORKERS):
-                _worker = threading.Thread(target=cls._processor,
-                                           name=f"dhcp-worker_{_index}",
-                                           daemon=True)
+                _worker = threading.Thread(
+                    target=cls._processor, name=f"dhcp-worker_{_index}", daemon=True
+                )
                 _worker.start()
                 cls._workers[f"worker_{_index}"] = _worker
             dhcp_logger.info("Started")
 
     @classmethod
     def _traffic_listener(cls, interface=INTERFACE, port=PORT):
-        """ Start sniffing for DHCP packets on the interface """
-        scapy.sniff(iface=interface,
-                    filter=f"ip and udp and port {port}",
-                    prn=cls._listen,
-                    stop_filter=lambda _: not cls._running,
-                    count=0,
-                    timeout=None,
-                    store=False,
-                    session=None)
+        """Start sniffing for DHCP packets on the interface"""
+        scapy.sniff(
+            iface=interface,
+            filter=f"ip and udp and port {port}",
+            prn=cls._listen,
+            stop_filter=lambda _: not cls._running,
+            count=0,
+            timeout=None,
+            store=False,
+            session=None,
+        )
 
     @classmethod
     def _listen(cls, packet: Packet):
@@ -505,8 +549,10 @@ class DHCPServer:
             dhcp_message = None
             try:
                 dhcp_message = DhcpMessage(cls._received_queue.get(timeout=WORKER_GET_TIMEOUT))
-                if (dhcp_message.mac.lower() == SERVER_MAC.lower() or
-                        dhcp_message.src_ip.lower() == SERVER_IP.lower()):
+                if (
+                    dhcp_message.mac.lower() == SERVER_MAC.lower()
+                    or dhcp_message.src_ip.lower() == SERVER_IP.lower()
+                ):
                     continue
 
                 if dhcp_message.dedup_key in cls._dedup_queue:
@@ -515,14 +561,22 @@ class DHCPServer:
 
                 DHCPLogger.log_inbound(dhcp_message)
                 DHCPStats.increment(key="received_total")
-                print("Received:", dhcp_message.xid, dhcp_message.mac, dhcp_message.dhcp_type, dhcp_message.src_ip)
+                print(
+                    "Received:",
+                    dhcp_message.xid,
+                    dhcp_message.mac,
+                    dhcp_message.dhcp_type,
+                    dhcp_message.src_ip,
+                )
                 DHCPHandler.handle_message(dhcp_message)
 
             except queue.Empty:
                 continue
 
             except Exception as err:
-                dhcp_logger.exception(f"{threading.current_thread().name} processing DHCP packet as {str(err)}.")
+                dhcp_logger.exception(
+                    f"{threading.current_thread().name} processing DHCP packet as {str(err)}."
+                )
 
             finally:
                 if dhcp_message:
@@ -540,6 +594,6 @@ class DHCPServer:
             for _name, _thread in cls._workers.items():
                 if _thread.is_alive():
                     dhcp_logger.info(f"Stopping {_name}.")
-                    _thread.join(0.1)
+                    _thread.join(0.5)
             cls._workers.clear()
             dhcp_logger.info("DHCP server shut.")

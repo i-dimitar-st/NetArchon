@@ -12,6 +12,23 @@ from services.dhcp.utils import DHCPUtilities
 
 
 @unique
+class DHCPLeaseType(IntEnum):
+    DISCOVER = 1
+    OFFER = 2
+    REQUEST = 3
+    DECLINE = 4
+    ACK = 5
+    NAK = 6
+    RELEASE = 7
+    INFORM = 8
+    FORCE_RENEW = 9
+    LEASE_QUERY = 10
+    LEASE_UNASSIGNED = 11
+    LEASE_UNKNOWN = 12
+    LEASE_ACTIVE = 13
+
+
+@unique
 class DnsResponseCode(IntEnum):
     NO_ERROR = 0
     FORMAT_ERROR = 1
@@ -74,16 +91,20 @@ class DnsRequestType(IntEnum):
 
 @unique
 class LogLevel(Enum):
-    DEBUG = logging.DEBUG
-    INFO = logging.INFO
-    WARNING = logging.WARNING
-    ERROR = logging.ERROR
-    CRITICAL = logging.CRITICAL
+    DEBUG = 10
+    INFO = 20
+    WARNING = 30
+    ERROR = 40
+    CRITICAL = 50
 
     @classmethod
-    def from_string(cls, level_str: str):
-        return cls.__members__.get(level_str.strip().upper(),
-                                   cls.DEBUG).value
+    def _missing_(cls, value):
+        if isinstance(value, str):
+            value = value.strip().upper()
+            for member in cls:
+                if member.name == value:
+                    return member
+        return cls.DEBUG  # fallback
 
 
 class DnsMessage:
@@ -120,10 +141,7 @@ class DnsMessage:
 
     @staticmethod
     def _generate_dedup_key(dns_message: DNSRecord, addr: tuple) -> tuple:
-        return (dns_message.q.qname,
-                dns_message.q.qtype,
-                dns_message.header.id,
-                addr[0])
+        return (dns_message.q.qname, dns_message.q.qtype, dns_message.header.id, addr[0])
 
 
 class DHCPResponseFactory:
@@ -143,20 +161,22 @@ class DHCPResponseFactory:
     mtu: int
 
     @classmethod
-    def initialize(cls,
-                   server_ip: str,
-                   server_mac: str,
-                   port: int,
-                   broadcast_mac: str,
-                   broadcast_ip: str,
-                   lease_time: int,
-                   flags: int,
-                   subnet_mask: str,
-                   router: str,
-                   name_server: str,
-                   renewal_time: int,
-                   rebinding_time: int,
-                   mtu: int):
+    def initialize(
+        cls,
+        server_ip: str,
+        server_mac: str,
+        port: int,
+        broadcast_mac: str,
+        broadcast_ip: str,
+        lease_time: int,
+        flags: int,
+        subnet_mask: str,
+        router: str,
+        name_server: str,
+        renewal_time: int,
+        rebinding_time: int,
+        mtu: int,
+    ):
         cls.server_ip = server_ip
         cls.server_mac = server_mac
         cls.port = port
@@ -172,25 +192,26 @@ class DHCPResponseFactory:
         cls.mtu = mtu
 
     @classmethod
-    def build(cls,
-              dhcp_type: int,
-              your_ip: str,
-              request_packet: Packet) -> Packet:
+    def build(cls, dhcp_type: int, your_ip: str, request_packet: Packet) -> Packet:
 
-        bootp_opts = {"op": 2,
-                      "xid": request_packet[BOOTP].xid,
-                      "chaddr": request_packet[BOOTP].chaddr[:6] + b"\x00" * 10,
-                      "yiaddr": your_ip,
-                      "siaddr": cls.server_ip,
-                      "flags": cls.flags}
+        bootp_opts = {
+            "op": 2,
+            "xid": request_packet[BOOTP].xid,
+            "chaddr": request_packet[BOOTP].chaddr[:6] + b"\x00" * 10,
+            "yiaddr": your_ip,
+            "siaddr": cls.server_ip,
+            "flags": cls.flags,
+        }
 
         dhcp_opts = cls._build_dhcp_opts(dhcp_type)
 
-        return (Ether(src=cls.server_mac, dst=cls.broadcast_mac) /
-                IP(src=cls.server_ip, dst=cls.broadcast_ip) /
-                UDP(sport=cls.port, dport=request_packet[UDP].sport) /
-                BOOTP(**bootp_opts) /
-                DHCP(options=dhcp_opts))
+        return (
+            Ether(src=cls.server_mac, dst=cls.broadcast_mac)
+            / IP(src=cls.server_ip, dst=cls.broadcast_ip)
+            / UDP(sport=cls.port, dport=request_packet[UDP].sport)
+            / BOOTP(**bootp_opts)
+            / DHCP(options=dhcp_opts)
+        )
 
     @classmethod
     def _build_dhcp_opts(cls, dhcp_type: int) -> list:
@@ -198,30 +219,33 @@ class DHCPResponseFactory:
         opts = []
 
         if dhcp_type == DHCPType.NAK:
-            opts = [("message-type", DHCPType.NAK),
-                    ("server_id", cls.server_ip)]
+            opts = [("message-type", DHCPType.NAK), ("server_id", cls.server_ip)]
 
         elif dhcp_type == DHCPType.ACK:
-            opts = [("message-type", dhcp_type),
-                    ("server_id", cls.server_ip),
-                    ("subnet_mask", cls.subnet_mask),
-                    ("router", cls.router),
-                    ("name_server", cls.name_server),
-                    ("lease_time", cls.lease_time),
-                    ("renewal_time", cls.renewal_time),
-                    ("rebinding_time", cls.rebinding_time),
-                    ("interface-mtu", cls.mtu)]
+            opts = [
+                ("message-type", dhcp_type),
+                ("server_id", cls.server_ip),
+                ("subnet_mask", cls.subnet_mask),
+                ("router", cls.router),
+                ("name_server", cls.name_server),
+                ("lease_time", cls.lease_time),
+                ("renewal_time", cls.renewal_time),
+                ("rebinding_time", cls.rebinding_time),
+                ("interface-mtu", cls.mtu),
+            ]
 
         elif dhcp_type == DHCPType.OFFER:
-            opts = [("message-type", DHCPType.OFFER),
-                    ("server_id", cls.server_ip),
-                    ("subnet_mask", cls.subnet_mask),
-                    ("router", cls.router),
-                    ("name_server", cls.name_server),
-                    ("lease_time", cls.lease_time),
-                    ("renewal_time", cls.renewal_time),
-                    ("rebinding_time", cls.rebinding_time),
-                    ("interface-mtu", cls.mtu)]
+            opts = [
+                ("message-type", DHCPType.OFFER),
+                ("server_id", cls.server_ip),
+                ("subnet_mask", cls.subnet_mask),
+                ("router", cls.router),
+                ("name_server", cls.name_server),
+                ("lease_time", cls.lease_time),
+                ("renewal_time", cls.renewal_time),
+                ("rebinding_time", cls.rebinding_time),
+                ("interface-mtu", cls.mtu),
+            ]
 
         else:
             raise RuntimeError(f"Unknown DHCP type: {dhcp_type}")
@@ -312,8 +336,7 @@ class ArpClient:
         return f"mac='{self.mac}', ip='{self.ip}')"
 
     def to_dict(self) -> dict:
-        return {"mac": self.mac,
-                "ip": self.ip}
+        return {"mac": self.mac, "ip": self.ip}
 
 
 @unique
@@ -335,24 +358,40 @@ class DhcpMessage:
     def __init__(self, packet: Packet):
         self.received = time.time()
         self.packet = packet  # Raw Scapy packet
-        self.mac: str = packet[Ether].src.lower()  # Normalized MAC address (source hardware address)
+        self.mac: str = packet[
+            Ether
+        ].src.lower()  # Normalized MAC address (source hardware address)
         self.src_ip: str = packet[IP].src if IP in packet else ""  # Source IP of the UDP packet
         self.xid: int = packet[BOOTP].xid  # Transaction ID
         self.chaddr: bytes = packet[BOOTP].chaddr  # Client hardware address (raw, 16 bytes)
         self.yiaddr: str = packet[BOOTP].yiaddr  # 'Your' IP address (assigned by server)
-        self.ciaddr: str = packet[BOOTP].ciaddr  # Client's current IP address (used in RENEW/REBIND)
+        self.ciaddr: str = packet[
+            BOOTP
+        ].ciaddr  # Client's current IP address (used in RENEW/REBIND)
         self.giaddr: str = packet[BOOTP].giaddr  # Gateway IP address (used by relay agents)
-        self.dhcp_type: int = DHCPUtilities.extract_dhcp_type_from_packet(packet)  # DHCP message type (1=DISCOVER, 3=REQUEST, etc.)
-        self.hostname: str = DHCPUtilities.extract_hostname_from_dhcp_packet(packet)  # Optional hostname from client
-        self.requested_ip: str = DHCPUtilities.extract_requested_addr_from_dhcp_packet(packet)  # Requested IP (Option 50)
-        self.server_id: str = DHCPUtilities.extract_server_id_from_dhcp_packet(packet)  # Server identifier (Option 54)
-        self.param_req_list: list[int] = DHCPUtilities.extract_param_req_list(packet)  # List of requested option codes (Option 55)
+        self.dhcp_type: int = DHCPUtilities.extract_dhcp_type_from_packet(
+            packet
+        )  # DHCP message type (1=DISCOVER, 3=REQUEST, etc.)
+        self.hostname: str = DHCPUtilities.extract_hostname_from_dhcp_packet(
+            packet
+        )  # Optional hostname from client
+        self.requested_ip: str = DHCPUtilities.extract_requested_addr_from_dhcp_packet(
+            packet
+        )  # Requested IP (Option 50)
+        self.server_id: str = DHCPUtilities.extract_server_id_from_dhcp_packet(
+            packet
+        )  # Server identifier (Option 54)
+        self.param_req_list: list[int] = DHCPUtilities.extract_param_req_list(
+            packet
+        )  # List of requested option codes (Option 55)
 
     def log(self) -> str:
-        return (f"TYPE:{self.dhcp_type}, "
-                f"XID:{self.xid}, "
-                f"MAC:{self.mac}, IP_req:{self.requested_ip}, "
-                f"HOSTNAME:{self.hostname}.")
+        return (
+            f"TYPE:{self.dhcp_type}, "
+            f"XID:{self.xid}, "
+            f"MAC:{self.mac}, IP_req:{self.requested_ip}, "
+            f"HOSTNAME:{self.hostname}."
+        )
 
     @property
     def dedup_key(self) -> tuple[int, str, int]:

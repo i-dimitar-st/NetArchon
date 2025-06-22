@@ -3,22 +3,39 @@ import sqlite3
 from pathlib import Path
 from typing import List, Tuple
 import torch
-from torch.utils.data import DataLoader
+from torch.utils.data import DataLoader, Dataset
 import torch.optim as optim
 import torch.nn as nn
 import torch.nn.functional as F
 
+"/projects/gitlab/netarchon/"
 
-ROOT_PATH = Path(__file__).resolve().parents[1]
+# PATHS = config.get("paths")
+# ROOT_PATH = PATHS.get("root")
+ROOT_PATH = Path("/projects/gitlab/netarchon/")
 DNS_CONTROL_LISTS_PATH = ROOT_PATH / 'config' / 'dns_control_list.json'
-DB_FULLPATH = ROOT_PATH / 'db' / 'dns.sqlite3'
+DB_FULLPATH = ROOT_PATH / 'db' / 'dns_history.sqlite3'
 ALLOWED_CHARS = "abcdefghijklmnopqrstuvwxyz0123456789-._~:/?#[]@!$&'()*+,;=%."
 MAX_LENGTH = 80
-EPOCHS = 50
+EPOCHS = 30
+
+
+class DomainDataset(Dataset):
+    def __init__(self, domains, labels):
+        self.domains = domains
+        self.labels = labels
+
+    def __len__(self):
+        return len(self.domains)
+
+    def __getitem__(self, idx):
+        return self.domains[idx], self.labels[idx]
 
 
 class DomainClassifier(nn.Module):
-    def __init__(self, vocab_size: int, embed_dim: int = 128, output_dim: int = 1, dropout_rate: float = 0.35):
+    def __init__(
+        self, vocab_size: int, embed_dim: int = 128, output_dim: int = 1, dropout_rate: float = 0.35
+    ):
         super(DomainClassifier, self).__init__()
 
         self.embedding = nn.Embedding(vocab_size, embed_dim, padding_idx=0)
@@ -54,20 +71,18 @@ def collate_fn(batch: List[Tuple[str, int]]) -> Tuple[torch.Tensor, torch.Tensor
     max_domain_length = max(len(_domain[0]) for _domain in batch)
 
     padded_inputs = [
-        torch.tensor([ALLOWED_CHARS.find(char) + 1 for char in _domain[0]])
-        for _domain in batch
+        torch.tensor([ALLOWED_CHARS.find(char) + 1 for char in _domain[0]]) for _domain in batch
     ]
 
     padded_inputs = [
-        F.pad(_domain, (0, max_domain_length - len(_domain)))
-        for _domain in padded_inputs
+        F.pad(_domain, (0, max_domain_length - len(_domain))) for _domain in padded_inputs
     ]
 
     labels = [_domain[1] for _domain in batch]
     return torch.stack(padded_inputs, 0), torch.tensor(labels)
 
 
-def generate_training_dataset():
+def generate_training_dataset() -> tuple[list, list]:
     domains_with_labels = {
         "ads.google.com": 1,
         "track.analytics.com": 1,
@@ -141,24 +156,24 @@ def generate_training_dataset():
         "weather-data.apple.com": 0,
         "web.facebook.com": 0,
         "www.turkishairlines.com": 0,
-        "weather-data.apple.com": 0
+        "weather-data.apple.com": 0,
     }
     return list(domains_with_labels.keys()), list(domains_with_labels.values())
 
 
 def train(model, train_loader, criterion, optimizer, num_epochs=EPOCHS):
     model.train()
-    for epoch in range(num_epochs):
-        running_loss = 0.0
+    for _epoch in range(num_epochs):
+        _running_loss = 0.0
         for inputs, labels in train_loader:
             optimizer.zero_grad()
             outputs = model(inputs)
-            loss = criterion(outputs, labels.float().unsqueeze(1))  # Binary classification, need .unsqueeze(1)
+            loss = criterion(outputs, labels.float().unsqueeze(1))
             loss.backward()
             optimizer.step()
-            running_loss += loss.item()
+            _running_loss += loss.item()
 
-        print(f"Epoch {epoch+1}/{num_epochs}, Loss: {running_loss/len(train_loader):.4f}")
+        print(f"Epoch {_epoch+1}/{num_epochs}, Loss: {_running_loss/len(train_loader):.4f}")
 
 
 def evaluate(model, test_loader):
@@ -184,13 +199,15 @@ def save_model(model, path):
 
 def test_and_print_results(domains, model):
     for domain in domains:
-        indices = [ALLOWED_CHARS.find(char) + 1 for char in domain]  # Map characters to indices based on ALLOWED_CHARS
+        indices = [
+            ALLOWED_CHARS.find(char) + 1 for char in domain
+        ]  # Map characters to indices based on ALLOWED_CHARS
         indices = torch.tensor([indices])
         output = model(indices)
         print(f"{domain:>50} => {output.item()*100:8.3f} %")
 
 
-def get_dns_history() -> set:
+def get_dns_history() -> list:
     try:
         with sqlite3.connect(DB_FULLPATH) as conn:
             cursor = conn.cursor()
@@ -221,7 +238,7 @@ if __name__ == "__main__":
     for each in training_domains:
         training_domains_normalized.append(filter_domain(each))
 
-    input_size = len(ALLOWED_CHARS) + 1  # +1 padding
+    input_size = len(ALLOWED_CHARS) + 1  # padding
 
     dnsClassifier = DomainClassifier(vocab_size=input_size)
 
@@ -232,8 +249,11 @@ if __name__ == "__main__":
     test_labels = training_labels[split_idx:]
 
     # Step 4: Create dataset and dataloaders
-    train_loader = DataLoader(list(zip(train_domains, train_labels)), batch_size=2, shuffle=True, collate_fn=collate_fn)
-    test_loader = DataLoader(list(zip(test_domains, test_labels)), batch_size=2, shuffle=False, collate_fn=collate_fn)
+    train_dataset = DomainDataset(train_domains, train_labels)
+    test_dataset = DomainDataset(test_domains, test_labels)
+
+    train_loader = DataLoader(train_dataset, batch_size=2, shuffle=True, collate_fn=collate_fn)
+    test_loader = DataLoader(test_dataset, batch_size=2, shuffle=False, collate_fn=collate_fn)
 
     print("Stage 5 - Training")
     criterion = nn.BCELoss()  # Binary Cross-Entropy loss

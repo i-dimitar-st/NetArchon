@@ -3,31 +3,36 @@ import signal
 from pathlib import Path
 from threading import Event
 
-from services.config.config import config
+from config.config import config
 from services.logger.logger import MainLogger
 from services.dhcp.dhcp import DHCPServer
 from services.dns.dns import DNSServer
 from services.app.app import App
-from services.garbage_collection.service import GCMonitorService
+from services.memory.memory import MemoryManager
 
-HOST = config.get("app", "host")
-PORT = config.get("app", "port")
+APP = config.get("app")
+HOST = APP.get("host")
+PORT = APP.get("port")
 
-ROOT = Path(config.get("paths", "root"))
-PEM = ROOT / config.get("certificates", "cert")
-KEY = ROOT / config.get("certificates", "key")
+PATHS = config.get("paths")
+ROOT_PATH = Path(PATHS.get("root"))
+CERT_PATH = ROOT_PATH / PATHS.get("certificates")
+
+CERTIFICATES = config.get("certificates")
+PEM_PATH = CERT_PATH / CERTIFICATES.get("cert")
+KEY_PATH = CERT_PATH / CERTIFICATES.get("key")
 
 
-logger = MainLogger.get_logger(service_name="MAIN")
+_logger = MainLogger.get_logger(service_name="MAIN")
 shutdown_event = Event()
 
 
 def shutdown_handler(signum, frame):
-    logger.info(f"Received {signum}.")
+    _logger.info(f"Received {signum}.")
     shutdown_event.set()
 
 
-def register_shutdown_signals():
+def _register_shutdown_signals():
     signal.signal(signal.SIGINT, shutdown_handler)
     signal.signal(signal.SIGTERM, shutdown_handler)
     signal.signal(signal.SIGQUIT, shutdown_handler)
@@ -36,21 +41,24 @@ def register_shutdown_signals():
 
 if __name__ == "__main__":
 
-    logger.info("Starting services")
-    register_shutdown_signals()
+    _logger.info("Starting services")
+    _register_shutdown_signals()
+
+    App.init(port=PORT, host=HOST, ssl_context=(PEM_PATH, KEY_PATH))
+    MemoryManager.init()
 
     DHCPServer.start()
     DNSServer.start()
-    GCMonitorService.start(interval=600)
-    App.start(port=PORT, host=HOST, ssl_context=(PEM, KEY))
+    MemoryManager.start()
+    App.start()
 
     shutdown_event.wait()
-    logger.info("Stopping services")
+    _logger.info("Stopping services")
 
     DHCPServer.stop()
     DNSServer.stop()
-    GCMonitorService.stop()
+    MemoryManager.stop()
     App.stop()
 
-    logger.info("Shutdown complete")
+    _logger.info("Shutdown complete")
     sys.exit(0)

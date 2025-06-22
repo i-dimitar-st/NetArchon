@@ -28,7 +28,7 @@ class DNSUtils:
     @staticmethod
     def extract_hostname(query: str, zone: str = "home.local") -> str:
         """Check if query is in local zone."""
-        return query[:-(len(zone) + 1)]  # +1 the .home.lan the first .
+        return query[: -(len(zone) + 1)]  # +1 the .home.lan the first .
 
     @staticmethod
     def is_valid_domain(domain: str) -> bool:
@@ -49,9 +49,7 @@ class DNSUtils:
     @staticmethod
     def extract_ttl(reply: DNSRecord) -> int:
         """Extract TTL from Records"""
-        return min(
-            (int(rr.ttl) for rr in reply.rr),
-            default=0)
+        return min((int(rr.ttl) for rr in reply.rr), default=0)
 
     @staticmethod
     def generate_cache_key(reply: DNSRecord) -> tuple[DNSLabel, int]:
@@ -61,6 +59,7 @@ class DNSUtils:
 
 class Metrics:
     """Store timing samples and calculate percentiles."""
+
     _lock = threading.RLock()
 
     @classmethod
@@ -95,10 +94,12 @@ class Metrics:
     @classmethod
     def get_stats(cls):
         """Print count and some percentile stats."""
-        return (f"Counter:{cls.get_count()}, "
-                f"5%:{cls.get_percentile(5):.3f}, "
-                f"50%:{cls.get_percentile(50):.3f}, "
-                f"95%:{cls.get_percentile(95):.3f}.")
+        return (
+            f"Counter:{cls.get_count()}, "
+            f"5%:{cls.get_percentile(5):.3f}, "
+            f"50%:{cls.get_percentile(50):.3f}, "
+            f"95%:{cls.get_percentile(95):.3f}."
+        )
 
 
 class MRUCache:

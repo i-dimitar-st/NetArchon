@@ -3,17 +3,22 @@ import time
 import sqlite3
 from pathlib import Path
 from typing import Optional
-from services.config.config import config
+from config.config import config
 from services.logger.logger import MainLogger
 from models.models import DBSchemas
 
-ROOT = Path(str(config.get("paths", "root")))
-CONFIG = config.get("dhcp")
-DB_CONFIG = config.get("database")
-DB_LEASES_FULLPATH = ROOT / "db/dhcp_leases.sqlite3"
-DB_STATS_FULLPATH = ROOT / "db/dhcp_stats.sqlite3"
+PATHS = config.get("paths")
+ROOT_PATH = Path(PATHS.get("root"))
+DB_PATH = ROOT_PATH / PATHS.get("database")
 
-LEASE_TIME = int(CONFIG.get("lease_time_seconds"))
+DHCP_CONFIG = config.get("dhcp")
+DB_CONFIG = config.get("database")
+DHCP_DB_CONFIG = DB_CONFIG.get("dhcp")
+
+DB_LEASES_FULLPATH = DB_PATH / DHCP_DB_CONFIG.get("leases").get("path")
+DB_STATS_FULLPATH = DB_PATH / DHCP_DB_CONFIG.get("stats").get("path")
+
+LEASE_TIME = int(DHCP_CONFIG.get("lease_time_seconds"))
 
 _logger = MainLogger.get_logger(service_name="DHCP_DB", log_level="debug")
 
@@ -32,18 +37,14 @@ class DHCPStorage:
             return
 
         with cls._lock:
-            cls._conn = sqlite3.connect("file::memory:?cache=shared",
-                                        uri=True,
-                                        check_same_thread=False)
+            cls._conn = sqlite3.connect(":memory:", check_same_thread=False)
             cls._cursor = cls._conn.cursor()
             cls._create_tables()
             cls._running = True
 
     @classmethod
     def _is_init(cls):
-        return bool(cls._running and
-                    cls._conn and
-                    cls._cursor)
+        return bool(cls._running and cls._conn and cls._cursor)
 
     @classmethod
     def _create_tables(cls):
@@ -69,12 +70,14 @@ class DHCPStorage:
                 _logger.warning(f"Error during cache backup: {str(err)}")
 
     @classmethod
-    def add_lease(cls,
-                  mac: str,
-                  ip: str,
-                  hostname: str = 'unknown',
-                  lease_time: int = LEASE_TIME,
-                  lease_type: str = 'dynamic') -> None:
+    def add_lease(
+        cls,
+        mac: str,
+        ip: str,
+        hostname: str = 'unknown',
+        lease_time: int = LEASE_TIME,
+        lease_type: str = 'dynamic',
+    ) -> None:
 
         with cls._lock:
             try:
@@ -108,9 +111,7 @@ class DHCPStorage:
                             """
                 _values = (mac,)
                 if cls._cursor:
-                    return cls._cursor\
-                        .execute(_statement, _values)\
-                        .fetchone()
+                    return cls._cursor.execute(_statement, _values).fetchone()
 
             except Exception as err:
                 _logger.error(f"Failed to get lease for {mac} {str(err)}")
@@ -144,9 +145,7 @@ class DHCPStorage:
         with cls._lock:
             try:
                 if cls._cursor:
-                    _result = cls._cursor \
-                        .execute('SELECT ip FROM leases') \
-                        .fetchall()
+                    _result = cls._cursor.execute('SELECT ip FROM leases').fetchall()
                     return {lease[0] for lease in _result}
                 else:
                     return set()
@@ -161,9 +160,7 @@ class DHCPStorage:
         with cls._lock:
             try:
                 if cls._cursor:
-                    return cls._cursor \
-                        .execute('SELECT * FROM leases') \
-                        .fetchall()
+                    return cls._cursor.execute('SELECT * FROM leases').fetchall()
                 else:
                     return []
             except Exception as err:
@@ -178,8 +175,7 @@ class DHCPStorage:
             try:
 
                 if cls._cursor and cls._conn:
-                    _result = cls._cursor.execute("""DELETE FROM leases WHERE mac = ?""",
-                                                  (mac,))
+                    _result = cls._cursor.execute("""DELETE FROM leases WHERE mac = ?""", (mac,))
                     cls._conn.commit()
                     if _result.rowcount:
                         _logger.debug(f"Lease DB removed {_result.rowcount} MAC:{mac}")
@@ -206,7 +202,9 @@ class DHCPStorage:
                     _result = cls._cursor.execute(_statement, _value)
                     cls._conn.commit()
                     if _result.rowcount:
-                        _logger.debug(f"DB -> Deleted {_result.rowcount} lease(s). Removed MACs: {set(macs)}.")
+                        _logger.debug(
+                            f"DB -> Deleted {_result.rowcount} lease(s). Removed MACs: {set(macs)}."
+                        )
 
             except Exception as err:
                 _logger.error(f"DB -> failed to remove leases: {str(err)}")
@@ -218,8 +216,9 @@ class DHCPStorage:
         with cls._lock:
             try:
                 if cls._cursor and cls._conn:
-                    cls._cursor.execute("DELETE FROM leases WHERE expiry_time < ?",
-                                        (int(time.time()),))
+                    cls._cursor.execute(
+                        "DELETE FROM leases WHERE expiry_time < ?", (int(time.time()),)
+                    )
                     cls._conn.commit()
                     if cls._cursor.rowcount:
                         _logger.debug(f"Found/deleted {cls._cursor.rowcount} expired leases.")
@@ -252,9 +251,7 @@ class DHCPStats:
             return
         with cls._lock:
             if not cls._conn:
-                cls._conn = sqlite3.connect(database="file::memory:?cache=shared",
-                                            check_same_thread=False,
-                                            uri=True)
+                cls._conn = sqlite3.connect(database=":memory:", check_same_thread=False)
             if not cls._cursor:
                 cls._cursor = cls._conn.cursor()
             cls._create_table()
@@ -267,15 +264,16 @@ class DHCPStats:
             if cls._cursor and cls._conn:
                 cls._cursor.execute(DBSchemas.dhcpStats)
                 cls._conn.commit()
-                cls._cursor.execute("""
+                cls._cursor.execute(
+                    """
                                     INSERT OR IGNORE
                                     INTO stats (id,start_time)
                                     VALUES (1, ?)
-                                    """, (int(time.time()),))
+                                    """,
+                    (int(time.time()),),
+                )
                 cls._conn.commit()
-                columns_info = cls._cursor \
-                    .execute("PRAGMA table_info(stats)") \
-                    .fetchall()
+                columns_info = cls._cursor.execute("PRAGMA table_info(stats)").fetchall()
                 cls._valid_columns.update({col[1] for col in columns_info})
 
     @classmethod
@@ -293,12 +291,15 @@ class DHCPStats:
 
         with cls._lock:
             if cls._cursor and cls._conn:
-                cls._cursor.execute(f"""
+                cls._cursor.execute(
+                    f"""
                                     UPDATE stats
                                     SET {key} = {key} + ?,
                                         last_updated = ?
                                     WHERE id = 1
-                                    """, (count, int(time.time())))
+                                    """,
+                    (count, int(time.time())),
+                )
                 cls._conn.commit()
 
     @classmethod

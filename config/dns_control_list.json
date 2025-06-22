@@ -45,9 +45,20 @@
       "*.bids.ws",
       "*.ads.vungle.com",
       "*.ads.tremorhub.com",
-      "*.googlesyndication.com"
+      "*.googlesyndication.com",
+      "ogads-pa.clients*",
+      "*.quantumdex.io"
     ],
     "urls": [
+      "exchange.adsbymediavine.com",
+      "www.adsensecustomsearchads.com",
+      "tracker.ads-radiantfusion.co",
+      "s.ad.smaato.net",
+      "fastlane.rubiconproject.com",
+      "1c7vpd.zbrjtstrclnm.com",
+      "s.ad.smaato.net",
+      "aa.agkn.com",
+      "tracker.ads-radiantfusion.co",
       "track.analytics-data.io",
       "mobiadvert.livesportmedia.eu",
       "cs.adingo.jp",

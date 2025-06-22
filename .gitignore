@@ -2,5 +2,4 @@
 venv/
 logs/
 db/
-certificates/
-neural_net/models/
+services/neural_net/models/
