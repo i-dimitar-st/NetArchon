@@ -7,12 +7,13 @@ import threading
 import random
 import fnmatch
 from copy import deepcopy
+from typing import Optional, Tuple, Any
 from functools import lru_cache
 from collections import deque
 from pathlib import Path
 from concurrent.futures import ThreadPoolExecutor, as_completed, TimeoutError
 from dnslib import DNSRecord, QTYPE, RR, A
-from models.models import DnsMessage, DnsResponseCode
+from models.models import DNSReqMessage, DnsResponseCode
 from config.config import config
 from services.logger.logger import MainLogger
 from services.dns.db import DnsHistoryDb, DnsStatsDb
@@ -231,7 +232,7 @@ class DNSExternalResolverService:
             dns_logger.info(f"{cls.__name__} restarted.")
 
     @classmethod
-    def resolve_external(cls, request: DNSRecord) -> DNSRecord | None:
+    def resolve_external(cls, request: DNSRecord) -> Optional[DNSRecord]:
         if not cls._executor:
             raise RuntimeError("Not init")
 
@@ -336,48 +337,48 @@ class DNSLocalResolverService:
             cls._recv_queue = queue.Queue(maxsize=RECEIVED_QUEUE_SIZE)
 
     @classmethod
-    def _handle_blacklist(cls, dnsMessage: DnsMessage) -> bool:
+    def _handle_blacklist(cls, dns_req_message: DNSReqMessage) -> bool:
         """Check if the domain is blacklisted and send a refusal reply if so."""
 
-        if DomainBlacklistService.is_blacklisted(dnsMessage.domain):
+        if DomainBlacklistService.is_blacklisted(dns_req_message.domain):
             DnsStatsDb.increment(key='request_blacklisted')
-            reply = dnsMessage.dns_message.reply()
+            reply = dns_req_message.dns_message.reply()
             reply.header.rcode = DnsResponseCode.REFUSED
-            cls._send_reply(dnsMessage, reply)
+            cls._send_reply(dns_req_message, reply)
 
             return True
 
         return False
 
     @classmethod
-    def _handle_local(cls, dnsMessage: DnsMessage, zones: dict = ZONES) -> bool:
+    def _handle_local(cls, dns_req_message: DNSReqMessage, zones: dict = ZONES) -> bool:
         try:
             _hostname_ip = None
             for _zone in zones.keys():
 
-                if not DNSUtils.is_local_query(dnsMessage.domain, _zone.lower()):
+                if not DNSUtils.is_local_query(dns_req_message.domain, _zone.lower()):
                     continue
 
-                if dnsMessage.domain.endswith(_zone.lower()):
-                    _hostname = DNSUtils.extract_hostname(dnsMessage.domain, _zone)
+                if dns_req_message.domain.endswith(_zone.lower()):
+                    _hostname = DNSUtils.extract_hostname(dns_req_message.domain, _zone)
                     _hostname_ip = zones[_zone].get(_hostname)
                     if _hostname_ip:
                         break
 
             if _hostname_ip:
                 DnsStatsDb.increment(key='request_local')
-                reply = dnsMessage.dns_message.reply()
+                reply = dns_req_message.dns_message.reply()
                 reply.header.rcode = DnsResponseCode.NO_ERROR
                 reply.add_answer(
                     RR(
-                        rname=dnsMessage.dns_message.q.qname,
+                        rname=dns_req_message.dns_message.q.qname,
                         rtype=QTYPE.A,
                         rclass=1,
                         ttl=CACHE_TTL,
                         rdata=A(_hostname_ip),
                     )
                 )
-                cls._send_reply(dnsMessage, reply)
+                cls._send_reply(dns_req_message, reply)
                 return True
 
         except Exception as err:
@@ -386,28 +387,35 @@ class DNSLocalResolverService:
         return False
 
     @classmethod
-    def _handle_cache_hit(cls, dnsMessage: DnsMessage) -> bool:
-        _cached_reply = cls._dns_cache.get(dnsMessage.cache_key)
+    def _handle_cache_hit(cls, dns_req_message: DNSReqMessage) -> bool:
+
+        _cached_reply: Optional[DNSRecord] = cls._dns_cache.get(dns_req_message.cache_key)
         if _cached_reply:
             DnsStatsDb.increment(key='request_cache_hit')
-            cls._send_reply(dnsMessage, _cached_reply)
+            cls._send_reply(dns_req_message, _cached_reply)
             return True
+
         DnsStatsDb.increment(key='request_cache_miss')
         return False
 
     @classmethod
-    def _handle_external(cls, dnsMessage: DnsMessage) -> bool:
+    def _handle_external(cls, dns_req_message: DNSReqMessage) -> bool:
         """
         Forward DNS query externally and send the reply if successful.
         Returns: bool: True if the external resolution and reply sending succeeded; False otherwise.
         """
 
         try:
-            reply = DNSExternalResolverService.resolve_external(dnsMessage.dns_message)
-            if reply:
+            dns_res_message: Optional[DNSRecord] = DNSExternalResolverService.resolve_external(dns_req_message.dns_message)
+            if dns_res_message:
                 DnsStatsDb.increment('request_external')
-                cls._dns_cache.add(key=dnsMessage.cache_key, ttl=dnsMessage.ttl, value=reply)
-                cls._send_reply(dnsMessage, reply)
+                _ttl = DNSUtils.extract_ttl(dns_res_message)
+                cls._dns_cache.add(
+                    key=dns_req_message.cache_key,
+                    ttl=_ttl if _ttl > CACHE_TTL else CACHE_TTL,
+                    value=dns_res_message,
+                )
+                cls._send_reply(dns_req_message, dns_res_message)
                 return True
 
         except Exception as err:
@@ -417,33 +425,33 @@ class DNSLocalResolverService:
         return False
 
     @classmethod
-    def _handle_server_fail(cls, dnsMessage: DnsMessage) -> bool:
+    def _handle_server_fail(cls, dns_req_message: DNSReqMessage) -> bool:
         """
         Send a SERVFAIL response to the client for the given DNS message.
         Returns True if reply sent successfully, False otherwise.
         """
         try:
-            reply = dnsMessage.dns_message.reply()
+            reply = dns_req_message.dns_message.reply()
             reply.header.rcode = DnsResponseCode.SERVER_FAILURE
-            cls._send_reply(dnsMessage, reply)
+            cls._send_reply(dns_req_message, reply)
             return True
         except Exception as _err:
             dns_logger.error(f"Failed to send SERVFAIL:{str(_err)}.")
             return False
 
     @classmethod
-    def _send_reply(cls, dnsMessage: DnsMessage, reply: DNSRecord):
+    def _send_reply(cls, dns_req_message: DNSReqMessage, dns_res_message: DNSRecord):
         """Send DNS response to the message holder."""
 
         try:
             DnsStatsDb.increment(key="response_total")
-            reply.header.id = dnsMessage.dns_message.header.id
+            dns_res_message.header.id = dns_req_message.dns_message.header.id
             with cls._dns_socket_lock:
                 if cls._dns_socket:
-                    cls._dns_socket.sendto(reply.pack(), dnsMessage.addr)
+                    cls._dns_socket.sendto(dns_res_message.pack(), dns_req_message.addr)
 
         except Exception as _err:
-            dns_logger.error(f"Failed to send reply to {dnsMessage.addr} {str(_err)}.")
+            dns_logger.error(f"Failed to send reply to {dns_req_message.addr} {str(_err)}.")
 
     @classmethod
     def _listen_traffic(cls, timeout: float = DNS_SOCKET_TIMEOUT):
@@ -455,7 +463,7 @@ class DNSLocalResolverService:
                     rlist, _wlist, xlist = select.select([cls._dns_socket], [], [], timeout)
                     if cls._dns_socket in rlist:
                         data, addr = cls._dns_socket.recvfrom(cls._msg_size)
-                        cls._recv_queue.put_nowait(DnsMessage(data, addr))
+                        cls._recv_queue.put_nowait(DNSReqMessage(data, addr))
             except queue.Full:
                 dns_logger.warning("Receive queue full.")
             except Exception as err:
@@ -466,35 +474,35 @@ class DNSLocalResolverService:
         while not cls._stop_event.is_set():
             _start = time.monotonic()
             try:
-                _dnsMessage: DnsMessage = cls._recv_queue.get(timeout=cls._local_timeout)
+                _dns_req_message: DNSReqMessage = cls._recv_queue.get(timeout=cls._local_timeout)
             except queue.Empty:
                 continue
 
             try:
                 if (
-                    not _dnsMessage.is_query
-                    or not _dnsMessage.is_domain_valid
-                    or cls._dedup_cache.is_present(_dnsMessage.dedup_key)
+                    not _dns_req_message.is_query
+                    or not _dns_req_message.is_domain_valid
+                    or cls._dedup_cache.is_present(_dns_req_message.dedup_key)
                 ):
                     continue
 
                 DnsStatsDb.increment(key='request_total')
 
-                if cls._handle_blacklist(_dnsMessage):
+                if cls._handle_blacklist(_dns_req_message):
                     continue
 
-                cls._dedup_cache.add(_dnsMessage.dedup_key)
+                cls._dedup_cache.add(_dns_req_message.dedup_key)
 
-                DnsHistoryDb.add_query(_dnsMessage.domain)
+                DnsHistoryDb.add_query(_dns_req_message.domain)
                 DnsStatsDb.increment(key='request_valid')
 
-                if cls._handle_cache_hit(_dnsMessage):
+                if cls._handle_cache_hit(_dns_req_message):
                     continue
-                if cls._handle_local(_dnsMessage, ZONES):
+                if cls._handle_local(_dns_req_message, ZONES):
                     continue
-                if cls._handle_external(_dnsMessage):
+                if cls._handle_external(_dns_req_message):
                     continue
-                cls._handle_server_fail(_dnsMessage)
+                cls._handle_server_fail(_dns_req_message)
 
             except Exception as err:
                 dns_logger.error(f"Processing error: {str(err)}.")

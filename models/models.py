@@ -107,7 +107,7 @@ class LogLevel(Enum):
         return cls.DEBUG  # fallback
 
 
-class DnsMessage:
+class DNSReqMessage:
     def __init__(self, raw: bytes, addr: tuple):
         self.received = time.time()
         self.raw = raw
@@ -123,7 +123,6 @@ class DnsMessage:
         try:
             self.dns_message = self._parse_dns(raw)
             self.is_query = self._is_query(self.dns_message)
-            self.ttl = DNSUtils.extract_ttl(self.dns_message)
             self.domain = DNSUtils.normalize_domain(str(self.dns_message.q.qname))
             self.is_domain_valid = DNSUtils.is_valid_domain(self.domain)
             self.cache_key = DNSUtils.generate_cache_key(self.dns_message)

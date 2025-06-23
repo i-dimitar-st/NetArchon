@@ -49,7 +49,10 @@ class DNSUtils:
     @staticmethod
     def extract_ttl(reply: DNSRecord) -> int:
         """Extract TTL from Records"""
-        return min((int(rr.ttl) for rr in reply.rr), default=0)
+        if reply.rr:
+            _ttls = [int(rr.ttl) for rr in reply.rr]
+            return min(_ttls)
+        return 0
 
     @staticmethod
     def generate_cache_key(reply: DNSRecord) -> tuple[DNSLabel, int]:
@@ -159,7 +162,6 @@ class TTLCache:
 
             if key not in self._cache and len(self._cache) >= self._max_size:
                 self._evict_oldest()
-
             expiry = time.time() + (ttl if ttl and ttl > 0 else self._ttl)
             self._cache[key] = (value, expiry)
 
