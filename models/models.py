@@ -3,12 +3,12 @@ import logging
 from enum import Enum, unique
 from enum import IntEnum
 from dnslib import DNSRecord
-from services.dns.utils import DNSUtils
+from utils.dns_utils import DNSUtils
 from scapy.packet import Packet
 from scapy.layers.l2 import Ether
 from scapy.layers.inet import IP, UDP
 from scapy.layers.dhcp import BOOTP, DHCP
-from services.dhcp.utils import DHCPUtilities
+from utils.dhcp_utils import DHCPUtilities
 
 
 @unique

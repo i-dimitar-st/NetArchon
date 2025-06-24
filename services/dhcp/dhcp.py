@@ -11,10 +11,10 @@ from scapy.layers.dhcp import BOOTP
 from scapy.layers.l2 import Ether, ARP
 from scapy.packet import Packet
 
+from libs.libs import TTLCache
 from models.models import DHCPResponseFactory, ArpClient, DhcpMessage, DHCPType, DHCPLeaseType
 from services.dhcp.db import DHCPStorage, DHCPStats
-from services.dns.utils import TTLCache
-from services.dhcp.utils import DHCPUtilities
+from utils.dhcp_utils import DHCPUtilities
 from services.logger.logger import MainLogger
 from config.config import config
 

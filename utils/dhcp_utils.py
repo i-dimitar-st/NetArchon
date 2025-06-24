@@ -1,34 +1,9 @@
 import ipaddress
-from typing import Optional
-from typing import Tuple, Optional, List
-import scapy.all as scapy
-from pathlib import Path
-from scapy.layers.dhcp import DHCP, BOOTP
-from scapy.layers.l2 import Ether, ARP
-from scapy.layers.inet import IP, UDP
+from scapy.layers.dhcp import DHCP
 from scapy.packet import Packet
 
 
 class DHCPUtilities:
-
-    @staticmethod
-    def convert_dhcp_lease_to_string(dhcpType: int = 1) -> str:
-        DHCPTypes = {
-            1: "discover",
-            2: "offer",
-            3: "request",
-            4: "decline",
-            5: "ack",
-            6: "nak",
-            7: "release",
-            8: "inform",
-            9: "force_renew",
-            10: "lease_query",
-            11: "lease_unassigned",
-            12: "lease_unknown",
-            13: "lease_active",
-        }
-        return DHCPTypes.get(dhcpType, 'unknown')
 
     @staticmethod
     def extract_dhcp_type_from_packet(packet: Packet) -> int:
@@ -70,7 +45,7 @@ class DHCPUtilities:
 
     @staticmethod
     def convert_binary_to_string(data_to_convert: bytes) -> str:
-        """ Format a raw MAC address to human-readable format """
+        """Format a raw MAC address to human-readable format"""
         return data_to_convert.decode('utf-8', errors='ignore')
 
     @staticmethod

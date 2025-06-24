@@ -30,20 +30,37 @@ network:
     role: lan
 
 dns:
-  host: "0.0.0.0"
-  port: 53
-  dns_servers: ["1.1.1.3", "1.0.0.3", "9.9.9.9", "149.112.112.112"]
-  cache_ttl: 900
-  blacklists: config/dns_control_list.json
-  msg_size: 1232
-  process_workers: 100
-  external_workers: 300
-  external_timeout: 15
-  local_timeout: 0.5
-  zones:
+  config:
+    host: "0.0.0.0"
+    port: 53
+    udp_max_size: 1232
+    os_buffer_size: 4194304
+    external_dns_servers: ["1.1.1.3", "1.0.0.3", "9.9.9.9", "149.112.112.112"]
+    cache_ttl: 1200
+    db_flush_interval: 30
+  worker_config:
+    processors: 100
+    external: 300
+  blacklists_config:
+    path: config/dns_control_list.json
+    cache_size: 100
+    loading_interval: 30
+  timeouts:
+    local_socket: 0.1
+    external_socket: 15
+    external_socket_buffer: 2
+    local_queue_get: 0.5
+  static_zones:
     home.lan:
       server: 192.168.20.100
       printer: 192.168.20.10
+  resource_limits:
+    queues:
+      receive: 100
+    caches:
+      metrics_sample_buffer_size: 100
+      deduplication_cache_size: 100
+      reply_cache_size: 100
 
 dhcp:
   interface: enp2s0

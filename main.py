@@ -46,6 +46,7 @@ if __name__ == "__main__":
 
     App.init(port=PORT, host=HOST, ssl_context=(PEM_PATH, KEY_PATH))
     MemoryManager.init()
+    DNSServer.init()
 
     DHCPServer.start()
     DNSServer.start()

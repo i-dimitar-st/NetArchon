@@ -6,8 +6,7 @@ import select
 import threading
 import random
 import fnmatch
-from copy import deepcopy
-from typing import Optional, Tuple, Any
+from typing import Optional
 from functools import lru_cache
 from collections import deque
 from pathlib import Path
@@ -17,45 +16,53 @@ from models.models import DNSReqMessage, DnsResponseCode
 from config.config import config
 from services.logger.logger import MainLogger
 from services.dns.db import DnsHistoryDb, DnsStatsDb
-from services.dns.utils import DNSUtils, Metrics, TTLCache, MRUCache
+from libs.libs import Metrics, TTLCache, MRUCache
+from utils.dns_utils import DNSUtils
 
 dns_logger = MainLogger.get_logger(service_name="DNS", log_level="debug")
 
 PATHS = config.get("paths")
-DNS_CONFIG = config.get("dns")
 ROOT_PATH = Path(PATHS.get("root"))
-
-BLACKLIST_PATH = ROOT_PATH / "config" / "dns_control_list.json"
-BLACKLIST_CACHE_SIZE = 100
-BLACKLISTS_LOADING_INTERVAL = 30
 DB_PATH = ROOT_PATH / PATHS.get("database")
-DB_PERSISTENCE_INTERVAL = 30
 
-DNS_SERVERS = DNS_CONFIG.get("dns_servers")
+DNS_CONFIG = config.get("dns").get("config")
 DNS_HOST = DNS_CONFIG.get("host")
 DNS_PORT = DNS_CONFIG.get("port")
-MSG_SIZE = DNS_CONFIG.get("msg_size")
-DNS_SOCKET_RECEIVED_BUFFER_SIZE = 4 * 1024 * 1024
-DNS_SOCKET_TIMEOUT = 0.1
+DNS_CACHE_TTL = int(DNS_CONFIG.get("cache_ttl", 1200))
+DNS_UDP_PACKET_MAX_SIZE = int(DNS_CONFIG.get("udp_max_size", 1232))
+DNS_SOCKET_OS_BUFFER_SIZE = int(DNS_CONFIG.get("os_buffer_size", 4194304))
+DB_FLUSH_INTERVAL = int(DNS_CONFIG.get("db_flush_interval", 30))
+EXTERNAL_DNS_SERVERS = DNS_CONFIG.get("external_dns_servers")
 
-EXTERNAL_TIMEOUT = float(DNS_CONFIG.get("external_timeout"))
-EXTERNAL_TIMEOUT_BUFFER = 2
-LOCAL_TIMEOUT = float(DNS_CONFIG.get("local_timeout"))
-CACHE_TTL = int(DNS_CONFIG.get("cache_ttl"))
-EXTERNAL_WORKERS = DNS_CONFIG.get("external_workers")
-PROCESS_WORKERS = DNS_CONFIG.get("process_workers")
-ZONES = DNS_CONFIG.get("zones")
-RECEIVED_QUEUE_SIZE = 100
-MAX_METRICS_SIZE = 100
-MAX_INPUT_DEQUE_SIZE = 100
-MAX_CACHE_SIZE = 100
+WORKERS_CONFIG = config.get("dns").get("worker_config")
+EXTERNAL_WORKERS = WORKERS_CONFIG.get("external", 300)
+PROCESS_WORKERS = WORKERS_CONFIG.get("processors", 100)
+
+BLACKLISTS_CONFIG = config.get("dns").get("blacklists_config")
+BLACKLIST_PATH = ROOT_PATH / BLACKLISTS_CONFIG.get("path", "config/dns_control_list.json")
+BLACKLIST_CACHE_SIZE = BLACKLISTS_CONFIG.get("cache_size", 100)
+BLACKLISTS_LOADING_INTERVAL = BLACKLISTS_CONFIG.get("loading_interval", 30)
+
+TIMEOUTS = config.get("dns").get("timeouts")
+DNS_SOCKET_TIMEOUT = float(TIMEOUTS.get("local_socket", 0.1))
+EXTERNAL_TIMEOUT = float(TIMEOUTS.get("external_socket", 15))
+EXTERNAL_TIMEOUT_BUFFER = float(TIMEOUTS.get("external_socket_buffer", 2))
+QUEUE_GET_TIMEOUT = float(TIMEOUTS.get("local_queue_get", 0.5))
+
+DNS_STATIC_ZONES = config.get("dns").get("static_zones")
+
+RESOURCE_LIMITS = config.get("dns").get("resource_limits")
+DNS_LOCAL_RECV_QUEUE_SIZE = RESOURCE_LIMITS.get("queues").get("receive", 100)
+METRICS_SAMPLE_BUFFER_SIZE = RESOURCE_LIMITS.get("caches").get("metrics_sample_buffer_size", 100)
+DNS_DEDUPLICATION_CACHE_SIZE = RESOURCE_LIMITS.get("caches").get("deduplication_cache_size", 100)
+DNS_REPLY_CACHE_SIZE = RESOURCE_LIMITS.get("caches").get("reply_cache_size", 100)
 
 
 class DbPersistenceService:
     _lock = threading.Lock()
 
     @classmethod
-    def init(cls, interval: int = DB_PERSISTENCE_INTERVAL):
+    def init(cls, interval: int = DB_FLUSH_INTERVAL):
         with cls._lock:
             cls._stop_event = threading.Event()
             cls._interval = interval
@@ -199,8 +206,8 @@ class DNSExternalResolverService:
         port: int = DNS_PORT,
         timeout: float = EXTERNAL_TIMEOUT,
         timeout_buffer: float = EXTERNAL_TIMEOUT_BUFFER,
-        dns_servers: list = DNS_SERVERS,
-        max_msg_size: int = MSG_SIZE,
+        dns_servers: list = EXTERNAL_DNS_SERVERS,
+        max_msg_size: int = DNS_UDP_PACKET_MAX_SIZE,
     ):
         cls._port = port
         cls._dns_servers = deque(dns_servers)
@@ -299,42 +306,40 @@ class DNSLocalResolverService:
     _init_lock = threading.RLock()
     _startup_lock = threading.RLock()
     _dns_socket_lock = threading.RLock()
-    _dedup_cache = MRUCache(max_size=MAX_INPUT_DEQUE_SIZE)
-    _dns_cache = TTLCache(max_size=MAX_CACHE_SIZE, ttl=CACHE_TTL)
+    _dedup_cache = MRUCache(max_size=DNS_DEDUPLICATION_CACHE_SIZE)
+    _dns_cache = TTLCache(max_size=DNS_REPLY_CACHE_SIZE, ttl=DNS_CACHE_TTL)
     _stop_event = threading.Event()
 
     @classmethod
     def init(
         cls,
-        dns_servers: list = DNS_SERVERS,
+        dns_servers: list = EXTERNAL_DNS_SERVERS,
         port: int = DNS_PORT,
         host: str = DNS_HOST,
-        msg_size: int = MSG_SIZE,
+        msg_size: int = DNS_UDP_PACKET_MAX_SIZE,
         external_timeout: float = EXTERNAL_TIMEOUT,
-        local_timeout: float = LOCAL_TIMEOUT,
+        queue_get_timeout: float = QUEUE_GET_TIMEOUT,
         max_workers: int = PROCESS_WORKERS,
     ):
-
         if cls._is_init:
             raise RuntimeError("Already init")
-
         with cls._init_lock:
             cls._is_init = True
             cls._host = host
             cls._port = port
             cls._msg_size = msg_size
-            cls._local_timeout = local_timeout
+            cls._queue_get_timeout = queue_get_timeout
             cls._external_timeout = external_timeout
             cls._max_workers = max_workers
             cls._dns_socket = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
             cls._dns_socket.setsockopt(socket.SOL_SOCKET, socket.SO_REUSEADDR, 1)
             cls._dns_socket.setsockopt(
-                socket.SOL_SOCKET, socket.SO_RCVBUF, DNS_SOCKET_RECEIVED_BUFFER_SIZE
+                socket.SOL_SOCKET, socket.SO_RCVBUF, DNS_SOCKET_OS_BUFFER_SIZE
             )
             cls._dns_socket.setblocking(False)
             cls._dns_socket.bind((cls._host, cls._port))
             cls._dns_servers = dns_servers
-            cls._recv_queue = queue.Queue(maxsize=RECEIVED_QUEUE_SIZE)
+            cls._recv_queue = queue.Queue(maxsize=DNS_LOCAL_RECV_QUEUE_SIZE)
 
     @classmethod
     def _handle_blacklist(cls, dns_req_message: DNSReqMessage) -> bool:
@@ -351,7 +356,7 @@ class DNSLocalResolverService:
         return False
 
     @classmethod
-    def _handle_local(cls, dns_req_message: DNSReqMessage, zones: dict = ZONES) -> bool:
+    def _handle_local(cls, dns_req_message: DNSReqMessage, zones: dict = DNS_STATIC_ZONES) -> bool:
         try:
             _hostname_ip = None
             for _zone in zones.keys():
@@ -374,7 +379,7 @@ class DNSLocalResolverService:
                         rname=dns_req_message.dns_message.q.qname,
                         rtype=QTYPE.A,
                         rclass=1,
-                        ttl=CACHE_TTL,
+                        ttl=DNS_CACHE_TTL,
                         rdata=A(_hostname_ip),
                     )
                 )
@@ -406,13 +411,15 @@ class DNSLocalResolverService:
         """
 
         try:
-            dns_res_message: Optional[DNSRecord] = DNSExternalResolverService.resolve_external(dns_req_message.dns_message)
+            dns_res_message: Optional[DNSRecord] = DNSExternalResolverService.resolve_external(
+                dns_req_message.dns_message
+            )
             if dns_res_message:
                 DnsStatsDb.increment('request_external')
                 _ttl = DNSUtils.extract_ttl(dns_res_message)
                 cls._dns_cache.add(
                     key=dns_req_message.cache_key,
-                    ttl=_ttl if _ttl > CACHE_TTL else CACHE_TTL,
+                    ttl=_ttl if _ttl > DNS_CACHE_TTL else DNS_CACHE_TTL,
                     value=dns_res_message,
                 )
                 cls._send_reply(dns_req_message, dns_res_message)
@@ -470,11 +477,13 @@ class DNSLocalResolverService:
                 dns_logger.error(f"Error reading from DNS socket:{str(err)}.")
 
     @classmethod
-    def _process_packets(cls):
+    def _process_dns_req_packets(cls):
         while not cls._stop_event.is_set():
             _start = time.monotonic()
             try:
-                _dns_req_message: DNSReqMessage = cls._recv_queue.get(timeout=cls._local_timeout)
+                _dns_req_message: DNSReqMessage = cls._recv_queue.get(
+                    timeout=cls._queue_get_timeout
+                )
             except queue.Empty:
                 continue
 
@@ -498,7 +507,7 @@ class DNSLocalResolverService:
 
                 if cls._handle_cache_hit(_dns_req_message):
                     continue
-                if cls._handle_local(_dns_req_message, ZONES):
+                if cls._handle_local(_dns_req_message, DNS_STATIC_ZONES):
                     continue
                 if cls._handle_external(_dns_req_message):
                     continue
@@ -520,7 +529,7 @@ class DNSLocalResolverService:
             cls._listener = threading.Thread(target=cls._listen_traffic, daemon=True)
             cls._listener.start()
             for _ in range(cls._max_workers):
-                _worker_thread = threading.Thread(target=cls._process_packets, daemon=True)
+                _worker_thread = threading.Thread(target=cls._process_dns_req_packets, daemon=True)
                 _worker_thread.start()
                 cls._workers.append(_worker_thread)
 
@@ -549,7 +558,7 @@ class DNSServer:
     _running = False
 
     @classmethod
-    def _init(cls):
+    def init(cls):
         with cls._lock:
             if cls._initialised:
                 raise RuntimeError("Already Init")
@@ -560,12 +569,10 @@ class DNSServer:
             DNSLocalResolverService.init()
             DomainBlacklistService.init()
             cls._initialised = True
-            Metrics.init(max_size=MAX_METRICS_SIZE)
+            Metrics.init(max_size=METRICS_SAMPLE_BUFFER_SIZE)
 
     @classmethod
     def start(cls):
-        if not cls._initialised:
-            cls._init()
         if cls._running:
             raise RuntimeError("Server already running.")
         with cls._lock:
