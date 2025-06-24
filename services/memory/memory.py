@@ -5,8 +5,9 @@ import psutil
 from config.config import config
 from services.logger.logger import MainLogger
 
+WORKER_JOIN_TIMEOUT = 1
 MEMORY_MANAGEMENT = config.get("memory_management")
-INTERVAL = MEMORY_MANAGEMENT.get("interval")
+INTERVAL = int(MEMORY_MANAGEMENT.get("interval"))
 
 _logger = MainLogger.get_logger(service_name="MEMORY")
 
@@ -17,7 +18,7 @@ class MemoryManager:
     def init(cls, interval: int = INTERVAL):
         """Init."""
         if not hasattr(cls, "_worker"):
-            cls._interval = interval
+            cls._interval = int(interval)
             cls._stop_event = threading.Event()
             cls._worker = threading.Thread(target=cls._work, daemon=True)
 
@@ -34,7 +35,7 @@ class MemoryManager:
     def stop(cls):
         if cls._worker and cls._worker.is_alive():
             cls._stop_event.set()
-            cls._worker.join(timeout=1)
+            cls._worker.join(timeout=WORKER_JOIN_TIMEOUT)
             cls._worker = None
             _logger.info(f"{cls.__name__} stopped.")
 
@@ -51,7 +52,7 @@ class MemoryManager:
     @classmethod
     def _log_stats(cls):
         _message = ""
-        _rss_memory_used = psutil.Process(os.getpid()).memory_info().rss / 1024 / 1024
+        _rss_memory_used = int(psutil.Process(os.getpid()).memory_info().rss / 1024 / 1024)
         for _index, _generation in enumerate(gc.get_stats()):
             _message += (
                 f"gen({_index}): "
@@ -59,5 +60,5 @@ class MemoryManager:
                 f"c:{_generation.get('collected', 0)}, "
                 f"u:{_generation.get('uncollectable', 0)} "
             )
-        _message += f" memory:{_rss_memory_used:.2f} MB."
+        _message += f" memory:{_rss_memory_used} MB."
         _logger.debug(_message)

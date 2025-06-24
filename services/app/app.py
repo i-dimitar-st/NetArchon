@@ -5,9 +5,10 @@ import json
 import multiprocessing
 import socket
 import logging
-from copy import deepcopy
 import sqlite3
 import psutil
+from typing import Any
+from copy import deepcopy
 from pathlib import Path
 from flask import Flask, render_template
 from services.logger.logger import MainLogger
@@ -128,11 +129,11 @@ def _generate_system_stats() -> dict:
 
     # Current Process Stats
     with process.oneshot():
-        now = time.time()
-        create_time = process.create_time()
-        uptime = round(now - create_time, 2)
+        now: float = time.time()
+        create_time: float = process.create_time()
+        uptime: float = round(now - create_time, 2)
         mem_info = process.memory_info()
-        cpu_percent = process.cpu_percent(interval=0.1)  # Short sample
+        cpu_percent: float = process.cpu_percent(interval=0.1)  # Short sample
 
         stats["process"] = {
             "pid": {"value": process.pid},
@@ -185,8 +186,8 @@ def _get_dhcp_leases() -> list:
     try:
         with sqlite3.connect(DHCP_LEASES_DB) as _conn:
 
-            _cursor = _conn.cursor()
-            columns_raw = _cursor.execute("PRAGMA table_info(leases)").fetchall()
+            _cursor: sqlite3.Cursor = _conn.cursor()
+            columns_raw: list[Any] = _cursor.execute("PRAGMA table_info(leases)").fetchall()
 
             _columns: list[str] = [column[1] for column in columns_raw]
             _leases: list[tuple] = _cursor.execute("SELECT * FROM leases").fetchall()
@@ -207,7 +208,7 @@ def _get_dns_history() -> list:
     try:
         with sqlite3.connect(DNS_HISTORY_DB, timeout=DB_TIMEOUT) as _conn:
 
-            _cursor = _conn.cursor().execute("PRAGMA table_info(history)")
+            _cursor: sqlite3.Cursor = _conn.cursor().execute("PRAGMA table_info(history)")
             _columns: list[str] = [_column[1] for _column in _cursor.fetchall()]
 
             _history_records: list[tuple] = _cursor.execute("SELECT * FROM history").fetchall()
@@ -227,7 +228,7 @@ def _get_dns_statistics() -> dict:
     try:
         with sqlite3.connect(DNS_STATS_DB, timeout=DB_TIMEOUT) as _conn:
 
-            _cursor = _conn.cursor().execute("PRAGMA table_info(stats)")
+            _cursor: sqlite3.Cursor = _conn.cursor().execute("PRAGMA table_info(stats)")
             _columns: list[str] = [_column[1] for _column in _cursor.fetchall()]
             _row: tuple | None = _cursor.execute("SELECT * FROM stats").fetchone()
             if _row and _columns:
@@ -245,7 +246,7 @@ def _get_dhcp_statistics() -> dict:
     try:
         with sqlite3.connect(DHCP_STATS_DB) as _conn:
 
-            _cursor = _conn.cursor().execute("PRAGMA table_info(stats)")
+            _cursor: sqlite3.Cursor = _conn.cursor().execute("PRAGMA table_info(stats)")
             columns: list[str] = [_column[1] for _column in _cursor.fetchall()]
 
             _cursor.execute("SELECT * FROM stats")
@@ -288,7 +289,7 @@ def _get_system_logs() -> list:
                 if not line:
                     continue
                 # line_array = line.encode("unicode_escape").decode("utf-8").strip().split("|")
-                line_array = line.strip().split("|")
+                line_array: list[str] = line.strip().split("|")
                 if len(line_array) != 4:
                     continue
                 log_entries.append(
@@ -312,8 +313,8 @@ class App:
     @classmethod
     def init(cls, ssl_context: tuple, host: str = "0.0.0.0", port: int = 8080):
         cls._ssl_context = ssl_context
-        cls._host = host
-        cls._port = port
+        cls._host: str = host
+        cls._port: int = port
 
     @classmethod
     def start(cls):
@@ -355,7 +356,7 @@ class App:
                 cls._app.logger.addHandler(handler)
             cls._app.logger.setLevel(logging.WARNING)
 
-        werkzeug_logger = logging.getLogger("werkzeug")
+        werkzeug_logger: logging.Logger = logging.getLogger("werkzeug")
         werkzeug_logger.handlers.clear()
         werkzeug_logger.propagate = True
         for handler in _logger.handlers:
@@ -399,7 +400,7 @@ class App:
 
             @cls._app.route("/config", methods=["GET"])
             def get_config():
-                _config = {
+                _config: dict[str, Any] = {
                     "network": config.get("network").get("lan"),
                     "dns": config.get("dns"),
                     "dhcp": config.get("dhcp"),

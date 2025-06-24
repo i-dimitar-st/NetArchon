@@ -13,7 +13,7 @@ class DNSUtils:
     @staticmethod
     def is_local_query(query: str, zone: str = "home.local") -> bool:
         """Check if query is in local zone."""
-        _zone = re.escape(zone.lower())
+        _zone: str = re.escape(zone.lower())
         return bool(re.match(rf"^[a-z0-9-]+\.{_zone}$", query.lower()))
 
     @staticmethod
@@ -41,7 +41,7 @@ class DNSUtils:
     def extract_ttl(reply: DNSRecord) -> int:
         """Extract TTL from Records"""
         if reply.rr:
-            _ttls = [int(rr.ttl) for rr in reply.rr]
+            _ttls: list[int] = [int(rr.ttl) for rr in reply.rr]
             return min(_ttls)
         return 0
 

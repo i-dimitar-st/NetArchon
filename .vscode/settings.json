@@ -5,8 +5,16 @@
   "python.envFile": "${workspaceFolder}/.env",
   // Python analysis
   "python.analysis.typeCheckingMode": "basic",
-  "python.analysis.autoSearchPaths": true,
-  "python.analysis.useLibraryCodeForTypes": true,
+  "python.analysis.autoSearchPaths": true, // Automatically add search paths
+  "python.analysis.useLibraryCodeForTypes": true, // Use types from library code
+  "python.analysis.diagnosticSeverityOverrides": {
+    // Customize severity of specific diagnostics
+    "reportMissingImports": "warning",
+    "reportUnusedVariable": "warning",
+    "reportOptionalSubscript": "warning"
+  },
+  "python.analysis.inlayHints.variableTypes": true, // Shows variable type hints inline
+  "python.analysis.autoImportCompletions": true, // Suggest auto-imports in completions
   // Editor
   "editor.fontFamily": "'Fira Code', 'JetBrains Mono', Consolas, 'Courier New', monospace",
   "editor.fontLigatures": true,

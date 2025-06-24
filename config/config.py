@@ -12,7 +12,7 @@ DEFAULT_CONFIG_PATH = Path(__file__).parent / "config.yaml"
 class Config:
     def __init__(self, path: Path = DEFAULT_CONFIG_PATH):
         self._lock = threading.RLock()
-        self._path = path
+        self._path: Path = path
         self._config = {}
         self._load_config()
 

@@ -1,4 +1,5 @@
 import ipaddress
+from ipaddress import IPv4Address, IPv6Address, IPv4Network, IPv6Network
 from scapy.layers.dhcp import DHCP
 from scapy.packet import Packet
 
@@ -53,7 +54,7 @@ class DHCPUtilities:
         """Checks if an IP address is in the specified subnet."""
         if not ip_to_validate:
             return False
-        ip = ipaddress.ip_address(ip_to_validate)
-        network = ipaddress.ip_network(subnet, strict=False)
+        ip: IPv4Address | IPv6Address = ipaddress.ip_address(ip_to_validate)
+        network: IPv4Network | IPv6Network = ipaddress.ip_network(subnet, strict=False)
 
         return bool(ip in network)
