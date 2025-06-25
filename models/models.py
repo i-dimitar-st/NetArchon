@@ -282,15 +282,14 @@ class DBSchemas:
             type TEXT DEFAULT 'dynamic'
         )
     """
-    dnsHistory = """
+    dnsHistory: str = """
         CREATE TABLE IF NOT EXISTS history (
             query TEXT NOT NULL PRIMARY KEY,
             query_counter INTEGER NOT NULL DEFAULT 0,
-            active INTEGER NOT NULL DEFAULT 1,
             created INTEGER NOT NULL
         )
     """
-    dnsStats = """
+    dnsStats: str = """
         CREATE TABLE IF NOT EXISTS stats (
             id INTEGER PRIMARY KEY CHECK (id = 1),
             start_time INTEGER NOT NULL DEFAULT (CAST(strftime('%s','now') AS INTEGER)),

@@ -88,7 +88,7 @@ dhcp:
     persistence: 60
 
 memory_management:
-  interval: 300
+  interval: 1800
 
 database:
   persistence_interval: 30

@@ -15,7 +15,7 @@ from dnslib import DNSRecord, QTYPE, RR, A
 from models.models import DNSReqMessage, DnsResponseCode
 from config.config import config
 from services.logger.logger import MainLogger
-from services.dns.db import DnsHistoryDb, DnsStatsDb
+from services.dns.db import DnsQueryHistoryDb, DnsStatsDb
 from libs.libs import Metrics, TTLCache, MRUCache
 from utils.dns_utils import DNSUtils
 
@@ -104,7 +104,7 @@ class DbPersistenceService:
         while not cls._stop_event.is_set():
             try:
                 DnsStatsDb.save_to_disk()
-                DnsHistoryDb.save_to_disk()
+                DnsQueryHistoryDb.save_to_disk()
             except Exception as _err:
                 dns_logger.warning(f"Persistence error: {str(_err)}")
             cls._stop_event.wait(cls._interval)
@@ -502,7 +502,7 @@ class DNSLocalResolverService:
 
                 cls._dedup_cache.add(_dns_req_message.dedup_key)
 
-                DnsHistoryDb.add_query(_dns_req_message.domain)
+                DnsQueryHistoryDb.add_query(_dns_req_message.domain)
                 DnsStatsDb.increment(key='request_valid')
 
                 if cls._handle_cache_hit(_dns_req_message):
@@ -563,7 +563,7 @@ class DNSServer:
             if cls._initialised:
                 raise RuntimeError("Already Init")
             DnsStatsDb.init()
-            DnsHistoryDb.init()
+            DnsQueryHistoryDb.init()
             DbPersistenceService.init()
             DNSExternalResolverService.init()
             DNSLocalResolverService.init()
