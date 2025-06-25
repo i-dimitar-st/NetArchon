@@ -1,6 +1,5 @@
 {
   "timestamp": "2025-04-27",
-  "whitelist": [],
   "blacklist": {
     "rules": [
       "*.smartadserver.com",
