@@ -271,9 +271,8 @@ class DHCPHandler:
     def _handle_discover(cls, dhcp_message: DhcpMessage):
         """Handles DHCPDISCOVER messages (RFC 2131, Section 4.1) sent by clients to discover DHCP servers."""
         with cls._lock:
-
             dhcp_logger.debug(
-                f"Received DISCOVER " f"XID={dhcp_message.xid}, " f"MAC={dhcp_message.mac}."
+                "Received DISCOVER XID=%s, MAC=%s.", dhcp_message.xid, dhcp_message.mac
             )
 
             proposed_ip = ClientDiscovery.discover_available_ip()

@@ -1,9 +1,8 @@
 import threading
-import yaml
-from config.config_yaml_schema import ConfigSchema
 from copy import deepcopy
 from pathlib import Path
 from typing import Any
+import yaml
 
 
 DEFAULT_CONFIG_PATH = Path(__file__).parent / "config.yaml"

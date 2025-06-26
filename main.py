@@ -28,7 +28,7 @@ shutdown_event = Event()
 
 
 def shutdown_handler(signum, frame):
-    _logger.info(f"Received {signum}.")
+    _logger.info("Received %s .", signum)
     shutdown_event.set()
 
 

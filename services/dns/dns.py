@@ -10,7 +10,7 @@ from typing import Optional, Any
 from functools import lru_cache
 from collections import deque
 from pathlib import Path
-from concurrent.futures import Future, ThreadPoolExecutor, as_completed, TimeoutError
+from concurrent.futures import Future, ThreadPoolExecutor, as_completed
 from dnslib import DNSRecord, QTYPE, RR, A
 from models.models import DNSReqMessage, DnsResponseCode
 from config.config import config
@@ -94,7 +94,7 @@ class DbFlushService:
                 raise RuntimeError("Init missing or already started")
             cls._stop_event.clear()
             cls._worker.start()
-            dns_logger.info(f"{cls.__name__} started.")
+            dns_logger.info("%s started.", cls.__name__)
 
     @classmethod
     def stop(cls):
@@ -107,7 +107,7 @@ class DbFlushService:
             _worker: Optional[threading.Thread] = cls._worker
         if _worker:
             _worker.join(timeout=1)
-        dns_logger.info(f"{cls.__name__} stopped.")
+        dns_logger.info("%s stopped.", cls.__name__)
 
     @classmethod
     def restart(cls):
@@ -120,7 +120,7 @@ class DbFlushService:
             cls._stop_event.clear()
             cls._worker = threading.Thread(target=cls._work, daemon=True)
             cls._worker.start()
-            dns_logger.info(f"{cls.__name__} restarted.")
+            dns_logger.info("%s restarted.", cls.__name__)
 
     @classmethod
     def _work(cls):
@@ -134,7 +134,7 @@ class DbFlushService:
                 DnsStatsDb.save_to_disk()
                 DnsQueryHistoryDb.save_to_disk()
             except Exception as _err:
-                dns_logger.warning(f"Persistence error: {str(_err)}.")
+                dns_logger.warning("Persistence error: %s.", _err)
             cls._stop_event.wait(cls._interval)
 
 
@@ -163,14 +163,14 @@ class BlacklistService:
                 raise RuntimeError("Init missing or already started")
             cls._stop_event.clear()
             cls._worker.start()
-            dns_logger.info(f"{cls.__name__} started.")
+            dns_logger.info("%s started.", cls.__name__)
 
     @classmethod
     def stop(cls):
         cls._stop_event.set()
         if cls._worker:
             cls._worker.join(timeout=1)
-        dns_logger.info(f"{cls.__name__} stopped.")
+        dns_logger.info("%s stopped.", cls.__name__)
 
     @classmethod
     def restart(cls):
@@ -178,7 +178,7 @@ class BlacklistService:
         cls._stop_event.clear()
         cls._worker = threading.Thread(target=cls._work, daemon=True)
         cls._worker.start()
-        dns_logger.info(f"{cls.__name__} restarted.")
+        dns_logger.info("%s restarted.", cls.__name__)
 
     @classmethod
     def _load_blacklists(cls) -> dict:
@@ -199,9 +199,9 @@ class BlacklistService:
             if new_lists != cls._blacklists:
                 cls._blacklists = new_lists
                 dns_logger.info(
-                    f"Loaded: "
-                    f"blacklist:{len(new_lists['blacklist'])}, "
-                    f"blacklist_rules:{len(new_lists['blacklist_rules'])}."
+                    "blacklist:%s, blacklist_rules:%s.",
+                    len(new_lists["blacklist"]),
+                    len(new_lists["blacklist_rules"]),
                 )
                 BlacklistService.is_blacklisted.cache_clear()
 
@@ -211,7 +211,7 @@ class BlacklistService:
             try:
                 cls._update_blacklists(cls._load_blacklists())
             except Exception as err:
-                dns_logger.error(f"Failed processing control lists {str(err)}.")
+                dns_logger.error("Failed processing control lists %s.", err)
             cls._stop_event.wait(cls._interval)
 
     @staticmethod
@@ -267,7 +267,7 @@ class ExternalResolverService:
         cls._timeout: float = timeout
         cls._timeout_buffer: float = timeout_buffer
         cls._executor = ThreadPoolExecutor(max_workers=max_workers)
-        dns_logger.info(f"{cls.__name__} init.")
+        dns_logger.info("%s init.", cls.__name__)
 
     @classmethod
     def stop(cls):
@@ -276,7 +276,7 @@ class ExternalResolverService:
             if cls._executor:
                 cls._executor.shutdown(wait=True, cancel_futures=True)
                 cls._executor = None
-                dns_logger.info(f"{cls.__name__} stopped.")
+                dns_logger.info("%s stopped.", cls.__name__)
 
     @classmethod
     def restart(cls, max_workers: int = EXTERNAL_WORKERS):
@@ -285,7 +285,7 @@ class ExternalResolverService:
             if cls._executor is not None:
                 cls._executor.shutdown(wait=True, cancel_futures=True)
             cls._executor = ThreadPoolExecutor(max_workers=max_workers)
-            dns_logger.info(f"{cls.__name__} restarted.")
+            dns_logger.info("%s restarted.", cls.__name__)
 
     @classmethod
     def resolve_external(cls, request: DNSRecord) -> Optional[DNSRecord]:
@@ -309,7 +309,8 @@ class ExternalResolverService:
             for _completed in as_completed(_futures, timeout=cls._timeout + cls._timeout_buffer):
                 _ip: str = _futures[_completed]
                 try:
-                    # We want result collected first, if error is thrown interator waits for the next (and we dont cancel them)
+                    # We want result collected first
+                    # If error is thrown interator waits for the next (and we dont cancel them)
                     reply: Any = _completed.result()
                     for _still_pending in _futures:
                         if _still_pending != _completed:
@@ -344,10 +345,14 @@ class ExternalResolverService:
                 if _reply.header.id != request.header.id:
                     raise ValueError(f"Mismatched DNS Transaction ID from {dns_server}.")
                 return _reply
-            except socket.timeout:
-                raise TimeoutError(f"Timeout waiting for response from {dns_server}.")
+            except socket.timeout as _timeout_error:
+                raise TimeoutError(
+                    f"Timeout waiting for response from {dns_server}."
+                ) from _timeout_error
             except Exception as _err:
-                raise RuntimeError(f"Error contacting upstream {dns_server}: {str(_err)}.")
+                raise RuntimeError(
+                    f"Error contacting upstream {dns_server}: {str(_err)}."
+                ) from _err
 
 
 class LocalResolverService:
@@ -393,7 +398,7 @@ class LocalResolverService:
         Initialize the local DNS resolver service.
 
         Sets up UDP socket bound to the specified host and port for receiving DNS requests.
-        Configures socket options and internal parameters for packet size, timeouts, and worker count.
+        Configures socket options like packet size, timeouts, and worker count.
         Initializes the request queue for incoming DNS packets.
         """
         if cls._is_init:
@@ -464,7 +469,7 @@ class LocalResolverService:
                 return True
 
         except Exception as err:
-            dns_logger.error(f"Failed to handle local query :{str(err)}.")
+            dns_logger.error("Failed to handle local query %s.", err)
 
         return False
 
@@ -504,7 +509,7 @@ class LocalResolverService:
                 return True
 
         except Exception as err:
-            dns_logger.error(f"External resolution failed: {str(err)}")
+            dns_logger.error("External resolution failed: %s", err)
             DnsStatsDb.increment('request_external_failed')
 
         return False
@@ -536,7 +541,7 @@ class LocalResolverService:
                     cls._dns_socket.sendto(dns_res_message.pack(), dns_req_message.addr)
 
         except Exception as _err:
-            dns_logger.error(f"Failed to send reply to {dns_req_message.addr} {str(_err)}.")
+            dns_logger.error("Failed sending reply to %s %s.", dns_req_message.addr, _err)
 
     @classmethod
     def _listen_traffic(cls, timeout: float = DNS_SOCKET_TIMEOUT):
@@ -639,7 +644,7 @@ class LocalResolverService:
 
 
 class DNSServer:
-    _lock = threading.Lock()
+    _lock = threading.RLock()
     _initialised = False
     _running = False
 

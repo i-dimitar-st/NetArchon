@@ -25,11 +25,11 @@ class MemoryManager:
     @classmethod
     def start(cls):
         if cls._worker and cls._worker.is_alive():
-            raise RuntimeError(f"{cls.__name__} already running.")
+            raise RuntimeError("Already running.")
         if isinstance(cls._worker, threading.Thread):
             cls._stop_event.clear()
             cls._worker.start()
-            _logger.info(f"{cls.__name__} started.")
+            _logger.info("%s started.", cls.__name__)
 
     @classmethod
     def stop(cls):
@@ -37,7 +37,7 @@ class MemoryManager:
             cls._stop_event.set()
             cls._worker.join(timeout=WORKER_JOIN_TIMEOUT)
             cls._worker = None
-            _logger.info(f"{cls.__name__} stopped.")
+            _logger.info("%s stopped.", cls.__name__)
 
     @classmethod
     def _work(cls):
@@ -46,7 +46,7 @@ class MemoryManager:
                 gc.collect()
                 cls._log_stats()
             except Exception as err:
-                _logger.warning(f"{str(err)}.")
+                _logger.warning("%s.", err)
             cls._stop_event.wait(cls._interval)
 
     @classmethod

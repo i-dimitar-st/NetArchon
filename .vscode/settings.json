@@ -1,53 +1,27 @@
 {
-  // Python environment
+  "cSpell.enabled": false,
+
   "python.defaultInterpreterPath": "${workspaceFolder}/venv/bin/python",
   "python.terminal.activateEnvironment": true,
   "python.envFile": "${workspaceFolder}/.env",
-  // Python analysis
+
   "python.analysis.typeCheckingMode": "basic",
-  "python.analysis.autoSearchPaths": true, // Automatically add search paths
-  "python.analysis.useLibraryCodeForTypes": true, // Use types from library code
-  "python.analysis.diagnosticSeverityOverrides": {
-    // Customize severity of specific diagnostics
-    "reportMissingImports": "warning",
-    "reportUnusedVariable": "warning",
-    "reportOptionalSubscript": "warning"
-  },
-  "python.analysis.inlayHints.variableTypes": true, // Shows variable type hints inline
-  "python.analysis.autoImportCompletions": true, // Suggest auto-imports in completions
-  // Editor
-  "editor.fontFamily": "'Fira Code', 'JetBrains Mono', Consolas, 'Courier New', monospace",
+  "python.analysis.autoSearchPaths": true, 
+  "python.analysis.useLibraryCodeForTypes": true, 
+  "python.analysis.inlayHints.variableTypes": true,
+
+  "python.linting.pylintPath": "${workspaceFolder}/venv/bin/pylint",
+  "python.linting.enabled": true,
+  "python.linting.pylintEnabled": true,
+  "python.linting.pylintUseMinimalCheckers": false,
+  "python.linting.pylintArgs": [],
+
+  "editor.fontFamily": "JetBrains Mono, monospace",
   "editor.fontLigatures": true,
   "editor.fontSize": 14,
   "editor.formatOnSave": true,
-  "editor.codeActionsOnSave": {
-    "source.organizeImports": "explicit"
-  },
-  // Black formatter (modern setup)
   "[python]": {
     "editor.defaultFormatter": "ms-python.black-formatter"
   },
-  "black-formatter.args": ["--line-length", "100", "--skip-string-normalization"],
-  // Spell checker words
-  "cSpell.words": [
-    "DCHP",
-    "dedup",
-    "DGRAM",
-    "noerror",
-    "notimp",
-    "nsec",
-    "nxdomain",
-    "QTYPE",
-    "rclass",
-    "rcode",
-    "RCVBUF",
-    "rdata",
-    "REUSEADDR",
-    "rname",
-    "rtype",
-    "SERVFAIL",
-    "shinanigans",
-    "signum",
-    "svcb"
-  ]
+  "black-formatter.args": ["--line-length", "100", "--skip-string-normalization"]
 }

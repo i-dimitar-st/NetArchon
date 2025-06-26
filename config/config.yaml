@@ -40,7 +40,7 @@ dns:
     db_flush_interval: 30
   worker_config:
     processors: 100
-    external: 300
+    external: 400
   blacklists_config:
     path: config/dns_control_list.json
     cache_size: 100

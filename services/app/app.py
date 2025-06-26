@@ -6,10 +6,10 @@ import multiprocessing
 import socket
 import logging
 import sqlite3
-import psutil
 from typing import Any
 from copy import deepcopy
 from pathlib import Path
+import psutil
 from flask import Flask, render_template
 from services.logger.logger import MainLogger
 from config.config import config
