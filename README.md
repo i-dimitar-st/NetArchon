@@ -123,15 +123,4 @@ Ideally, this structure simplifies testing, maintenance, and future extensions.
 ---
 
 ## Installation
-
-```bash
-git clone https://gitlab.com/i.dimitar.st/netarchon.git
-cd netarchon
-
-python3 -m venv venv
-source venv/bin/activate
-
-pip install -r requirements.txt
-
-./run.sh
-```
+... pending
