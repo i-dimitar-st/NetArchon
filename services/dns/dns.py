@@ -90,8 +90,10 @@ class DbFlushService:
             RuntimeError: If the service is already started or not properly initialized.
         """
         with cls._lock:
-            if cls._worker is None or cls._worker.is_alive():
-                raise RuntimeError("Init missing or already started")
+            if cls._worker is None:
+                raise RuntimeError("Init missing")
+            if cls._worker.is_alive():
+                raise RuntimeError("Already started")
             cls._stop_event.clear()
             cls._worker.start()
             dns_logger.info("%s started.", cls.__name__)
@@ -161,6 +163,8 @@ class BlacklistService:
         with cls._lock:
             if not cls._worker or cls._worker.is_alive():
                 raise RuntimeError("Init missing or already started")
+            if cls._worker.is_alive():
+                raise RuntimeError("Already started")
             cls._stop_event.clear()
             cls._worker.start()
             dns_logger.info("%s started.", cls.__name__)
@@ -630,7 +634,7 @@ class LocalResolverService:
                 cls._dns_socket.close()
             cls._dns_socket = None
 
-        # Unblock worker threads waiting on the queue by pushing sentinel values
+        # Unblock worker threads waiting on the queue by pushing none values
         for _ in range(cls._max_workers):
             cls._recv_queue.put_nowait(None)
 

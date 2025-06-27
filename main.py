@@ -23,16 +23,16 @@ PEM_PATH = CERT_PATH / CERTIFICATES.get("cert")
 KEY_PATH = CERT_PATH / CERTIFICATES.get("key")
 
 
-_logger = MainLogger.get_logger(service_name="MAIN")
+logger = MainLogger.get_logger(service_name="MAIN")
 shutdown_event = Event()
 
 
 def shutdown_handler(signum, frame):
-    _logger.info("Received %s .", signum)
+    logger.info("Received %s .", signum)
     shutdown_event.set()
 
 
-def _register_shutdown_signals():
+def register_shutdown_signals():
     signal.signal(signal.SIGINT, shutdown_handler)
     signal.signal(signal.SIGTERM, shutdown_handler)
     signal.signal(signal.SIGQUIT, shutdown_handler)
@@ -41,8 +41,8 @@ def _register_shutdown_signals():
 
 if __name__ == "__main__":
 
-    _logger.info("Starting services")
-    _register_shutdown_signals()
+    logger.info("Starting services")
+    register_shutdown_signals()
 
     App.init(port=PORT, host=HOST, ssl_context=(PEM_PATH, KEY_PATH))
     MemoryManager.init()
@@ -54,12 +54,12 @@ if __name__ == "__main__":
     App.start()
 
     shutdown_event.wait()
-    _logger.info("Stopping services")
+    logger.info("Stopping services")
 
     DHCPServer.stop()
     DNSServer.stop()
     MemoryManager.stop()
     App.stop()
 
-    _logger.info("Shutdown complete")
+    logger.info("Shutdown complete")
     sys.exit(0)
