@@ -3,6 +3,5 @@ VENV_BINARY=./venv/bin/python
 SCRIPT=main.py
 
 sudo PYTHONDONTWRITEBYTECODE=1 \
-     PYTHONMALLOC=malloc \
      PYTHONPATH=${PYTHONPATH} \
      ${VENV_BINARY} -O ${SCRIPT}

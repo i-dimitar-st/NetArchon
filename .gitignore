@@ -4,3 +4,4 @@ logs/
 db/
 services/neural_net/models/
 config/dns_control_list.json
+services/app/certificates/
