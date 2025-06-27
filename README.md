@@ -40,29 +40,33 @@
 
 ### DNS Server
 
--   Recursive resolution with fallback to external resolvers
--   Pattern-based filtering for domains, IPs, and full URLs
--   Local static zones for host overrides
--   TTL-based caching with MRU eviction
--   Query deduplication and asynchronous resolution pipeline
+-   Asynchronous recursive resolution with parallel queries to multiple external resolvers for faster failover and reduced latency
+-   Pattern-based filtering supporting exact matches, wildcards, and rule-based (fnmatch-style) filtering for domains, IPs, and full URLs
+-   Dynamic blacklist management with automatic periodic reloads without service interruption
+-   Local static zones enabling host overrides for custom domain-to-IP mappings within the network
+-   Multi-layer caching strategy combining TTL-based caching with MRU eviction and query deduplication to optimize response times and reduce upstream queries
+-   Robust query deduplication preventing repeated processing of identical queries within a short timeframe
+-   Full lifecycle management of services with graceful startup, shutdown, and restart capabilities
+-   Real-time blacklisting enforcement integrated into query processing pipeline, returning REFUSED responses immediately
+-   Comprehensive metrics and query history tracking for analytics and monitoring
+-   Standard DNS query/response over UDP with transaction ID validation and protection against spoofing
+-   Support for error responses including REFUSED and SERVFAIL on blacklist hits or resolution failures
+-   TTL caching and local zone overrides ensuring authoritative responses for internal domains
 
-Built to follow DNS core standards ([RFC 1034](https://datatracker.ietf.org/doc/html/rfc1034), [RFC 1035](https://datatracker.ietf.org/doc/html/rfc1035)):
+#### Built to follow
 
--   Standard DNS query/response over UDP
--   Recursive resolution with transaction ID validation
--   TTL caching and static zone overrides
--   Error responses including `REFUSED` and `SERVFAIL`
--   Real-time blacklisting and deduplication
+-   [RFC 1034](https://datatracker.ietf.org/doc/html/rfc1034)
+-   [RFC 1035](https://datatracker.ietf.org/doc/html/rfc1035)
 
 **Partial / Pending Support:**
 
--   EDNS(0) (RFC 6891)
--   TCP fallback for large packets
--   DNSSEC (RFC 4033–4035)
--   NXDOMAIN caching (RFC 2308)
--   Full QCLASS/QTYPE support
--   CNAME/DNAME chaining
--   Truncation bit and response size limits
+-   EDNS(0) ([RFC 6891](https://datatracker.ietf.org/doc/html/rfc6891)) for extended DNS capabilities
+-   TCP fallback for handling large DNS messages
+-   DNSSEC ([RFC 4033–4035](https://datatracker.ietf.org/doc/html/rfc4033)) for secure DNS validation
+-   NXDOMAIN caching ([RFC 2308](https://datatracker.ietf.org/doc/html/rfc2308)) to reduce repeated negative queries
+-   Full support for QCLASS/QTYPE variations
+-   CNAME/DNAME chaining and proper handling of DNS aliasing
+-   Handling of truncation bit and response size limits for UDP packets
 
 ---
 
