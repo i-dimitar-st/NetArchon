@@ -39,7 +39,9 @@ EXTERNAL_WORKERS = WORKERS_CONFIG.get("external", 300)
 PROCESS_WORKERS = WORKERS_CONFIG.get("processors", 100)
 
 BLACKLISTS_CONFIG = config.get("dns").get("blacklists_config")
-BLACKLIST_PATH = ROOT_PATH / BLACKLISTS_CONFIG.get("path", "config/dns_control_list.json")
+BLACKLIST_PATH = ROOT_PATH / BLACKLISTS_CONFIG.get(
+    "path", "config/dns_control_list.json"
+)
 BLACKLIST_CACHE_SIZE = BLACKLISTS_CONFIG.get("cache_size", 100)
 BLACKLISTS_LOADING_INTERVAL = BLACKLISTS_CONFIG.get("loading_interval", 30)
 
@@ -48,13 +50,18 @@ DNS_SOCKET_TIMEOUT = float(TIMEOUTS.get("local_socket", 0.1))
 EXTERNAL_TIMEOUT = float(TIMEOUTS.get("external_socket", 15))
 EXTERNAL_TIMEOUT_BUFFER = float(TIMEOUTS.get("external_socket_buffer", 2))
 QUEUE_GET_TIMEOUT = float(TIMEOUTS.get("local_queue_get", 0.5))
+WORKER_JOIN_TIMEOUT = float(TIMEOUTS.get("worker_join", 1))
 
 DNS_STATIC_ZONES = config.get("dns").get("static_zones")
 
 RESOURCE_LIMITS = config.get("dns").get("resource_limits")
 DNS_LOCAL_RECV_QUEUE_SIZE = RESOURCE_LIMITS.get("queues").get("receive", 100)
-METRICS_SAMPLE_BUFFER_SIZE = RESOURCE_LIMITS.get("caches").get("metrics_sample_buffer_size", 100)
-DNS_DEDUPLICATION_CACHE_SIZE = RESOURCE_LIMITS.get("caches").get("deduplication_cache_size", 100)
+METRICS_SAMPLE_BUFFER_SIZE = RESOURCE_LIMITS.get("caches").get(
+    "metrics_sample_buffer_size", 100
+)
+DNS_DEDUPLICATION_CACHE_SIZE = RESOURCE_LIMITS.get("caches").get(
+    "deduplication_cache_size", 100
+)
 DNS_REPLY_CACHE_SIZE = RESOURCE_LIMITS.get("caches").get("reply_cache_size", 100)
 
 
@@ -108,7 +115,7 @@ class DbFlushService:
             cls._stop_event.set()
             _worker: Optional[threading.Thread] = cls._worker
         if _worker:
-            _worker.join(timeout=1)
+            _worker.join(timeout=WORKER_JOIN_TIMEOUT)
         dns_logger.info("%s stopped.", cls.__name__)
 
     @classmethod
@@ -173,7 +180,7 @@ class BlacklistService:
     def stop(cls):
         cls._stop_event.set()
         if cls._worker:
-            cls._worker.join(timeout=1)
+            cls._worker.join(timeout=WORKER_JOIN_TIMEOUT)
         dns_logger.info("%s stopped.", cls.__name__)
 
     @classmethod
@@ -190,10 +197,12 @@ class BlacklistService:
             control_list: Any = json.load(f)
         return {
             "blacklist": set(
-                url.strip().lower() for url in control_list.get("blacklist", {}).get("urls", [])
+                url.strip().lower()
+                for url in control_list.get("blacklist", {}).get("urls", [])
             ),
             "blacklist_rules": set(
-                rule.strip().lower() for rule in control_list.get("blacklist", {}).get("rules", [])
+                rule.strip().lower()
+                for rule in control_list.get("blacklist", {}).get("rules", [])
             ),
         }
 
@@ -310,7 +319,9 @@ class ExternalResolverService:
 
         try:
             # As completed return first completed so we want that and cancel rest
-            for _completed in as_completed(_futures, timeout=cls._timeout + cls._timeout_buffer):
+            for _completed in as_completed(
+                _futures, timeout=cls._timeout + cls._timeout_buffer
+            ):
                 _ip: str = _futures[_completed]
                 try:
                     # We want result collected first
@@ -331,7 +342,9 @@ class ExternalResolverService:
         return None
 
     @classmethod
-    def _query_external_dns_server(cls, request: DNSRecord, dns_server: str) -> DNSRecord:
+    def _query_external_dns_server(
+        cls, request: DNSRecord, dns_server: str
+    ) -> DNSRecord:
         """Send DNS query to a single upstream DNS server and return the response."""
 
         if not request or not dns_server:
@@ -347,7 +360,9 @@ class ExternalResolverService:
                 _reply: DNSRecord = DNSRecord.parse(_reply_raw)
 
                 if _reply.header.id != request.header.id:
-                    raise ValueError(f"Mismatched DNS Transaction ID from {dns_server}.")
+                    raise ValueError(
+                        f"Mismatched DNS Transaction ID from {dns_server}."
+                    )
                 return _reply
             except socket.timeout as _timeout_error:
                 raise TimeoutError(
@@ -416,7 +431,9 @@ class LocalResolverService:
         cls._max_workers: int = max_workers
         cls._dns_socket = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
         cls._dns_socket.setsockopt(socket.SOL_SOCKET, socket.SO_REUSEADDR, 1)
-        cls._dns_socket.setsockopt(socket.SOL_SOCKET, socket.SO_RCVBUF, DNS_SOCKET_OS_BUFFER_SIZE)
+        cls._dns_socket.setsockopt(
+            socket.SOL_SOCKET, socket.SO_RCVBUF, DNS_SOCKET_OS_BUFFER_SIZE
+        )
         cls._dns_socket.setblocking(False)
         cls._dns_socket.bind((cls._host, cls._port))
         cls._dns_servers: list[str] = dns_servers
@@ -428,7 +445,7 @@ class LocalResolverService:
         """Check if the domain is blacklisted and send a refusal reply if so."""
 
         if BlacklistService.is_blacklisted(dns_req_message.domain):
-            DnsStatsDb.increment(key='request_blacklisted')
+            DnsStatsDb.increment(key="request_blacklisted")
             reply: DNSRecord = dns_req_message.dns_message.reply()
             reply.header.rcode = DnsResponseCode.REFUSED
             cls._send_reply(dns_req_message, reply)
@@ -437,7 +454,9 @@ class LocalResolverService:
         return False
 
     @classmethod
-    def _handle_local(cls, dns_req_message: DNSReqMessage, zones: dict = DNS_STATIC_ZONES) -> bool:
+    def _handle_local(
+        cls, dns_req_message: DNSReqMessage, zones: dict = DNS_STATIC_ZONES
+    ) -> bool:
         """
         Check if the requested domain matches any local DNS zone and respond with the
         corresponding IP address if found.
@@ -451,13 +470,15 @@ class LocalResolverService:
                     continue
 
                 if dns_req_message.domain.endswith(_zone.lower()):
-                    _hostname: str = DNSUtils.extract_hostname(dns_req_message.domain, _zone)
+                    _hostname: str = DNSUtils.extract_hostname(
+                        dns_req_message.domain, _zone
+                    )
                     _hostname_ip: Any = zones[_zone].get(_hostname)
                     if _hostname_ip:
                         break
 
             if _hostname_ip:
-                DnsStatsDb.increment(key='request_local')
+                DnsStatsDb.increment(key="request_local")
                 reply = dns_req_message.dns_message.reply()
                 reply.header.rcode = DnsResponseCode.NO_ERROR
                 reply.add_answer(
@@ -481,13 +502,15 @@ class LocalResolverService:
     def _handle_cache_hit(cls, dns_req_message: DNSReqMessage) -> bool:
         """Check if the DNS query result is cached and send the cached reply if found."""
 
-        _cached_reply: Optional[DNSRecord] = cls._dns_cache.get(dns_req_message.cache_key)
+        _cached_reply: Optional[DNSRecord] = cls._dns_cache.get(
+            dns_req_message.cache_key
+        )
         if _cached_reply:
-            DnsStatsDb.increment(key='request_cache_hit')
+            DnsStatsDb.increment(key="request_cache_hit")
             cls._send_reply(dns_req_message, _cached_reply)
             return True
 
-        DnsStatsDb.increment(key='request_cache_miss')
+        DnsStatsDb.increment(key="request_cache_miss")
         return False
 
     @classmethod
@@ -498,11 +521,11 @@ class LocalResolverService:
         """
 
         try:
-            dns_res_message: Optional[DNSRecord] = ExternalResolverService.resolve_external(
-                dns_req_message.dns_message
+            dns_res_message: Optional[DNSRecord] = (
+                ExternalResolverService.resolve_external(dns_req_message.dns_message)
             )
             if dns_res_message:
-                DnsStatsDb.increment('request_external')
+                DnsStatsDb.increment("request_external")
                 _ttl: int = DNSUtils.extract_ttl(dns_res_message)
                 cls._dns_cache.add(
                     key=dns_req_message.cache_key,
@@ -514,7 +537,7 @@ class LocalResolverService:
 
         except Exception as err:
             dns_logger.error("External resolution failed: %s", err)
-            DnsStatsDb.increment('request_external_failed')
+            DnsStatsDb.increment("request_external_failed")
 
         return False
 
@@ -545,7 +568,9 @@ class LocalResolverService:
                     cls._dns_socket.sendto(dns_res_message.pack(), dns_req_message.addr)
 
         except Exception as _err:
-            dns_logger.error("Failed sending reply to %s %s.", dns_req_message.addr, _err)
+            dns_logger.error(
+                "Failed sending reply to %s %s.", dns_req_message.addr, _err
+            )
 
     @classmethod
     def _listen_traffic(cls, timeout: float = DNS_SOCKET_TIMEOUT):
@@ -555,7 +580,9 @@ class LocalResolverService:
                 # Wait for the socket to be readable (i.e. data ready to recv), with timeout
                 # OS level select()
                 if cls._dns_socket:
-                    _rlist, _wlist, _xlist = select.select([cls._dns_socket], [], [], timeout)
+                    _rlist, _wlist, _xlist = select.select(
+                        [cls._dns_socket], [], [], timeout
+                    )
                     if cls._dns_socket in _rlist:
                         data, addr = cls._dns_socket.recvfrom(cls._msg_size)
                         cls._recv_queue.put_nowait(DNSReqMessage(data, addr))
@@ -587,13 +614,13 @@ class LocalResolverService:
                 ):
                     continue
 
-                DnsStatsDb.increment(key='request_total')
+                DnsStatsDb.increment(key="request_total")
                 if cls._handle_blacklist(_dns_req_message):
                     continue
 
                 cls._dedup_cache.add(_dns_req_message.dedup_key)
                 DnsQueryHistoryDb.add_query(_dns_req_message.domain)
-                DnsStatsDb.increment(key='request_valid')
+                DnsStatsDb.increment(key="request_valid")
 
                 if cls._handle_cache_hit(_dns_req_message):
                     continue
@@ -619,7 +646,9 @@ class LocalResolverService:
         cls._recv_thread = threading.Thread(target=cls._listen_traffic, daemon=True)
         cls._recv_thread.start()
         for _ in range(cls._max_workers):
-            _worker_thread = threading.Thread(target=cls._process_dns_req_packets, daemon=True)
+            _worker_thread = threading.Thread(
+                target=cls._process_dns_req_packets, daemon=True
+            )
             _worker_thread.start()
             cls._req_worker_threads.append(_worker_thread)
 
@@ -639,9 +668,9 @@ class LocalResolverService:
             cls._recv_queue.put_nowait(None)
 
         if cls._recv_thread:
-            cls._recv_thread.join(timeout=1)
+            cls._recv_thread.join(timeout=WORKER_JOIN_TIMEOUT)
         for _worker in cls._req_worker_threads:
-            _worker.join(timeout=1)
+            _worker.join(timeout=WORKER_JOIN_TIMEOUT)
         cls._req_worker_threads.clear()
         cls._is_init = False
         dns_logger.info("DNSResolver stopped.")

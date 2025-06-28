@@ -4,9 +4,9 @@ from typing import Optional, Any
 from collections import deque, OrderedDict
 
 
+MRU_MAX_SIZE = 60
 TTL_MAX_SIZE = 100
 TTL_DEFAULT = 600
-MRU_MAX_SIZE = 60
 
 
 class Metrics:
@@ -45,17 +45,37 @@ class Metrics:
 
     @classmethod
     def get_stats(cls):
-        """Print count and some percentile stats."""
-        return (
-            f"Counter:{cls.get_count()}, "
-            f"5%:{cls.get_percentile(5):.3f}, "
-            f"50%:{cls.get_percentile(50):.3f}, "
-            f"95%:{cls.get_percentile(95):.3f}."
-        )
+        """Return count and common percentile stats."""
+        return {
+            "count": cls.get_count(),
+            "p5": cls.get_percentile(5),
+            "p50": cls.get_percentile(50),
+            "p95": cls.get_percentile(95),
+        }
+
+    @classmethod
+    def clear(cls):
+        """Clear."""
+        with cls._lock:
+            return cls._samples.clear()
 
 
 class MRUCache:
-    """Thread-safe Most Recently Used (MRU) cache."""
+    """
+    Thread-safe Most Recently Used (MRU) cache.
+
+    The cache stores keys in MRU order internally:
+    - Index 0 corresponds to the most recently used (newest) key.
+    - The last index corresponds to the oldest key.
+
+    Example:
+        After adding keys in this order: 'a', 'b', 'c', the internal order is:
+        cache => ['c', 'b', 'a']
+        After adding 'd':
+        cache => ['d', 'c', 'b', 'a']
+        After adding 'a' again (updates usage, moves to front):
+        cache => ['a', 'd', 'c', 'b']
+    """
 
     def __init__(self, max_size: int = MRU_MAX_SIZE):
         """Initialize cache with max size."""
@@ -71,9 +91,9 @@ class MRUCache:
             else:
                 self._cache[key] = value
                 self._cache.move_to_end(key, last=False)  # moves to front => freshest
-                self._evict_above_limit()
+                self._evict()
 
-    def _evict_above_limit(self):
+    def _evict(self):
         """Remove oldest items if size exceeds limit."""
         with self._lock:
             while len(self._cache) > self._max_size:
@@ -83,6 +103,22 @@ class MRUCache:
         """Check if key exists."""
         with self._lock:
             return bool(key in self._cache)
+
+    def get(self, key: Any) -> Any:
+        """Check if key exists."""
+        with self._lock:
+            if key:
+                return self._cache.get(key)
+
+    def get_keys(self) -> list:
+        """Return list of keys in order."""
+        with self._lock:
+            return list(self._cache.keys())
+
+    def size(self) -> int:
+        """Size."""
+        with self._lock:
+            return len(self._cache)
 
     def clear(self):
         """Clear the cache."""
@@ -97,32 +133,64 @@ class TTLCache:
         """Initialize cache with max size and default TTL."""
         self._lock = threading.RLock()
         self._cache: dict[Any, tuple[Any, float]] = {}  # key -> (value, expiry)
-        self._max_size = max_size
-        self._ttl = ttl
+        self._max_size: int = max_size
+        self._ttl: int = ttl
 
-    def add(self, key: Any, value: Any, ttl: Optional[int] = None):
-        """Get value by key or None if expired/missing."""
+    @staticmethod
+    def clean_expired(func):
+        def wrapper(self, *args, **kwargs):
+            self._clean_expired()
+            return func(self, *args, **kwargs)
+
+        return wrapper
+
+    @staticmethod
+    def evict(func):
+        def wrapper(self, *args, **kwargs):
+            self._evict()
+            return func(self, *args, **kwargs)
+
+        return wrapper
+
+    def _clean_expired(self):
+        """Remove expired entries."""
         with self._lock:
-            self._cleanup_expired()
-            self._evict_above_limit()
+            now = time.time()
+            for key in list(self._cache):
+                if self._cache[key][1] < now:
+                    del self._cache[key]
+
+    def _evict(self):
+        """Evict oldest entries if size exceeds limit."""
+        with self._lock:
+            sorted_keys = sorted(self._cache, key=lambda k: self._cache[k][1])
+            to_evict = int(len(self._cache) - self._max_size + 1)
+            if to_evict > 0:
+                for key in sorted_keys[:to_evict]:
+                    del self._cache[key]
+
+    @clean_expired
+    @evict
+    def add(self, key: Any, value: Any, ttl: Optional[int] = None):
+        """Get value by key, None if expired/missing."""
+        with self._lock:
             expiry: float = time.time() + (ttl if ttl and ttl > 0 else self._ttl)
             self._cache[key] = (value, expiry)
 
+    @clean_expired
     def get(self, key: Any) -> Optional[Any]:
         """Get value by key or None if expired/missing."""
-
         with self._lock:
-            self._cleanup_expired()
-            item = self._cache.get(key)
+            item: tuple[Any, float] | None = self._cache.get(key)
             return item[0] if item else None
 
+    @clean_expired
     def get_by_value(self, value: Any) -> Optional[Any]:
         """Find key by value or None."""
         with self._lock:
-            self._cleanup_expired()
-            for k, (v, _) in self._cache.items():
-                if v == value:
-                    return k
+            for _key, (_value, _) in self._cache.items():
+                if _value == value:
+                    return _key
             return None
 
     def remove(self, key: Any):
@@ -131,21 +199,12 @@ class TTLCache:
             self._cache.pop(key, None)
 
     def clear(self):
-        """Clear the cache."""
+        """Clear cache."""
         with self._lock:
             self._cache.clear()
 
-    def _cleanup_expired(self):
-        """Remove expired entries."""
+    @clean_expired
+    def size(self) -> int:
+        """Returns cache size."""
         with self._lock:
-            _now = time.time()
-            keys_to_remove = [k for k, (_, exp) in self._cache.items() if exp < _now]
-            for k in keys_to_remove:
-                self._cache.pop(k, None)
-
-    def _evict_above_limit(self):
-        """Evict oldest entries if size exceeds limit."""
-        with self._lock:
-            while len(self._cache) >= self._max_size:
-                oldest_key = min(self._cache.items(), key=lambda item: item[1][1])[0]
-                self._cache.pop(oldest_key, None)
+            return len(self._cache)

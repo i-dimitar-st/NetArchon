@@ -4,6 +4,12 @@
     "python.defaultInterpreterPath": "${workspaceFolder}/venv/bin/python",
     "python.terminal.activateEnvironment": true,
     "python.envFile": "${workspaceFolder}/.env",
+    "python.formatting.provider": "black",
+    "python.formatting.blackArgs": ["--line-length", "100", "--skip-string-normalization"],
+    "editor.formatOnSave": true,
+    "[python]": {
+        "editor.defaultFormatter": "ms-python.black-formatter"
+    },
 
     "python.analysis.typeCheckingMode": "basic",
     "python.analysis.autoSearchPaths": true,
@@ -12,12 +18,7 @@
     "python.linting.enabled": true,
     "python.linting.pylintEnabled": true,
     "python.linting.pylintArgs": ["--rcfile=${workspaceFolder}/pylintrc"],
-    "editor.fontFamily": "JetBrains Mono, monospace",
+    "editor.fontFamily": "'JetBrains Mono', monospace",
     "editor.fontLigatures": true,
-    "editor.fontSize": 14,
-    "editor.formatOnSave": true,
-    "[python]": {
-        "editor.defaultFormatter": "ms-python.black-formatter"
-    },
-    "black-formatter.args": ["--line-length", "100", "--skip-string-normalization"]
+    "editor.fontSize": 14
 }

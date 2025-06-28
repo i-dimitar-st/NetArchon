@@ -1,143 +1,144 @@
 meta:
-  name: NetArchon
-  version: 0.1.0
-  date: "2025-06-01"
+    name: NetArchon
+    version: 0.1.0
+    date: "2025-06-01"
 
 app:
-  host: "0.0.0.0"
-  port: 8443
+    host: "0.0.0.0"
+    port: 8443
 
 paths:
-  root: /projects/gitlab/netarchon
-  database: db
-  logs: logs
-  certificates: services/app/certificates
+    root: /projects/gitlab/netarchon
+    database: db
+    logs: logs
+    certificates: services/app/certificates
 
 certificates:
-  cert: cert.pem
-  key: key.pem
+    cert: cert.pem
+    key: key.pem
 
 network:
-  lan:
-    name: enp2s0
-    mac: 18:c0:4d:46:f4:11
-    ip: "192.168.20.100"
-    subnet_mask: "255.255.255.0"
-    gateway: "192.168.20.1"
-    cidr: "24"
-    broadcast_ip: "192.168.20.255"
-    family: inet
-    role: lan
+    lan:
+        name: enp2s0
+        mac: 18:c0:4d:46:f4:11
+        ip: "192.168.20.100"
+        subnet_mask: "255.255.255.0"
+        gateway: "192.168.20.1"
+        cidr: "24"
+        broadcast_ip: "192.168.20.255"
+        family: inet
+        role: lan
 
 dns:
-  config:
-    host: "0.0.0.0"
-    port: 53
-    udp_max_size: 1232
-    os_buffer_size: 4194304
-    external_dns_servers: ["1.1.1.3", "1.0.0.3", "9.9.9.9", "149.112.112.112"]
-    cache_ttl: 1800
-    db_flush_interval: 30
-  worker_config:
-    processors: 100
-    external: 400
-  blacklists_config:
-    path: config/dns_control_list.json
-    cache_size: 100
-    loading_interval: 30
-  timeouts:
-    local_socket: 0.1
-    external_socket: 15
-    external_socket_buffer: 2
-    local_queue_get: 0.5
-  static_zones:
-    home.lan:
-      server: 192.168.20.100
-      printer: 192.168.20.10
-  resource_limits:
-    queues:
-      receive: 100
-    caches:
-      metrics_sample_buffer_size: 100
-      deduplication_cache_size: 100
-      reply_cache_size: 100
+    config:
+        host: "0.0.0.0"
+        port: 53
+        udp_max_size: 1232
+        os_buffer_size: 4194304
+        external_dns_servers: ["1.1.1.3", "1.0.0.3", "9.9.9.9", "149.112.112.112"]
+        cache_ttl: 1800
+        db_flush_interval: 30
+    worker_config:
+        processors: 100
+        external: 400
+    blacklists_config:
+        path: config/dns_control_list.json
+        cache_size: 100
+        loading_interval: 30
+    timeouts:
+        local_socket: 0.1
+        external_socket: 15
+        external_socket_buffer: 2
+        local_queue_get: 0.5
+        worker_join: 1
+    static_zones:
+        home.lan:
+            server: 192.168.20.100
+            printer: 192.168.20.10
+    resource_limits:
+        queues:
+            receive: 100
+        caches:
+            metrics_sample_buffer_size: 100
+            deduplication_cache_size: 100
+            reply_cache_size: 100
 
 dhcp:
-  interface: enp2s0
-  host: "0.0.0.0"
-  port: 67
-  router_ip: "192.168.20.1"
-  ip: "192.168.20.100"
-  mac: "18:c0:4d:46:f4:11"
-  broadcast_ip: "255.255.255.255"
-  broadcast_mac: "ff:ff:ff:ff:ff:ff"
-  subnet: "255.255.255.0"
-  ntp_server: "192.168.20.100"
-  ip_pool_start: "192.168.20.101"
-  ip_pool_end: "192.168.20.254"
-  cidr: 24
-  lease_time_seconds: 1209600
-  mtu: 1500
-  rcvd_queue_size: 100
-  deque_size: 100
-  timeouts:
-    arp: 3
-    worker_get: 0.2
-    worker_sleep: 0.1
-    lease_discovery: 300
-    persistence: 60
+    interface: enp2s0
+    host: "0.0.0.0"
+    port: 67
+    router_ip: "192.168.20.1"
+    ip: "192.168.20.100"
+    mac: "18:c0:4d:46:f4:11"
+    broadcast_ip: "255.255.255.255"
+    broadcast_mac: "ff:ff:ff:ff:ff:ff"
+    subnet: "255.255.255.0"
+    ntp_server: "192.168.20.100"
+    ip_pool_start: "192.168.20.101"
+    ip_pool_end: "192.168.20.254"
+    cidr: 24
+    lease_time_seconds: 1209600
+    mtu: 1500
+    rcvd_queue_size: 100
+    deque_size: 100
+    timeouts:
+        arp: 3
+        worker_get: 0.2
+        worker_sleep: 0.1
+        lease_discovery: 300
+        persistence: 60
 
 memory_management:
-  interval: 1800
+    interval: 300
 
 database:
-  persistence_interval: 30
-  blacklists_loading_interval: 30
-  dhcp:
-    stats:
-      type: sqlite
-      path: dhcp_stats.sqlite3
-    leases:
-      type: sqlite
-      path: dhcp_leases.sqlite3
-  dns:
-    history:
-      type: sqlite
-      path: db/dns_history.sqlite3
-      max_records: 1000
-    stats:
-      type: sqlite
-      path: db/dns_stats.sqlite3
+    persistence_interval: 30
+    blacklists_loading_interval: 30
+    dhcp:
+        stats:
+            type: sqlite
+            path: dhcp_stats.sqlite3
+        leases:
+            type: sqlite
+            path: dhcp_leases.sqlite3
+    dns:
+        history:
+            type: sqlite
+            path: db/dns_history.sqlite3
+            max_records: 1000
+        stats:
+            type: sqlite
+            path: db/dns_stats.sqlite3
 
 logging:
-  version: 1
-  levels:
-    debug: DEBUG
-    info: INFO
-    warning: WARNING
-    error: ERROR
-    critical: CRITICAL
-  formatters:
-    default:
-      format: "%(asctime)s.%(msecs)03d | %(levelname)s | %(name)s | %(message)s"
-      datefmt: "%Y-%m-%d %H:%M:%S"
-  handlers:
-    file:
-      class: logging.handlers.RotatingFileHandler
-      filename: ./logs/main.log
-      maxBytes: 10485760
-      backupCount: 2
-      encoding: utf-8
-      mode: a
-      level: DEBUG
-      formatter: default
+    version: 1
+    levels:
+        debug: DEBUG
+        info: INFO
+        warning: WARNING
+        error: ERROR
+        critical: CRITICAL
+    formatters:
+        default:
+            format: "%(asctime)s.%(msecs)03d | %(levelname)s | %(name)s | %(message)s"
+            datefmt: "%Y-%m-%d %H:%M:%S"
+    handlers:
+        file:
+            class: logging.handlers.RotatingFileHandler
+            filename: ./logs/main.log
+            maxBytes: 10485760
+            backupCount: 2
+            encoding: utf-8
+            mode: a
+            level: DEBUG
+            formatter: default
 
-    console:
-      class: logging.StreamHandler
-      level: ERROR
-      formatter: default
-      stream: ext://sys.stdout
+        console:
+            class: logging.StreamHandler
+            level: ERROR
+            formatter: default
+            stream: ext://sys.stdout
 
-  root:
-    level: INFO
-    handlers: [file, console]
+    root:
+        level: INFO
+        handlers: [file, console]

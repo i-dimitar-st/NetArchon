@@ -44,15 +44,17 @@ class MemoryManager:
         while not cls._stop_event.is_set():
             try:
                 gc.collect()
-                cls._log_stats()
+                cls._log()
             except Exception as err:
                 _logger.warning("%s.", err)
             cls._stop_event.wait(cls._interval)
 
     @classmethod
-    def _log_stats(cls):
+    def _log(cls):
         _message = ""
-        _rss_memory_used = int(psutil.Process(os.getpid()).memory_info().rss / 1024 / 1024)
+        _rss_memory_used = int(
+            psutil.Process(os.getpid()).memory_info().rss / 1024 / 1024
+        )
         for _index, _generation in enumerate(gc.get_stats()):
             _message += (
                 f"gen({_index}): "

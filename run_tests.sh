@@ -1,2 +1,3 @@
+export APP_ROOT_PATH=$(pwd)
 source ./venv/bin/activate
-python -m unittest -v tests/test_config.py
+pytest -s --tb=line
