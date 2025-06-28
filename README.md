@@ -2,8 +2,6 @@
 
 **Pre-release** — NetArchon is currently in active development. APIs, behavior, and structure may change.
 
----
-
 ## Overview
 
 **NetArchon** is a self-hosted network control platform designed for managing and securing local networks. It runs efficiently on dedicated devices like Raspberry Pi and offers:
@@ -25,8 +23,6 @@ This design enforces:
 
 Ideally, this structure simplifies testing, maintenance, and future extensions.
 
----
-
 ## Core Components
 
 ### DHCP Server
@@ -45,8 +41,6 @@ Ideally, this structure simplifies testing, maintenance, and future extensions.
 -   DHCPv6 support (RFC 3315)
 -   Authentication/security extensions
 -   Advanced options (PXE boot, vendor-specific options)
-
----
 
 ### DNS Server
 
@@ -78,8 +72,6 @@ Ideally, this structure simplifies testing, maintenance, and future extensions.
 -   CNAME/DNAME chaining and proper handling of DNS aliasing
 -   Handling of truncation bit and response size limits for UDP packets
 
----
-
 ### Blacklisting & Threat Detection
 
 -   Centralized filtering for DNS and DHCP queries
@@ -88,15 +80,11 @@ Ideally, this structure simplifies testing, maintenance, and future extensions.
 -   LSTM-based detection for suspicious domains
 -   Real-time scoring and dynamic blocking
 
----
-
 ### Traffic Monitoring
 
 -   Packet capture and passive analysis via Scapy
 -   Logs DHCP/DNS events, device activity, anomalies
 -   Maintains historical query and lease data
-
----
 
 ### Web Dashboard
 
@@ -105,14 +93,10 @@ Ideally, this structure simplifies testing, maintenance, and future extensions.
 -   Rule configuration and diagnostics
 -   Optional role-based access control
 
----
-
 ### Visualization
 
 -   Grafana integration using SQLite data
 -   Live dashboards for DNS, DHCP, and filtering events
-
----
 
 ## Requirements
 
@@ -120,7 +104,6 @@ Ideally, this structure simplifies testing, maintenance, and future extensions.
 -   Python 3.8+
 -   Python packages: `scapy`, `dnslib`, `flask`, `torch`, `apscheduler`, `jinja2`, etc.
 
----
-
 ## Installation
+
 ... pending
