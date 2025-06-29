@@ -7,7 +7,6 @@ SCRIPT=main.py
 #     - Removes all assert statements (they are not executed).
 #     - Sets the built-in constant __debug__ to False (disables debug-only code blocks).
 
-
 sudo PYTHONDONTWRITEBYTECODE=1 \
      PYTHONPATH=${PYTHONPATH} \
      ${VENV_BINARY} -u -O ${SCRIPT}
