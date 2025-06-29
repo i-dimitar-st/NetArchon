@@ -1,111 +1,175 @@
-<style>
-    @import url("https://fonts.googleapis.com/css2?family=Orbitron:wght@700&display=swap");
+<!DOCTYPE html>
+<html lang="en">
+    <head>
+        <meta charset="UTF-8" />
+        <meta name="viewport" content="width=device-width, initial-scale=1" />
+        <title>NetArchon</title>
+        <style>
+            @import url("https://fonts.googleapis.com/css2?family=Exo+2:wght@700&display=swap");
 
-    body {
-        background: radial-gradient(circle at center, #0b0033 0%, #000010 80%);
-        color: #66ccff;
-        font-family: "Orbitron", monospace;
-        height: 100vh;
-        margin: 0;
-        display: flex;
-        flex-direction: column;
-        justify-content: center;
-        align-items: center;
-        text-align: center;
-    }
+            body {
+                margin: 0;
+                height: 100vh;
+                background: radial-gradient(circle at center, #001a33, #000814);
+                display: flex;
+                flex-direction: column;
+                justify-content: center;
+                align-items: center;
+                font-family: "Exo 2", sans-serif;
+                color: #cceeff;
+                text-align: center;
+                overflow: hidden;
+            }
 
-    .archon-glow {
-        position: relative;
-        width: 150px;
-        height: 150px;
-        margin-bottom: 1em;
-    }
-    .archon-glow::before,
-    .archon-glow::after {
-        content: "";
-        position: absolute;
-        border-radius: 50%;
-        top: 50%;
-        left: 50%;
-        transform: translate(-50%, -50%);
-        background: radial-gradient(circle, #00ccff 0%, transparent 60%);
-        filter: blur(15px);
-    }
-    .archon-glow::before {
-        width: 120px;
-        height: 120px;
-    }
-    .archon-glow::after {
-        width: 90px;
-        height: 90px;
-        background: radial-gradient(circle, #66ffff 0%, transparent 60%);
-    }
+            /* The Archon energy orb container */
+            .archon-orb {
+                position: relative;
+                width: 180px;
+                height: 180px;
+                margin-bottom: 2rem;
+            }
 
-    h1 {
-        font-size: 4rem;
-        text-transform: uppercase;
-        letter-spacing: 0.2em;
-        text-shadow: 0 0 10px #00ccff, 0 0 20px #00aaff, 0 0 30px #0088ff;
-        margin: 0;
-    }
+            /* Two overlapping glowing circles representing the merging energies */
+            .archon-orb::before,
+            .archon-orb::after {
+                content: "";
+                position: absolute;
+                border-radius: 50%;
+                top: 50%;
+                left: 50%;
+                transform: translate(-50%, -50%);
+                filter: drop-shadow(0 0 12px #4af);
+                animation: pulse 3s infinite ease-in-out;
+            }
 
-    h2 {
-        font-weight: 400;
-        font-size: 1.5rem;
-        margin-top: 0.5em;
-        color: #33bbffcc;
-        text-shadow: 0 0 5px #33bbff88;
-    }
+            .archon-orb::before {
+                width: 130px;
+                height: 130px;
+                background: radial-gradient(circle, #66ccff 0%, transparent 70%);
+                animation-delay: 0s;
+            }
 
-    p {
-        max-width: 500px;
-        font-size: 1.1rem;
-        color: #99ddffcc;
-        margin: 1.5em auto 2em;
-        line-height: 1.5;
-    }
+            .archon-orb::after {
+                width: 110px;
+                height: 110px;
+                background: radial-gradient(circle, #99ddff 0%, transparent 70%);
+                filter: drop-shadow(0 0 18px #88e);
+                animation-delay: 1.5s;
+            }
 
-    a.button {
-        display: inline-block;
-        padding: 0.8em 2em;
-        border: 2px solid #00aaff;
-        border-radius: 10px;
-        color: #00ccff;
-        font-weight: 700;
-        text-decoration: none;
-        box-shadow: 0 0 8px #00ccff88;
-        transition: background-color 0.3s ease, box-shadow 0.3s ease;
-    }
+            /* Shimmer effect overlay */
+            .archon-orb .shimmer {
+                position: absolute;
+                top: 50%;
+                left: 50%;
+                width: 150px;
+                height: 150px;
+                border-radius: 50%;
+                background: radial-gradient(
+                        circle at 30% 30%,
+                        rgba(255, 255, 255, 0.6),
+                        transparent 60%
+                    ),
+                    radial-gradient(circle at 70% 70%, rgba(100, 200, 255, 0.5), transparent 70%);
+                filter: blur(12px);
+                transform: translate(-50%, -50%);
+                animation: shimmerMove 5s linear infinite;
+                pointer-events: none;
+            }
 
-    a.button:hover {
-        background-color: #00ccff22;
-        box-shadow: 0 0 20px #00ccffcc;
-    }
+            @keyframes pulse {
+                0%,
+                100% {
+                    transform: translate(-50%, -50%) scale(1);
+                    opacity: 0.7;
+                }
+                50% {
+                    transform: translate(-50%, -50%) scale(1.1);
+                    opacity: 1;
+                }
+            }
 
-    footer {
-        position: absolute;
-        bottom: 10px;
-        font-size: 0.8rem;
-        color: #004466aa;
-        font-family: monospace;
-    }
-</style>
+            @keyframes shimmerMove {
+                0% {
+                    background-position: 0% 0%, 100% 100%;
+                }
+                50% {
+                    background-position: 100% 100%, 0% 0%;
+                }
+                100% {
+                    background-position: 0% 0%, 100% 100%;
+                }
+            }
 
-<body>
-    <div class="archon-glow"></div>
-    <h1>NetArchon</h1>
-    <h2>Network Control Platform</h2>
-    <p>
-        Self-hosted DNS and DHCP server featuring TTL caching, ARP conflict detection, recursive
-        resolution, LSTM-based blacklist filtering, and real-time monitoring.
-    </p>
-    <a
-        href="https://github.com/i-dimitar-st/NetArchon"
-        class="button"
-        target="_blank"
-        rel="noopener noreferrer"
-    >
-        View on GitHub
-    </a>
-    <footer>© 2025 i-dimitar-st</footer>
-</body>
+            h1 {
+                font-size: 4.5rem;
+                margin: 0;
+                letter-spacing: 0.3em;
+                text-shadow: 0 0 8px #66ccff, 0 0 16px #99ddff;
+            }
+
+            h2 {
+                font-weight: 400;
+                font-size: 1.7rem;
+                margin-top: 0.4em;
+                color: #aaddffcc;
+                text-shadow: 0 0 4px #99ccff88;
+            }
+
+            p {
+                max-width: 540px;
+                font-size: 1.2rem;
+                color: #bbe0ffdd;
+                line-height: 1.6;
+                margin: 1.8em auto 2.5em;
+            }
+
+            a.button {
+                display: inline-block;
+                padding: 0.8em 2.5em;
+                border: 2px solid #66bbff;
+                border-radius: 12px;
+                color: #cceeff;
+                font-weight: 700;
+                text-decoration: none;
+                transition: background-color 0.3s ease, box-shadow 0.3s ease;
+                box-shadow: 0 0 10px #66bbff88;
+            }
+
+            a.button:hover {
+                background-color: #66bbff33;
+                box-shadow: 0 0 20px #66bbffcc;
+            }
+
+            footer {
+                position: absolute;
+                bottom: 10px;
+                font-size: 0.9rem;
+                color: #4488bbcc;
+                font-family: monospace;
+            }
+        </style>
+    </head>
+    <body>
+        <div class="archon-orb" aria-hidden="true">
+            <div class="shimmer"></div>
+        </div>
+
+        <h1>NetArchon</h1>
+        <h2>Network Control Platform</h2>
+        <p>
+            Self-hosted DNS and DHCP server featuring TTL caching, ARP conflict detection, recursive
+            resolution, LSTM-based blacklist filtering, and real-time monitoring.
+        </p>
+        <a
+            href="https://github.com/i-dimitar-st/NetArchon"
+            class="button"
+            target="_blank"
+            rel="noopener noreferrer"
+        >
+            View on GitHub
+        </a>
+
+        <footer>© 2025 i-dimitar-st</footer>
+    </body>
+</html>
