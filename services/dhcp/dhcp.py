@@ -5,7 +5,7 @@ from threading import RLock
 from collections import deque
 from typing import Optional, List
 
-import scapy.all as scapy
+from scapy.sendrecv import srp, sniff, sendp
 from scapy.plist import SndRcvList
 from scapy.layers.dhcp import BOOTP
 from scapy.layers.l2 import Ether, ARP
@@ -117,7 +117,7 @@ class ClientDiscovery:
             _packet = Ether(dst=broadcast_mac, src=source_mac) / ARP(pdst=ip, psrc=source_ip, op=1)
 
             _answered: SndRcvList
-            _answered, _unanswered = scapy.srp(_packet, timeout=timeout, verbose=False, iface=iface)
+            _answered, _unanswered = srp(_packet, timeout=timeout, verbose=False, iface=iface)
 
             if _answered:
                 _sent, _received = _answered[0]
@@ -148,7 +148,7 @@ class ClientDiscovery:
             )
 
             _answered: SndRcvList
-            _answered, _unanswered = scapy.srp(_packet, timeout=timeout, verbose=False, iface=iface)
+            _answered, _unanswered = srp(_packet, timeout=timeout, verbose=False, iface=iface)
             discovered_clients = []
             for _sent, _received in _answered:
                 discovered_clients.append(
@@ -450,7 +450,7 @@ class DHCPHandler:
                 f"CHADDR:{packet[BOOTP].chaddr[:6].hex(':')}, "
                 f"YIADDR:{packet[BOOTP].yiaddr}."
             )
-            scapy.sendp(packet, iface=INTERFACE, verbose=False)
+            sendp(packet, iface=INTERFACE, verbose=False)
         except Exception as err:
             dhcp_logger.error(f"Failed to send DHCP response: {str(err)}")
 
@@ -520,7 +520,7 @@ class DHCPServer:
     @classmethod
     def _traffic_listener(cls, interface=INTERFACE, port=PORT):
         """Start sniffing for DHCP packets on the interface"""
-        scapy.sniff(
+        sniff(
             iface=interface,
             filter=f"ip and udp and port {port}",
             prn=cls._listen,

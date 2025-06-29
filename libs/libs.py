@@ -1,6 +1,7 @@
 import time
 import threading
 from typing import Optional, Any
+from functools import wraps
 from collections import deque, OrderedDict
 
 
@@ -138,6 +139,7 @@ class TTLCache:
 
     @staticmethod
     def clean_expired(func):
+        @wraps(func)
         def wrapper(self, *args, **kwargs):
             self._clean_expired()
             return func(self, *args, **kwargs)
@@ -146,6 +148,7 @@ class TTLCache:
 
     @staticmethod
     def evict(func):
+        @wraps(func)
         def wrapper(self, *args, **kwargs):
             self._evict()
             return func(self, *args, **kwargs)

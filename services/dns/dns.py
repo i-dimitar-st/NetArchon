@@ -1,25 +1,36 @@
-import time
-import json
-import queue
-import socket
-import select
-import threading
-import random
-import fnmatch
-from typing import Optional, Any
-from functools import lru_cache
-from collections import deque
-from pathlib import Path
+# Native
 from concurrent.futures import Future, ThreadPoolExecutor, as_completed
+from functools import lru_cache
+from json import load
+from pathlib import Path
+from queue import Full, Empty, Queue
+from random import choices
+from select import select
+from socket import (
+    socket,
+    AF_INET,
+    SOCK_DGRAM,
+    SOL_SOCKET,
+    SO_REUSEADDR,
+    SO_RCVBUF,
+    timeout as socketTimeout,
+)
+from threading import Lock, Event, Thread, RLock
+from time import monotonic
+from typing import Optional, Any
+from fnmatch import fnmatch
+
+# 3rd party
 from dnslib import DNSRecord, QTYPE, RR, A
-from models.models import DNSReqMessage, DnsResponseCode
+
+# Local
+from models.models import DNSReqMessage, DnsResponseCode, DnsServersIpv4
 from config.config import config
 from services.logger.logger import MainLogger
 from services.dns.db import DnsQueryHistoryDb, DnsStatsDb
-from libs.libs import Metrics, TTLCache, MRUCache
+from libs.libs import TTLCache, MRUCache
 from utils.dns_utils import DNSUtils
 
-dns_logger = MainLogger.get_logger(service_name="DNS", log_level="debug")
 
 PATHS = config.get("paths")
 ROOT_PATH = Path(PATHS.get("root"))
@@ -65,43 +76,41 @@ DNS_DEDUPLICATION_CACHE_SIZE = RESOURCE_LIMITS.get("caches").get(
 DNS_REPLY_CACHE_SIZE = RESOURCE_LIMITS.get("caches").get("reply_cache_size", 100)
 
 
+dns_logger = MainLogger.get_logger(service_name="DNS", log_level="debug")
+
+
 class DbFlushService:
     """
     Background service that periodically flushes in-memory DNS databases to disk.
-
     This service runs a dedicated thread which triggers saving of DnsStatsDb and DnsQueryHistoryDb
     at a configured interval to persist current state safely to disk.
     """
 
-    _lock = threading.Lock()
-    _stop_event = threading.Event()
-    _worker: Optional[threading.Thread] = None
+    _lock = Lock()
+    _stop_event = Event()
+    _worker: Optional[Thread] = None
     _interval: Optional[int] = None
 
     @classmethod
     def init(cls, interval: int = DB_FLUSH_INTERVAL):
         """
         Initialize the flush service with the given interval (seconds).
-        Args:
-            interval (int): Time in seconds between each flush operation.
         """
         with cls._lock:
             cls._interval = interval
-            cls._worker = threading.Thread(target=cls._work, daemon=True)
 
     @classmethod
     def start(cls):
         """
-        Start the background flush worker.
-        Raises:
-            RuntimeError: If the service is already started or not properly initialized.
+        Fresh start of new background worker.
         """
         with cls._lock:
-            if cls._worker is None:
-                raise RuntimeError("Init missing")
-            if cls._worker.is_alive():
+            if not cls._interval:
+                raise RuntimeError("Not init")
+            if cls._worker and cls._worker.is_alive():
                 raise RuntimeError("Already started")
             cls._stop_event.clear()
+            cls._worker = Thread(target=cls._work, daemon=True)
             cls._worker.start()
             dns_logger.info("%s started.", cls.__name__)
 
@@ -109,27 +118,22 @@ class DbFlushService:
     def stop(cls):
         """
         Stop the background flush thread and wait for it to finish.
-        This sets the stop event and joins the worker thread with a timeout of 1 second.
+        Resets worker.
         """
         with cls._lock:
             cls._stop_event.set()
-            _worker: Optional[threading.Thread] = cls._worker
-        if _worker:
-            _worker.join(timeout=WORKER_JOIN_TIMEOUT)
+            if cls._worker:
+                cls._worker.join(timeout=WORKER_JOIN_TIMEOUT)
+                cls._worker = None
         dns_logger.info("%s stopped.", cls.__name__)
 
     @classmethod
     def restart(cls):
         """
-        Restart the flush service.
-        Stops the current worker thread if running and starts a new one.
+        Restart the flush service
         """
         cls.stop()
-        with cls._lock:
-            cls._stop_event.clear()
-            cls._worker = threading.Thread(target=cls._work, daemon=True)
-            cls._worker.start()
-            dns_logger.info("%s restarted.", cls.__name__)
+        cls.start()
 
     @classmethod
     def _work(cls):
@@ -149,52 +153,66 @@ class DbFlushService:
 
 class BlacklistService:
     """
-    Manages blacklist, wildcard blacklist rules from a JSON file,
-    refreshing them periodically in a background thread.
+    Loads and refreshes blacklist rules from a JSON file in a background thread.
     """
 
-    _lock = threading.Lock()
-    _stop_event = threading.Event()
-    _worker: Optional[threading.Thread] = None
+    _lock = Lock()
+    _stop_event = Event()
+    _worker: Optional[Thread] = None
     _interval: Optional[int] = None
     _blacklists = {"blacklist": set(), "blacklist_rules": set()}
 
     @classmethod
     def init(cls, interval: int = BLACKLISTS_LOADING_INTERVAL):
+        """
+        Set refresh interval in seconds.
+        """
         with cls._lock:
             cls._interval = interval
-            cls._worker = threading.Thread(target=cls._work, daemon=True)
 
     @classmethod
     def start(cls):
+        """
+        Start background thread to reload blacklists periodically.
+        """
         with cls._lock:
-            if not cls._worker or cls._worker.is_alive():
-                raise RuntimeError("Init missing or already started")
-            if cls._worker.is_alive():
+            if not cls._interval:
+                raise RuntimeError("Not init")
+            if cls._worker and cls._worker.is_alive():
                 raise RuntimeError("Already started")
             cls._stop_event.clear()
+            cls._worker = Thread(target=cls._work, daemon=True)
             cls._worker.start()
             dns_logger.info("%s started.", cls.__name__)
 
     @classmethod
     def stop(cls):
-        cls._stop_event.set()
-        if cls._worker:
-            cls._worker.join(timeout=WORKER_JOIN_TIMEOUT)
-        dns_logger.info("%s stopped.", cls.__name__)
+        """
+        Stop, wait and reset for worker.
+        """
+        with cls._lock:
+            cls._stop_event.set()
+            if cls._worker:
+                cls._worker.join(timeout=WORKER_JOIN_TIMEOUT)
+                cls._worker = None
+            dns_logger.info("%s stopped.", cls.__name__)
 
     @classmethod
     def restart(cls):
+        """
+        Stop and start worker.
+        """
         cls.stop()
-        cls._stop_event.clear()
-        cls._worker = threading.Thread(target=cls._work, daemon=True)
-        cls._worker.start()
+        cls.start()
         dns_logger.info("%s restarted.", cls.__name__)
 
     @classmethod
     def _load_blacklists(cls) -> dict:
-        with open(BLACKLIST_PATH, "r", encoding="utf-8") as f:
-            control_list: Any = json.load(f)
+        """
+        Load blacklist data from JSON file.
+        """
+        with open(BLACKLIST_PATH, "r", encoding="utf-8") as file_handle:
+            control_list: Any = load(file_handle)
         return {
             "blacklist": set(
                 url.strip().lower()
@@ -207,22 +225,22 @@ class BlacklistService:
         }
 
     @classmethod
-    def _update_blacklists(cls, new_lists: dict):
-        with cls._lock:
-            if new_lists != cls._blacklists:
-                cls._blacklists = new_lists
-                dns_logger.info(
-                    "blacklist:%s, blacklist_rules:%s.",
-                    len(new_lists["blacklist"]),
-                    len(new_lists["blacklist_rules"]),
-                )
-                BlacklistService.is_blacklisted.cache_clear()
-
-    @classmethod
     def _work(cls):
+        """
+        Background thread: reload blacklist periodically.
+        """
         while not cls._stop_event.is_set():
             try:
-                cls._update_blacklists(cls._load_blacklists())
+                new_lists = cls._load_blacklists()
+                with cls._lock:
+                    if new_lists != cls._blacklists:
+                        cls._blacklists = new_lists
+                        dns_logger.info(
+                            "blacklist:%d, blacklist_rules:%d.",
+                            len(new_lists["blacklist"]),
+                            len(new_lists["blacklist_rules"]),
+                        )
+                        cls.is_blacklisted.cache_clear()
             except Exception as err:
                 dns_logger.error("Failed processing control lists %s.", err)
             cls._stop_event.wait(cls._interval)
@@ -230,12 +248,15 @@ class BlacklistService:
     @staticmethod
     @lru_cache(maxsize=BLACKLIST_CACHE_SIZE)
     def is_blacklisted(qname: str) -> bool:
+        """
+        Check if domain matches blacklist or wildcard rules.
+        """
         if not qname:
             return False
         if qname in BlacklistService._blacklists["blacklist"]:
             return True
         for _rule in BlacklistService._blacklists["blacklist_rules"]:
-            if fnmatch.fnmatch(qname, _rule):
+            if fnmatch(qname, _rule):
                 return True
         return False
 
@@ -257,7 +278,14 @@ class ExternalResolverService:
     3. Call stop() or restart() to manage the executor lifecycle.
     """
 
-    _lock = threading.Lock()
+    _lock = Lock()
+    _port: int = DNS_PORT
+    _max_msg_size: int = DNS_UDP_PACKET_MAX_SIZE
+    _timeout: float = EXTERNAL_TIMEOUT
+    _timeout_buffer: float = EXTERNAL_TIMEOUT_BUFFER
+    _max_workers: int = EXTERNAL_WORKERS
+    _executor: Optional[ThreadPoolExecutor] = None
+    _dns_servers: Optional[DnsServersIpv4] = None
 
     @classmethod
     def init(
@@ -269,18 +297,29 @@ class ExternalResolverService:
         max_msg_size: int = DNS_UDP_PACKET_MAX_SIZE,
         max_workers: int = EXTERNAL_WORKERS,
     ):
-        """Initialize the resolver with configuration and start thread pool."""
+        """
+        Initialize the resolver with configuration and start thread pool.
+        """
 
         with cls._lock:
-            if hasattr(cls, "_executor") and cls._executor is not None:
+            if cls._executor is not None:
                 raise RuntimeError("Already initialized")
-        cls._port: int = port
-        cls._dns_servers: deque[str] = deque(dns_servers)
-        cls._max_msg_size: int = max_msg_size
-        cls._timeout: float = timeout
-        cls._timeout_buffer: float = timeout_buffer
-        cls._executor = ThreadPoolExecutor(max_workers=max_workers)
-        dns_logger.info("%s init.", cls.__name__)
+            cls._dns_servers = DnsServersIpv4(dns_servers)
+            cls._port = port
+            cls._max_msg_size = max_msg_size
+            cls._timeout = timeout
+            cls._timeout_buffer = timeout_buffer
+            cls._max_workers = max_workers
+            dns_logger.info("%s init.", cls.__name__)
+
+    @classmethod
+    def start(cls):
+        """Start thread pool executor."""
+        with cls._lock:
+            if cls._executor:
+                raise RuntimeError("Already started")
+            cls._executor = ThreadPoolExecutor(max_workers=cls._max_workers)
+            dns_logger.info("%s started.", cls.__name__)
 
     @classmethod
     def stop(cls):
@@ -294,49 +333,47 @@ class ExternalResolverService:
     @classmethod
     def restart(cls, max_workers: int = EXTERNAL_WORKERS):
         """Restart the thread pool executor with new worker count."""
+        cls.stop()
         with cls._lock:
-            if cls._executor is not None:
-                cls._executor.shutdown(wait=True, cancel_futures=True)
             cls._executor = ThreadPoolExecutor(max_workers=max_workers)
             dns_logger.info("%s restarted.", cls.__name__)
 
     @classmethod
-    def resolve_external(cls, request: DNSRecord) -> Optional[DNSRecord]:
+    def resolve_external(cls, dns_request: DNSRecord) -> Optional[DNSRecord]:
         """Send DNS query to external servers in parallel; return first successful reply."""
-        if not cls._executor:
-            raise RuntimeError("Not init")
+        with cls._lock:
+            if not cls._executor:
+                raise RuntimeError("Not started")
+            if cls._dns_servers is None:
+                raise RuntimeError("No DNS Servers")
 
-        # We want a copy to prevent mutation in multi thread env, then randomize to introduce jitter
-        _dns_servers: list[str] = list(cls._dns_servers)
-        random.shuffle(_dns_servers)
-
-        _futures = {}
-        for _ip in _dns_servers:
-            _future: Future[DNSRecord] = cls._executor.submit(
-                cls._query_external_dns_server, request, _ip
+        # Randomize to distribute requests across DNS servers evenly per thread
+        futures = {}
+        for dns_server_ip in choices(cls._dns_servers, k=len(cls._dns_servers)):
+            future: Future[DNSRecord] = cls._executor.submit(
+                cls._query_external_dns_server, dns_request, dns_server_ip
             )
-            _futures[_future] = _ip
+            futures[future] = dns_server_ip
 
         try:
             # As completed return first completed so we want that and cancel rest
             for _completed in as_completed(
-                _futures, timeout=cls._timeout + cls._timeout_buffer
+                futures, timeout=cls._timeout + cls._timeout_buffer
             ):
-                _ip: str = _futures[_completed]
+                _dns_server_ip: str = futures[_completed]
                 try:
-                    # We want result collected first
-                    # If error is thrown interator waits for the next (and we dont cancel them)
+                    # Get first resut but cancel other futures to avoid zombies.
                     reply: Any = _completed.result()
-                    for _still_pending in _futures:
+                    for _still_pending in futures:
                         if _still_pending != _completed:
                             _still_pending.cancel()
                     return reply
 
                 except Exception as err:
-                    dns_logger.error(f"Error getting DNS reply from {_ip}:{str(err)}.")
+                    dns_logger.error(f"{_dns_server_ip} errored with {str(err)}.")
 
         except Exception as err:
-            dns_logger.error(f"Error waiting for DNS futures: {str(err)}.")
+            dns_logger.error(f"Error with DNS futures: {str(err)}.")
 
         # All failed
         return None
@@ -351,7 +388,7 @@ class ExternalResolverService:
             raise ValueError("Missing data or upstream DNS server.")
 
         # Create a UDP IPv4 socket
-        with socket.socket(socket.AF_INET, socket.SOCK_DGRAM) as _dns_socket:
+        with socket(AF_INET, SOCK_DGRAM) as _dns_socket:
             try:
                 _dns_socket.settimeout(cls._timeout)
                 _dns_socket.sendto(request.pack(), (str(dns_server), int(cls._port)))
@@ -360,18 +397,15 @@ class ExternalResolverService:
                 _reply: DNSRecord = DNSRecord.parse(_reply_raw)
 
                 if _reply.header.id != request.header.id:
-                    raise ValueError(
-                        f"Mismatched DNS Transaction ID from {dns_server}."
-                    )
+                    raise ValueError(f"DNS ID mismatch {dns_server}.")
+
                 return _reply
-            except socket.timeout as _timeout_error:
-                raise TimeoutError(
-                    f"Timeout waiting for response from {dns_server}."
-                ) from _timeout_error
+
+            except socketTimeout as _err:
+                raise TimeoutError(f"{dns_server} timedout.") from _err
+
             except Exception as _err:
-                raise RuntimeError(
-                    f"Error contacting upstream {dns_server}: {str(_err)}."
-                ) from _err
+                raise RuntimeError(f"Error {dns_server}: {str(_err)}.") from _err
 
 
 class LocalResolverService:
@@ -397,10 +431,10 @@ class LocalResolverService:
     _is_init = False
     _recv_thread = None
     _req_worker_threads = []
-    _dns_socket_lock = threading.RLock()
+    _dns_socket_lock = RLock()
     _dedup_cache = MRUCache(max_size=DNS_DEDUPLICATION_CACHE_SIZE)
     _dns_cache = TTLCache(max_size=DNS_REPLY_CACHE_SIZE, ttl=DNS_CACHE_TTL)
-    _stop_event = threading.Event()
+    _stop_event = Event()
 
     @classmethod
     def init(
@@ -429,15 +463,13 @@ class LocalResolverService:
         cls._queue_get_timeout: float = queue_get_timeout
         cls._external_timeout: float = external_timeout
         cls._max_workers: int = max_workers
-        cls._dns_socket = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
-        cls._dns_socket.setsockopt(socket.SOL_SOCKET, socket.SO_REUSEADDR, 1)
-        cls._dns_socket.setsockopt(
-            socket.SOL_SOCKET, socket.SO_RCVBUF, DNS_SOCKET_OS_BUFFER_SIZE
-        )
+        cls._dns_socket = socket(AF_INET, SOCK_DGRAM)
+        cls._dns_socket.setsockopt(SOL_SOCKET, SO_REUSEADDR, 1)
+        cls._dns_socket.setsockopt(SOL_SOCKET, SO_RCVBUF, DNS_SOCKET_OS_BUFFER_SIZE)
         cls._dns_socket.setblocking(False)
         cls._dns_socket.bind((cls._host, cls._port))
         cls._dns_servers: list[str] = dns_servers
-        cls._recv_queue = queue.Queue(maxsize=DNS_LOCAL_RECV_QUEUE_SIZE)
+        cls._recv_queue = Queue(maxsize=DNS_LOCAL_RECV_QUEUE_SIZE)
         cls._is_init = True
 
     @classmethod
@@ -580,13 +612,11 @@ class LocalResolverService:
                 # Wait for the socket to be readable (i.e. data ready to recv), with timeout
                 # OS level select()
                 if cls._dns_socket:
-                    _rlist, _wlist, _xlist = select.select(
-                        [cls._dns_socket], [], [], timeout
-                    )
+                    _rlist, _wlist, _xlist = select([cls._dns_socket], [], [], timeout)
                     if cls._dns_socket in _rlist:
                         data, addr = cls._dns_socket.recvfrom(cls._msg_size)
                         cls._recv_queue.put_nowait(DNSReqMessage(data, addr))
-            except queue.Full:
+            except Full:
                 dns_logger.warning("Receive queue full.")
             except Exception as err:
                 dns_logger.error(f"Error reading from DNS socket:{str(err)}.")
@@ -595,7 +625,7 @@ class LocalResolverService:
     def _process_dns_req_packets(cls):
         """Worker: dequeue and process DNS requests until sentinel or stop event."""
         while not cls._stop_event.is_set():
-            _start = time.monotonic()
+            _start = monotonic()
             try:
                 _dns_req_message: DNSReqMessage | None = cls._recv_queue.get(
                     timeout=cls._queue_get_timeout
@@ -603,7 +633,7 @@ class LocalResolverService:
                 # We hit the sentinel is shutdown hence we exit the loop
                 if _dns_req_message is None:
                     break
-            except queue.Empty:
+            except Empty:
                 continue
 
             try:
@@ -635,7 +665,7 @@ class LocalResolverService:
 
             finally:
                 cls._recv_queue.task_done()
-                Metrics.add_sample(time.monotonic() - _start)
+                # Metrics.add_sample(time.monotonic() - _start)
 
     @classmethod
     def start(cls):
@@ -643,12 +673,10 @@ class LocalResolverService:
         if not cls._is_init:
             raise RuntimeError("Must init")
         cls._stop_event.clear()
-        cls._recv_thread = threading.Thread(target=cls._listen_traffic, daemon=True)
+        cls._recv_thread = Thread(target=cls._listen_traffic, daemon=True)
         cls._recv_thread.start()
         for _ in range(cls._max_workers):
-            _worker_thread = threading.Thread(
-                target=cls._process_dns_req_packets, daemon=True
-            )
+            _worker_thread = Thread(target=cls._process_dns_req_packets, daemon=True)
             _worker_thread.start()
             cls._req_worker_threads.append(_worker_thread)
 
@@ -677,7 +705,7 @@ class LocalResolverService:
 
 
 class DNSServer:
-    _lock = threading.RLock()
+    _lock = RLock()
     _initialised = False
     _running = False
 
@@ -693,15 +721,16 @@ class DNSServer:
             LocalResolverService.init()
             BlacklistService.init()
             cls._initialised = True
-            Metrics.init(max_size=METRICS_SAMPLE_BUFFER_SIZE)
+            # Metrics.init(max_size=METRICS_SAMPLE_BUFFER_SIZE)
 
     @classmethod
     def start(cls):
         if cls._running:
             raise RuntimeError("Server already running.")
         with cls._lock:
-            DbFlushService.start()
             BlacklistService.start()
+            DbFlushService.start()
+            ExternalResolverService.start()
             LocalResolverService.start()
             cls._running = True
             dns_logger.info("DNS server started.")

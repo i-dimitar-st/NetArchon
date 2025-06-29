@@ -1,11 +1,15 @@
-import time
-import threading
-import sqlite3
+# Native
 from pathlib import Path
+from sqlite3 import Connection, Cursor, connect
+from threading import RLock
+from time import time
 from typing import Optional, Any
+
+# Local
 from utils.dns_utils import DNSUtils
 from config.config import config
 from models.models import DBSchemas
+
 
 PATHS = config.get("paths")
 ROOT_PATH = Path(PATHS.get("root"))
@@ -22,9 +26,9 @@ class DnsQueryHistoryDb:
     and the time they were last seen. Supports capped history and disk backup.
     """
 
-    _lock = threading.RLock()
-    _conn: Optional[sqlite3.Connection] = None
-    _cursor: Optional[sqlite3.Cursor] = None
+    _lock = RLock()
+    _conn: Optional[Connection] = None
+    _cursor: Optional[Cursor] = None
 
     @classmethod
     def init(cls, max_size=DNS_DB_MAX_HISTORY_SIZE):
@@ -33,7 +37,7 @@ class DnsQueryHistoryDb:
         if cls._cursor or cls._conn:
             raise RuntimeError("Already init.")
 
-        cls._conn = sqlite3.connect(":memory:", check_same_thread=False)
+        cls._conn = connect(":memory:", check_same_thread=False)
         cls._cursor = cls._conn.cursor()
         cls._create_table()
         cls._max_size = max_size
@@ -66,7 +70,7 @@ class DnsQueryHistoryDb:
             raise RuntimeError("DB not initialized.")
 
         with cls._lock:
-            _conn_disk: sqlite3.Connection = sqlite3.connect(path)
+            _conn_disk: Connection = connect(path)
             cls._conn.backup(_conn_disk)
             _conn_disk.close()
 
@@ -109,7 +113,7 @@ class DnsQueryHistoryDb:
                     query_counter = history.query_counter + 1,
                     created = excluded.created
                 """,
-                (_query, int(time.time())),
+                (_query, int(time())),
             )
             cls._conn.commit()
 
@@ -131,9 +135,9 @@ class DnsStatsDb:
     Supports schema validation and disk backup.
     """
 
-    _lock = threading.RLock()
-    _conn: Optional[sqlite3.Connection] = None
-    _cursor: Optional[sqlite3.Cursor] = None
+    _lock = RLock()
+    _conn: Optional[Connection] = None
+    _cursor: Optional[Cursor] = None
     _valid_columns: set[str] = set()
 
     @classmethod
@@ -144,7 +148,7 @@ class DnsStatsDb:
             raise RuntimeError("Already init")
 
         with cls._lock:
-            cls._conn = sqlite3.connect(":memory:", check_same_thread=False)
+            cls._conn = connect(":memory:", check_same_thread=False)
             cls._cursor = cls._conn.cursor()
             cls._create_table()
 
@@ -158,7 +162,7 @@ class DnsStatsDb:
         with cls._lock:
             cls._cursor.execute(DBSchemas.dnsStats)
             cls._conn.commit()
-            _now = int(time.time())
+            _now = int(time())
             cls._cursor.execute(
                 """
                 INSERT OR IGNORE INTO
@@ -199,18 +203,18 @@ class DnsStatsDb:
                     last_updated = ?
                 WHERE id = 1
                 """,
-                (count, int(time.time())),
+                (count, int(time())),
             )
             cls._conn.commit()
 
     @classmethod
-    def save_to_disk(cls,path: Path = DNS_DB_STATS_PATH):
+    def save_to_disk(cls, path: Path = DNS_DB_STATS_PATH):
         """Backs up the in-memory stats database to disk."""
         if not cls._conn or not cls._cursor:
             raise RuntimeError("Init missing.")
 
         with cls._lock:
-            _conn_disk: sqlite3.Connection = sqlite3.connect(path)
+            _conn_disk: Connection = connect(path)
             cls._conn.backup(_conn_disk)
             _conn_disk.close()
 

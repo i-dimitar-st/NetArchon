@@ -1,4 +1,5 @@
 import time
+from ipaddress import IPv4Address
 from enum import Enum, unique
 from enum import IntEnum
 from dnslib import DNSRecord
@@ -106,6 +107,62 @@ class LogLevel(Enum):
         return cls.DEBUG  # fallback
 
 
+class DnsServersIpv4:
+    """
+    Holds a validated list of IPv4 DNS server addresses.
+    - Validates each address on initialization.
+    - Supports iteration and string representation of the server list.
+    """
+
+    def __init__(self, servers: list[str]):
+        """
+        Initialize with a list of IPv4 DNS server strings.
+        - No empty servers allowd.
+        """
+        if not servers or not isinstance(servers, list):
+            raise ValueError("Must provide a non-empty list of DNS servers")
+        self._servers = []
+        for _server in servers:
+            if not DnsServersIpv4._is_ipv4_server(_server):
+                raise ValueError(f"Invalid IPv4 address: {_server}")
+            self._servers.append(_server)
+
+    def __getitem__(self, index):
+        """
+        Return the DNS server at the specified index.
+        """
+        return self._servers[index]
+
+    def __iter__(self):
+        """
+        Iterate over the DNS server list.
+        """
+        return iter(self._servers)
+
+    def __repr__(self):
+        """
+        Return a string representation of the DNS server list.
+        """
+        return repr(self._servers)
+
+    def __len__(self):
+        """
+        Return the number of DNS servers stored.
+        """
+        return len(self._servers)
+
+    @staticmethod
+    def _is_ipv4_server(ip: str):
+        """
+        Check if the given string is a valid IPv4 address.
+        """
+        try:
+            IPv4Address(ip)
+            return True
+        except:
+            return False
+
+
 class DNSReqMessage:
     def __init__(self, raw: bytes, addr: tuple):
         self.received = time.time()
@@ -139,7 +196,12 @@ class DNSReqMessage:
 
     @staticmethod
     def _generate_dedup_key(dns_message: DNSRecord, addr: tuple) -> tuple:
-        return (dns_message.q.qname, dns_message.q.qtype, dns_message.header.id, addr[0])
+        return (
+            dns_message.q.qname,
+            dns_message.q.qtype,
+            dns_message.header.id,
+            addr[0],
+        )
 
 
 class DHCPResponseFactory:
@@ -358,14 +420,22 @@ class DhcpMessage:
         self.mac: str = packet[
             Ether
         ].src.lower()  # Normalized MAC address (source hardware address)
-        self.src_ip: str = packet[IP].src if IP in packet else ""  # Source IP of the UDP packet
+        self.src_ip: str = (
+            packet[IP].src if IP in packet else ""
+        )  # Source IP of the UDP packet
         self.xid: int = packet[BOOTP].xid  # Transaction ID
-        self.chaddr: bytes = packet[BOOTP].chaddr  # Client hardware address (raw, 16 bytes)
-        self.yiaddr: str = packet[BOOTP].yiaddr  # 'Your' IP address (assigned by server)
+        self.chaddr: bytes = packet[
+            BOOTP
+        ].chaddr  # Client hardware address (raw, 16 bytes)
+        self.yiaddr: str = packet[
+            BOOTP
+        ].yiaddr  # 'Your' IP address (assigned by server)
         self.ciaddr: str = packet[
             BOOTP
         ].ciaddr  # Client's current IP address (used in RENEW/REBIND)
-        self.giaddr: str = packet[BOOTP].giaddr  # Gateway IP address (used by relay agents)
+        self.giaddr: str = packet[
+            BOOTP
+        ].giaddr  # Gateway IP address (used by relay agents)
         self.dhcp_type: int = DHCPUtilities.extract_dhcp_type_from_packet(
             packet
         )  # DHCP message type (1=DISCOVER, 3=REQUEST, etc.)
