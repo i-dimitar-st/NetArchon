@@ -1,86 +1,111 @@
-<!DOCTYPE html>
-<html lang="en">
-    <head>
-        <meta charset="UTF-8" />
-        <meta name="viewport" content="width=device-width, initial-scale=1" />
-        <title>NetArchon</title>
-        <style>
-            @import url("https://fonts.googleapis.com/css2?family=Orbitron:wght@700&display=swap");
+<style>
+    @import url("https://fonts.googleapis.com/css2?family=Orbitron:wght@700&display=swap");
 
-            body {
-                background: #0a0a0a;
-                color: #00ffea;
-                font-family: "Orbitron", monospace, monospace;
-                margin: 0;
-                display: flex;
-                flex-direction: column;
-                align-items: center;
-                justify-content: center;
-                height: 100vh;
-                text-align: center;
-            }
+    body {
+        background: radial-gradient(circle at center, #0b0033 0%, #000010 80%);
+        color: #66ccff;
+        font-family: "Orbitron", monospace;
+        height: 100vh;
+        margin: 0;
+        display: flex;
+        flex-direction: column;
+        justify-content: center;
+        align-items: center;
+        text-align: center;
+    }
 
-            h1 {
-                font-size: 4rem;
-                margin: 0.2em 0;
-                letter-spacing: 0.15em;
-                text-transform: uppercase;
-                text-shadow: 0 0 8px #00ffea, 0 0 20px #00ffa0;
-            }
+    .archon-glow {
+        position: relative;
+        width: 150px;
+        height: 150px;
+        margin-bottom: 1em;
+    }
+    .archon-glow::before,
+    .archon-glow::after {
+        content: "";
+        position: absolute;
+        border-radius: 50%;
+        top: 50%;
+        left: 50%;
+        transform: translate(-50%, -50%);
+        background: radial-gradient(circle, #00ccff 0%, transparent 60%);
+        filter: blur(15px);
+    }
+    .archon-glow::before {
+        width: 120px;
+        height: 120px;
+    }
+    .archon-glow::after {
+        width: 90px;
+        height: 90px;
+        background: radial-gradient(circle, #66ffff 0%, transparent 60%);
+    }
 
-            h2 {
-                font-weight: normal;
-                font-size: 1.5rem;
-                margin-bottom: 2em;
-                color: #0fffc1cc;
-            }
+    h1 {
+        font-size: 4rem;
+        text-transform: uppercase;
+        letter-spacing: 0.2em;
+        text-shadow: 0 0 10px #00ccff, 0 0 20px #00aaff, 0 0 30px #0088ff;
+        margin: 0;
+    }
 
-            p {
-                max-width: 600px;
-                font-size: 1.1rem;
-                line-height: 1.6;
-                color: #00ffeadd;
-                margin: 0 auto 3em;
-            }
+    h2 {
+        font-weight: 400;
+        font-size: 1.5rem;
+        margin-top: 0.5em;
+        color: #33bbffcc;
+        text-shadow: 0 0 5px #33bbff88;
+    }
 
-            a {
-                color: #00ffea;
-                text-decoration: none;
-                border: 2px solid #00ffea;
-                padding: 0.8em 2em;
-                border-radius: 8px;
-                font-weight: 700;
-                transition: background-color 0.3s ease;
-            }
+    p {
+        max-width: 500px;
+        font-size: 1.1rem;
+        color: #99ddffcc;
+        margin: 1.5em auto 2em;
+        line-height: 1.5;
+    }
 
-            a:hover {
-                background-color: #00ffea22;
-            }
+    a.button {
+        display: inline-block;
+        padding: 0.8em 2em;
+        border: 2px solid #00aaff;
+        border-radius: 10px;
+        color: #00ccff;
+        font-weight: 700;
+        text-decoration: none;
+        box-shadow: 0 0 8px #00ccff88;
+        transition: background-color 0.3s ease, box-shadow 0.3s ease;
+    }
 
-            footer {
-                position: absolute;
-                bottom: 10px;
-                font-size: 0.8rem;
-                color: #007766cc;
-                font-family: monospace;
-            }
-        </style>
-    </head>
-    <body>
-        <h1>NetArchon</h1>
-        <h2>Network Control Platform</h2>
-        <p>
-            Self-hosted DNS and DHCP server with advanced features including TTL caching, ARP
-            conflict detection, recursive DNS resolution, customizable blacklisting with LSTM-based
-            filtering, and real-time traffic monitoring.
-        </p>
-        <a
-            href="https://github.com/i-dimitar-st/NetArchon"
-            target="_blank"
-            rel="noopener noreferrer"
-            >View on GitHub</a
-        >
+    a.button:hover {
+        background-color: #00ccff22;
+        box-shadow: 0 0 20px #00ccffcc;
+    }
 
-        <footer>© 2025 i-dimitar-st</footer>
-    </body>
-</html>
+    footer {
+        position: absolute;
+        bottom: 10px;
+        font-size: 0.8rem;
+        color: #004466aa;
+        font-family: monospace;
+    }
+</style>
+
+<body>
+    <div class="archon-glow"></div>
+    <h1>NetArchon</h1>
+    <h2>Network Control Platform</h2>
+    <p>
+        Self-hosted DNS and DHCP server featuring TTL caching, ARP conflict detection, recursive
+        resolution, LSTM-based blacklist filtering, and real-time monitoring.
+    </p>
+    <a
+        href="https://github.com/i-dimitar-st/NetArchon"
+        class="button"
+        target="_blank"
+        rel="noopener noreferrer"
+    >
+        View on GitHub
+    </a>
+    <footer>© 2025 i-dimitar-st</footer>
+</body>
