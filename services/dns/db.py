@@ -29,6 +29,7 @@ class DnsQueryHistoryDb:
     _lock = RLock()
     _conn: Optional[Connection] = None
     _cursor: Optional[Cursor] = None
+    _max_size: int = DNS_DB_MAX_HISTORY_SIZE
 
     @classmethod
     def init(cls, max_size=DNS_DB_MAX_HISTORY_SIZE):
@@ -75,47 +76,80 @@ class DnsQueryHistoryDb:
             _conn_disk.close()
 
     @classmethod
+    def _insert_query(cls, query: str, active: int):
+        """Inserts a new query record into the history."""
+        with cls._lock:
+            if cls._cursor:
+                cls._cursor.execute(
+                    """
+                    INSERT INTO history (query, query_counter, created)
+                    VALUES (?, ?, ?)
+                    """,
+                    (query, active, int(time())),
+                )
+
+    @classmethod
+    def _update_query(cls, query: str) -> bool:
+        """
+        Attempts to update an existing query.
+        Returns True if update happened, False if not found.
+        """
+        with cls._lock:
+            if cls._cursor:
+                cls._cursor.execute(
+                    """
+                    UPDATE history
+                    SET query_counter = query_counter + 1,
+                        created = ?
+                    WHERE query = ?
+                    """,
+                    (int(time()), query),
+                )
+                return bool(cls._cursor.rowcount > 0)
+            return False
+
+    @classmethod
+    def _evict_queries(cls):
+        """
+        Removes the oldest queries if the DB exceeds max size.
+        Only triggered before inserting new queries.
+        """
+        with cls._lock:
+            if cls._cursor:
+                cls._cursor.execute("SELECT COUNT(*) FROM history")
+                count = int(cls._cursor.fetchone()[0])
+
+                if count >= cls._max_size:
+                    to_delete = count - cls._max_size + 1
+                    cls._cursor.execute(
+                        """
+                        DELETE FROM history
+                        WHERE query IN (
+                            SELECT query
+                            FROM history
+                            ORDER BY created ASC
+                            LIMIT ?
+                        )
+                        """,
+                        (to_delete,),
+                    )
+
+    @classmethod
     def add_query(cls, query: str, active: int = 1):
         """
         Adds a DNS query to the history or updates its counter if already present.
-        Evicts oldest queries when over max capacity.
+        Evicts oldest queries only when inserting a new record over max capacity.
         """
 
-        if not cls._cursor or not cls._conn:
-            raise RuntimeError("DB not initialized.")
-
         with cls._lock:
+            _query = DNSUtils.normalize_domain(query)
 
-            cls._cursor.execute("SELECT COUNT(*) FROM history")
-            _count = int(cls._cursor.fetchone()[0])
-            if _count >= cls._max_size:
-                _to_delete: int = _count - cls._max_size + 1
-                cls._cursor.execute(
-                    """
-                    DELETE
-                    FROM history
-                    WHERE query IN (
-                        SELECT query
-                        FROM history
-                        ORDER BY created ASC
-                        LIMIT ?
-                    )
-                    """,
-                    (_to_delete,),
-                )
+            if not cls._update_query(_query):
+                cls._evict_queries()
+                cls._insert_query(_query, active)
 
-            _query: str = DNSUtils.normalize_domain(query.rstrip(".").lower())
-            cls._cursor.execute(
-                """
-                INSERT INTO history (query,query_counter,created)
-                VALUES (?,1,?)
-                ON CONFLICT (query) DO UPDATE SET
-                    query_counter = history.query_counter + 1,
-                    created = excluded.created
-                """,
-                (_query, int(time())),
-            )
-            cls._conn.commit()
+            if cls._conn:
+                cls._conn.commit()
 
     @classmethod
     def close(cls):
