@@ -6,12 +6,13 @@ meta:
 app:
     host: "0.0.0.0"
     port: 8443
+    bearer_token: "123!@#456$%^"
 
 paths:
     root: /projects/gitlab/netarchon
     database: db
     logs: logs
-    certificates: services/app/certificates
+    certificates: certificates
 
 certificates:
     cert: cert.pem
@@ -89,7 +90,7 @@ dhcp:
         persistence: 60
 
 memory_management:
-    interval: 600
+    interval: 300
 
 database:
     persistence_interval: 30

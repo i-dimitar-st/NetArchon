@@ -1,5 +1,4 @@
-import os
-import time
+import pytest
 from pathlib import Path
 import tempfile
 from services.dns.db import DnsQueryHistoryDb, DnsStatsDb
@@ -97,23 +96,11 @@ def test_dns_stats_db_basic():
 
 def test_dns_stats_db_double_init_raises():
     DnsStatsDb.init()
-    try:
-        try:
-            DnsStatsDb.init()
-            assert False
-        except RuntimeError:
-            pass
-    finally:
-        DnsStatsDb.close()
+    with pytest.raises(RuntimeError):
+        DnsStatsDb.init()
+    DnsStatsDb.close()
 
 
 def test_dns_stats_db_increment_without_init_raises():
-    DnsStatsDb.close()
-    try:
-        try:
-            DnsStatsDb.increment("any_key")
-            assert False
-        except RuntimeError:
-            pass
-    finally:
-        DnsStatsDb.close()
+    with pytest.raises(RuntimeError):
+        DnsStatsDb.increment("any_key")

@@ -4,7 +4,7 @@ from functools import lru_cache
 from json import load
 from pathlib import Path
 from queue import Full, Empty, Queue
-from random import choices
+from random import sample
 from select import select
 from socket import (
     socket,
@@ -156,7 +156,7 @@ class BlacklistService:
     Loads and refreshes blacklist rules from a JSON file in a background thread.
     """
 
-    _lock = Lock()
+    _lock = RLock()
     _stop_event = Event()
     _worker: Optional[Thread] = None
     _interval: Optional[int] = None
@@ -211,6 +211,7 @@ class BlacklistService:
         """
         Load blacklist data from JSON file.
         """
+
         with open(BLACKLIST_PATH, "r", encoding="utf-8") as file_handle:
             control_list: Any = load(file_handle)
         return {
@@ -349,7 +350,7 @@ class ExternalResolverService:
 
         # Randomize to distribute requests across DNS servers evenly per thread
         futures = {}
-        for dns_server_ip in choices(cls._dns_servers, k=len(cls._dns_servers)):
+        for dns_server_ip in sample(cls._dns_servers, k=len(cls._dns_servers)):
             future: Future[DNSRecord] = cls._executor.submit(
                 cls._query_external_dns_server, dns_request, dns_server_ip
             )

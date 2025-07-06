@@ -4,11 +4,11 @@
 /logs/
 /db/
 /dump.log
+/certificates/
 
 # Project 
 /services/neural_net/models/
 /config/dns_control_list.json
-/services/app/certificates/
 
 # Anywhere
 __pycache__/

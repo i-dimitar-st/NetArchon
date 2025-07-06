@@ -1,7 +1,8 @@
-import time
+from time import time
 from ipaddress import IPv4Address
 from enum import Enum, unique
 from enum import IntEnum
+from collections.abc import Sequence
 from dnslib import DNSRecord
 from utils.dns_utils import DNSUtils
 from scapy.packet import Packet
@@ -107,7 +108,7 @@ class LogLevel(Enum):
         return cls.DEBUG  # fallback
 
 
-class DnsServersIpv4:
+class DnsServersIpv4(Sequence):
     """
     Holds a validated list of IPv4 DNS server addresses.
     - Validates each address on initialization.
@@ -127,17 +128,11 @@ class DnsServersIpv4:
                 raise ValueError(f"Invalid IPv4 address: {_server}")
             self._servers.append(_server)
 
-    def __getitem__(self, index):
+    def __getitem__(self, index: int) -> str:
         """
         Return the DNS server at the specified index.
         """
         return self._servers[index]
-
-    def __iter__(self):
-        """
-        Iterate over the DNS server list.
-        """
-        return iter(self._servers)
 
     def __repr__(self):
         """
@@ -152,7 +147,7 @@ class DnsServersIpv4:
         return len(self._servers)
 
     @staticmethod
-    def _is_ipv4_server(ip: str):
+    def _is_ipv4_server(ip: str) -> bool:
         """
         Check if the given string is a valid IPv4 address.
         """
@@ -165,7 +160,7 @@ class DnsServersIpv4:
 
 class DNSReqMessage:
     def __init__(self, raw: bytes, addr: tuple):
-        self.received = time.time()
+        self.received = time()
         self.raw: bytes = raw
         self.addr = addr
         self.error: str | None = None
@@ -205,7 +200,6 @@ class DNSReqMessage:
 
 
 class DHCPResponseFactory:
-    # Class variables (shared across all instances)
     server_ip: str
     server_mac: str
     port: int
@@ -263,26 +257,22 @@ class DHCPResponseFactory:
             "flags": cls.flags,
         }
 
-        dhcp_opts = cls._build_dhcp_opts(dhcp_type)
-
         return (
             Ether(src=cls.server_mac, dst=cls.broadcast_mac)
             / IP(src=cls.server_ip, dst=cls.broadcast_ip)
             / UDP(sport=cls.port, dport=request_packet[UDP].sport)
             / BOOTP(**bootp_opts)
-            / DHCP(options=dhcp_opts)
+            / DHCP(options=cls._build_dhcp_opts(dhcp_type))
         )
 
     @classmethod
     def _build_dhcp_opts(cls, dhcp_type: int) -> list:
 
-        opts = []
-
         if dhcp_type == DHCPType.NAK:
-            opts = [("message-type", DHCPType.NAK), ("server_id", cls.server_ip)]
+            return [("message-type", DHCPType.NAK), ("server_id", cls.server_ip), "end"]
 
         elif dhcp_type == DHCPType.ACK:
-            opts = [
+            return [
                 ("message-type", dhcp_type),
                 ("server_id", cls.server_ip),
                 ("subnet_mask", cls.subnet_mask),
@@ -292,11 +282,12 @@ class DHCPResponseFactory:
                 ("renewal_time", cls.renewal_time),
                 ("rebinding_time", cls.rebinding_time),
                 ("interface-mtu", cls.mtu),
+                "end",
             ]
 
         elif dhcp_type == DHCPType.OFFER:
-            opts = [
-                ("message-type", DHCPType.OFFER),
+            return [
+                ("message-type", dhcp_type),
                 ("server_id", cls.server_ip),
                 ("subnet_mask", cls.subnet_mask),
                 ("router", cls.router),
@@ -305,13 +296,11 @@ class DHCPResponseFactory:
                 ("renewal_time", cls.renewal_time),
                 ("rebinding_time", cls.rebinding_time),
                 ("interface-mtu", cls.mtu),
+                "end",
             ]
 
         else:
             raise RuntimeError(f"Unknown DHCP type: {dhcp_type}")
-
-        opts.append("end")
-        return opts
 
 
 class DBSchemas:
@@ -415,49 +404,28 @@ class DHCPType(IntEnum):
 
 class DhcpMessage:
     def __init__(self, packet: Packet):
-        self.received = time.time()
-        self.packet = packet  # Raw Scapy packet
-        self.mac: str = packet[
-            Ether
-        ].src.lower()  # Normalized MAC address (source hardware address)
-        self.src_ip: str = (
-            packet[IP].src if IP in packet else ""
-        )  # Source IP of the UDP packet
+        self.received = time()
+        self.packet: Packet = packet  # Raw Scapy packet
+        self.mac: str = packet[Ether].src.lower()
+        self.src_ip: str = packet[IP].src  # Source IP of the UDP packet
         self.xid: int = packet[BOOTP].xid  # Transaction ID
-        self.chaddr: bytes = packet[
-            BOOTP
-        ].chaddr  # Client hardware address (raw, 16 bytes)
-        self.yiaddr: str = packet[
-            BOOTP
-        ].yiaddr  # 'Your' IP address (assigned by server)
-        self.ciaddr: str = packet[
-            BOOTP
-        ].ciaddr  # Client's current IP address (used in RENEW/REBIND)
-        self.giaddr: str = packet[
-            BOOTP
-        ].giaddr  # Gateway IP address (used by relay agents)
-        self.dhcp_type: int = DHCPUtilities.extract_dhcp_type_from_packet(
-            packet
-        )  # DHCP message type (1=DISCOVER, 3=REQUEST, etc.)
-        self.hostname: str = DHCPUtilities.extract_hostname_from_dhcp_packet(
-            packet
-        )  # Optional hostname from client
-        self.requested_ip: str = DHCPUtilities.extract_requested_addr_from_dhcp_packet(
-            packet
-        )  # Requested IP (Option 50)
-        self.server_id: str = DHCPUtilities.extract_server_id_from_dhcp_packet(
-            packet
-        )  # Server identifier (Option 54)
-        self.param_req_list: list[int] = DHCPUtilities.extract_param_req_list(
-            packet
-        )  # List of requested option codes (Option 55)
+        self.chaddr: bytes = packet[BOOTP].chaddr  # hardware address (raw,16 bytes)
+        self.yiaddr: str = packet[BOOTP].yiaddr  # 'Your' address (server assigned)
+        self.ciaddr: str = packet[BOOTP].ciaddr  # current IP (used in RENEW/REBIND)
+        self.giaddr: str = packet[BOOTP].giaddr  # Gateway IP (by relay agents)
+        self.dhcp_type: int = DHCPUtilities.extract_dhcp_type_from_packet(packet)
+        self.hostname: str = DHCPUtilities.extract_hostname_from_packet(packet)
+        self.requested_ip: str = DHCPUtilities.extract_req_addr_from_packet(packet)
+        self.server_id: str = DHCPUtilities.extract_server_id_from_dhcp_packet(packet)
+        self.param_req_list: list[int] = DHCPUtilities.extract_param_req_list(packet)
 
-    def log(self) -> str:
-        return (
-            f"TYPE:{self.dhcp_type}, "
-            f"XID:{self.xid}, "
-            f"MAC:{self.mac}, IP_req:{self.requested_ip}, "
-            f"HOSTNAME:{self.hostname}."
+    def __str__(self) -> str:
+        return "TYPE:%s, XID:%s, MAC:%s, IP_req:%s, HOSTNAME:%s." % (
+            self.dhcp_type,
+            self.xid,
+            self.mac,
+            self.requested_ip,
+            self.hostname,
         )
 
     @property

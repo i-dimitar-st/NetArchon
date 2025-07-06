@@ -7,8 +7,8 @@ from typing import Optional, Any
 
 # Local
 from utils.dns_utils import DNSUtils
-from config.config import config
 from models.models import DBSchemas
+from config.config import config
 
 
 PATHS = config.get("paths")
@@ -31,6 +31,17 @@ class DnsQueryHistoryDb:
     _cursor: Optional[Cursor] = None
     _max_size: int = DNS_DB_MAX_HISTORY_SIZE
 
+    @staticmethod
+    def _is_init(func):
+        def wrapper(cls, *args, **kwargs):
+            if not isinstance(getattr(cls, "_conn", None), Connection):
+                raise RuntimeError("DB connection not initialized or invalid.")
+            if not isinstance(getattr(cls, "_cursor", None), Cursor):
+                raise RuntimeError("DB cursor not initialized or invalid.")
+            return func(cls, *args, **kwargs)
+
+        return wrapper
+
     @classmethod
     def init(cls, max_size=DNS_DB_MAX_HISTORY_SIZE):
         """Initializes the class-level SQLite connection and cursor."""
@@ -44,12 +55,11 @@ class DnsQueryHistoryDb:
         cls._max_size = max_size
 
     @classmethod
+    @_is_init
     def _create_table(cls):
         """Creates the history table and relevant indexes."""
-
-        if not cls._cursor or not cls._conn:
-            raise RuntimeError("DB not initialized.")
-
+        assert cls._cursor is not None, "DB cursor not initialized"
+        assert cls._conn is not None, "DB connection not initialized"
         with cls._lock:
             cls._cursor.execute(DBSchemas.dnsHistory)
             cls._cursor.execute(
@@ -64,31 +74,32 @@ class DnsQueryHistoryDb:
             cls._conn.commit()
 
     @classmethod
+    @_is_init
     def save_to_disk(cls, path: Path = DNS_DB_HISTORY):
         """Backs up the in-memory history database to disk."""
-
-        if not cls._cursor or not cls._conn:
-            raise RuntimeError("DB not initialized.")
-
+        assert cls._cursor is not None, "DB cursor not initialized"
+        assert cls._conn is not None, "DB connection not initialized"
         with cls._lock:
             _conn_disk: Connection = connect(path)
             cls._conn.backup(_conn_disk)
             _conn_disk.close()
 
     @classmethod
+    @_is_init
     def _insert_query(cls, query: str, active: int):
         """Inserts a new query record into the history."""
+        assert cls._cursor is not None, "DB cursor not initialized"
         with cls._lock:
-            if cls._cursor:
-                cls._cursor.execute(
-                    """
-                    INSERT INTO history (query, query_counter, created)
-                    VALUES (?, ?, ?)
-                    """,
-                    (query, active, int(time())),
-                )
+            cls._cursor.execute(
+                """
+                INSERT INTO history (query, query_counter, created)
+                VALUES (?, ?, ?)
+                """,
+                (query, active, int(time())),
+            )
 
     @classmethod
+    @_is_init
     def _update_query(cls, query: str) -> bool:
         """
         Attempts to update an existing query.
@@ -109,6 +120,7 @@ class DnsQueryHistoryDb:
             return False
 
     @classmethod
+    @_is_init
     def _evict_queries(cls):
         """
         Removes the oldest queries if the DB exceeds max size.
@@ -135,6 +147,7 @@ class DnsQueryHistoryDb:
                     )
 
     @classmethod
+    @_is_init
     def add_query(cls, query: str, active: int = 1):
         """
         Adds a DNS query to the history or updates its counter if already present.
@@ -142,25 +155,28 @@ class DnsQueryHistoryDb:
         """
 
         with cls._lock:
-            _query = DNSUtils.normalize_domain(query)
+            assert cls._cursor is not None, "DB cursor not initialized"
+            assert cls._conn is not None, "DB connection not initialized"
+            _query: str = DNSUtils.normalize_domain(query)
 
             if not cls._update_query(_query):
                 cls._evict_queries()
                 cls._insert_query(_query, active)
 
-            if cls._conn:
-                cls._conn.commit()
+            cls._conn.commit()
 
     @classmethod
+    @_is_init
     def close(cls):
         """Closes the in-memory history database and releases resources."""
+        assert cls._cursor is not None, "DB cursor not initialized"
+        assert cls._conn is not None, "DB connection not initialized"
+
         with cls._lock:
-            if cls._cursor:
-                cls._cursor.close()
-                cls._cursor = None
-            if cls._conn:
-                cls._conn.close()
-                cls._conn = None
+            cls._cursor.close()
+            cls._conn.close()
+            cls._cursor = None
+            cls._conn = None
 
 
 class DnsStatsDb:
@@ -170,9 +186,20 @@ class DnsStatsDb:
     """
 
     _lock = RLock()
+    _valid_columns: set[str] = set()
     _conn: Optional[Connection] = None
     _cursor: Optional[Cursor] = None
-    _valid_columns: set[str] = set()
+
+    @staticmethod
+    def _is_init(func):
+        def wrapper(cls, *args, **kwargs):
+            if not isinstance(getattr(cls, "_conn", None), Connection):
+                raise RuntimeError("DB connection not initialized or invalid.")
+            if not isinstance(getattr(cls, "_cursor", None), Cursor):
+                raise RuntimeError("DB cursor not initialized or invalid.")
+            return func(cls, *args, **kwargs)
+
+        return wrapper
 
     @classmethod
     def init(cls):
@@ -187,11 +214,11 @@ class DnsStatsDb:
             cls._create_table()
 
     @classmethod
+    @_is_init
     def _create_table(cls):
         """Creates the stats table and stores valid column names."""
-
-        if not cls._conn or not cls._cursor:
-            raise RuntimeError("Init missing.")
+        assert cls._cursor is not None, "DB cursor not initialized"
+        assert cls._conn is not None, "DB connection not initialized"
 
         with cls._lock:
             cls._cursor.execute(DBSchemas.dnsStats)
@@ -219,13 +246,15 @@ class DnsStatsDb:
         return bool(key in cls._valid_columns)
 
     @classmethod
+    @_is_init
     def increment(cls, key: str, count: int = 1):
         """
         Increments the specified stat column by count.
         No-op if the column name is invalid.
         """
-        if not cls._conn or not cls._cursor:
-            raise RuntimeError("Init missing.")
+        assert cls._cursor is not None, "DB cursor not initialized"
+        assert cls._conn is not None, "DB connection not initialized"
+
         with cls._lock:
             if not cls._is_key_valid(key):
                 return
@@ -242,10 +271,11 @@ class DnsStatsDb:
             cls._conn.commit()
 
     @classmethod
+    @_is_init
     def save_to_disk(cls, path: Path = DNS_DB_STATS_PATH):
         """Backs up the in-memory stats database to disk."""
-        if not cls._conn or not cls._cursor:
-            raise RuntimeError("Init missing.")
+        assert cls._cursor is not None, "DB cursor not initialized"
+        assert cls._conn is not None, "DB connection not initialized"
 
         with cls._lock:
             _conn_disk: Connection = connect(path)
@@ -253,12 +283,13 @@ class DnsStatsDb:
             _conn_disk.close()
 
     @classmethod
+    @_is_init
     def close(cls):
         """Closes the in-memory stats database and releases resources."""
+        assert cls._cursor is not None, "DB cursor not initialized"
+        assert cls._conn is not None, "DB connection not initialized"
         with cls._lock:
-            if cls._cursor:
-                cls._cursor.close()
-                cls._cursor = None
-            if cls._conn:
-                cls._conn.close()
-                cls._conn = None
+            cls._cursor.close()
+            cls._conn.close()
+            cls._cursor = None
+            cls._conn = None

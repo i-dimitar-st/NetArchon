@@ -1,14 +1,13 @@
-import os
 import gc
-import threading
-import time
+from os import getpid
+from threading import Event, Thread
+from time import time
 from collections import Counter
-import psutil
+from psutil import Process
 from config.config import config
 from services.logger.logger import MainLogger
 import objgraph
 import inspect
-import types
 
 WORKER_JOIN_TIMEOUT = 1
 MEMORY_MANAGEMENT = config.get("memory_management")
@@ -24,14 +23,14 @@ class MemoryManager:
         """Init."""
         if not hasattr(cls, "_worker"):
             cls._interval = int(interval)
-            cls._stop_event = threading.Event()
-            cls._worker = threading.Thread(target=cls._work, daemon=True)
+            cls._stop_event = Event()
+            cls._worker = Thread(target=cls._work, daemon=True)
 
     @classmethod
     def start(cls):
         if cls._worker and cls._worker.is_alive():
             raise RuntimeError("Already running.")
-        if isinstance(cls._worker, threading.Thread):
+        if isinstance(cls._worker, Thread):
             cls._stop_event.clear()
             cls._worker.start()
             _logger.info("%s started.", cls.__name__)
@@ -57,9 +56,7 @@ class MemoryManager:
     @classmethod
     def _log(cls):
         _message = ""
-        _rss_memory_used = int(
-            psutil.Process(os.getpid()).memory_info().rss / 1024 / 1024
-        )
+        _rss_memory_used = int(Process(getpid()).memory_info().rss / 1024 / 1024)
         for _index, _generation in enumerate(gc.get_stats()):
             _message += (
                 f"gen({_index}): "
@@ -69,7 +66,7 @@ class MemoryManager:
             )
         _message += f" memory:{_rss_memory_used} MB."
         _logger.debug(_message)
-        print("--- mem check ---", time.time())
+        print("--- mem check ---", time())
         objgraph.show_growth(limit=5)
         print_top_object_types()
         # lists = [obj for obj in gc.get_objects() if type(obj) is list]

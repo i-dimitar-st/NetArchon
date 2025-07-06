@@ -1,7 +1,8 @@
-import os
-import time
-import platform
-import logging
+from platform import version, system, release, machine, processor, node
+from os import getloadavg
+from time import time, ctime
+from logging import getLogger, WARNING
+
 from sqlite3 import Cursor, connect
 from multiprocessing import Process
 from socket import AF_INET, AF_PACKET
@@ -13,16 +14,43 @@ from typing import Any
 from copy import deepcopy
 from pathlib import Path
 
-import psutil
-from flask import Flask, render_template, request, abort, jsonify
-
 from utils.dns_utils import DNSUtils
 from services.logger.logger import MainLogger
 from config.config import config
 
+from psutil import (
+    Process as PsutilProcess,
+    boot_time,
+    cpu_percent as sys_cpu_percent,
+    net_if_addrs,
+    cpu_freq,
+    cpu_count,
+    sensors_temperatures,
+    virtual_memory,
+    swap_memory,
+    disk_partitions,
+    disk_usage,
+    net_io_counters,
+)
+from flask import Flask, render_template, request, abort, jsonify
+from asgiref.wsgi import WsgiToAsgi
+from uvicorn import run as runUvicorn
+
+APP_CONFIG = config.get("app")
+PORT = APP_CONFIG.get("port")
+HOST = APP_CONFIG.get("host")
+BEARER_TOKEN = APP_CONFIG.get("bearer_token")
+BEARER_TOKEN_HASH = sha256(BEARER_TOKEN.encode()).hexdigest()
+
+
 PATHS = config.get("paths")
 ROOT_PATH = Path(PATHS.get("root"))
 DB_PATH = ROOT_PATH / PATHS.get("database")
+
+CERTIFICATES = config.get("certificates")
+CERT_PATH = ROOT_PATH / PATHS.get("certificates")
+PEM_PATH = CERT_PATH / CERTIFICATES.get("cert")
+KEY_PATH = CERT_PATH / CERTIFICATES.get("key")
 
 DNS_HISTORY_DB = DB_PATH / "dns_history.sqlite3"
 DNS_STATS_DB = DB_PATH / "dns_stats.sqlite3"
@@ -31,46 +59,42 @@ DHCP_STATS_DB = DB_PATH / "dhcp_stats.sqlite3"
 DNS_CONTROL_LIST = ROOT_PATH / "config" / "dns_control_list.json"
 LOG_FILE_PATH = ROOT_PATH / "logs" / "main.log"
 
-BEARER_TOKEN = "123!@#456$%^"
-BEARER_TOKEN_HASH = sha256(BEARER_TOKEN.encode()).hexdigest()
-
 DB_TIMEOUT = 10
 
 DHCP_STATISTICS = {}
 LEASES = []
-
 
 logger = MainLogger.get_logger(service_name="GUI", log_level="debug")
 _lock = RLock()
 
 
 def generate_system_stats() -> dict:
-    process = psutil.Process()
+    process = PsutilProcess()
     stats = {
         "system": {
-            "datetime": {"value": time.ctime()},
-            "uptime": {"value": int(time.time() - psutil.boot_time()), "unit": "sec"},
-            "os_name": {"value": platform.system()},
-            "os_version": {"value": platform.version()},
-            "os_release": {"value": platform.release()},
-            "architecture": {"value": platform.machine()},
-            "processor": {"value": platform.processor()},
-            "hostname": {"value": platform.node()},
+            "datetime": {"value": ctime()},
+            "uptime": {"value": int(time() - boot_time()), "unit": "sec"},
+            "os_name": {"value": system()},
+            "os_version": {"value": version()},
+            "os_release": {"value": release()},
+            "architecture": {"value": machine()},
+            "processor": {"value": processor()},
+            "hostname": {"value": node()},
         },
         "cpu": {
-            "usage": {"value": psutil.cpu_percent(interval=0.5), "unit": "%"},
+            "usage": {"value": sys_cpu_percent(interval=0.5), "unit": "%"},
             "usage_per_core": {
-                "value": psutil.cpu_percent(interval=0.5, percpu=True),
+                "value": sys_cpu_percent(interval=0.5, percpu=True),
                 "unit": "%",
             },
             "frequency_per_core": {
-                "value": [int(freq.current) for freq in psutil.cpu_freq(percpu=True)],
+                "value": [int(freq.current) for freq in cpu_freq(percpu=True)],
                 "unit": "MHz",
             },
-            "cores": {"value": psutil.cpu_count(logical=True), "unit": "cores"},
-            "load_1min": {"value": round(os.getloadavg()[0], 2)},
-            "load_5min": {"value": round(os.getloadavg()[1], 2)},
-            "load_15min": {"value": round(os.getloadavg()[2], 2)},
+            "cores": {"value": cpu_count(logical=True), "unit": "cores"},
+            "load_1min": {"value": round(getloadavg()[0], 2)},
+            "load_5min": {"value": round(getloadavg()[1], 2)},
+            "load_15min": {"value": round(getloadavg()[2], 2)},
         },
         "temperature": {},
         "memory": {},
@@ -81,7 +105,7 @@ def generate_system_stats() -> dict:
     }
 
     # CPU Temp
-    temp_info = psutil.sensors_temperatures(fahrenheit=False)
+    temp_info = sensors_temperatures(fahrenheit=False)
     for label, sensors in temp_info.items():
         for sensor in sensors:
             stats["temperature"][f"{label}_{sensor.label}"] = {
@@ -90,7 +114,7 @@ def generate_system_stats() -> dict:
             }
 
     # Memory
-    memory = psutil.virtual_memory()
+    memory = virtual_memory()
     stats["memory"] = {
         "total": {"value": int(memory.total / 1024 / 1024), "unit": "MB"},
         "available": {"value": int(memory.available / 1024 / 1024), "unit": "MB"},
@@ -98,7 +122,7 @@ def generate_system_stats() -> dict:
     }
 
     # Swap
-    swap = psutil.swap_memory()
+    swap = swap_memory()
     stats["swap"] = {
         "total": {"value": int(swap.total / 1024 / 1024), "unit": "MB"},
         "used": {"value": int(swap.used / 1024 / 1024), "unit": "MB"},
@@ -106,9 +130,9 @@ def generate_system_stats() -> dict:
     }
 
     # Disks
-    for part in psutil.disk_partitions(all=False):
+    for part in disk_partitions(all=False):
         try:
-            usage = psutil.disk_usage(part.mountpoint)
+            usage = disk_usage(part.mountpoint)
             if "ext" in part.fstype:
                 stats["disks"][f"disk_{part.mountpoint}_total"] = {
                     "value": int(usage.total / 1024 / 1024),
@@ -122,7 +146,7 @@ def generate_system_stats() -> dict:
             continue
 
     # Network: Stats from all network interfaces (Flat structure)
-    network = psutil.net_io_counters(pernic=True)
+    network = net_io_counters(pernic=True)
     for iface, counters in network.items():
         stats["network"][f"{iface}_sent"] = {
             "value": int(counters.bytes_sent / 1024 / 1024),
@@ -139,7 +163,7 @@ def generate_system_stats() -> dict:
 
     # Current Process Stats
     with process.oneshot():
-        now: float = time.time()
+        now: float = time()
         create_time: float = process.create_time()
         uptime: float = round(now - create_time, 2)
         mem_info = process.memory_info()
@@ -162,7 +186,7 @@ def get_network_interfaces():
 
     network_interfaces = []
 
-    for interface, _addresses in psutil.net_if_addrs().items():
+    for interface, _addresses in net_if_addrs().items():
         _interface_data = {
             "name": interface,
             "type": None,
@@ -206,7 +230,7 @@ def get_dhcp_leases() -> list:
 
             result = []
             for _lease in _leases:
-                result.append(dict(zip(_columns, _lease)))
+                result.append(dict(zip(_columns, _lease)))  # type: ignore
 
             return result
 
@@ -407,8 +431,7 @@ class App:
     _app: Flask | None = None
 
     @classmethod
-    def init(cls, ssl_context: tuple, host: str = "0.0.0.0", port: int = 8080):
-        cls._ssl_context = ssl_context
+    def init(cls, host: str = HOST, port: int = PORT):
         cls._host: str = host
         cls._port: int = port
 
@@ -436,28 +459,39 @@ class App:
     @classmethod
     def _work(cls):
         cls._app = Flask(__name__)
+        cls._app_wsgi = WsgiToAsgi(cls._app)
 
         cls._bootstrap_loggers()
         cls._define_routes()
 
-        cls._app.run(host=cls._host, port=cls._port, ssl_context=cls._ssl_context)
+        runUvicorn(
+            cls._app_wsgi,
+            host=cls._host,
+            port=cls._port,
+            ssl_certfile=PEM_PATH,
+            ssl_keyfile=KEY_PATH,
+            log_level="warning",
+        )
 
     @classmethod
     def _bootstrap_loggers(cls):
+        # Flask logger
         if cls._app:
-
             cls._app.logger.handlers.clear()
             cls._app.logger.propagate = True
-            for handler in logger.handlers:
-                cls._app.logger.addHandler(handler)
-            cls._app.logger.setLevel(logging.WARNING)
+            for _handler in logger.handlers:
+                cls._app.logger.addHandler(_handler)
+            cls._app.logger.setLevel(WARNING)
 
-        werkzeug_logger: logging.Logger = logging.getLogger("werkzeug")
-        werkzeug_logger.handlers.clear()
-        werkzeug_logger.propagate = True
-        for handler in logger.handlers:
-            werkzeug_logger.addHandler(handler)
-        werkzeug_logger.setLevel(logging.WARNING)
+        # Uvicorn loggers
+        if cls._app_wsgi:
+            for _name in ("uvicorn", "uvicorn.error", "uvicorn.access"):
+                _uv_logger = getLogger(_name)
+                _uv_logger.handlers.clear()
+                _uv_logger.propagate = True
+                for _handler in logger.handlers:
+                    _uv_logger.addHandler(_handler)
+                _uv_logger.setLevel(WARNING)
 
     @classmethod
     def _define_routes(cls):
@@ -499,10 +533,10 @@ class App:
             @cls._app.route("/config", methods=["GET", "POST"])
             def get_config():
                 if request.method == "POST":
-                    auth: str = request.headers.get("Authorization", "")
+                    _auth: str = request.headers.get("Authorization", "")
                     if (
-                        not auth.startswith("Bearer ")
-                        or auth[len("Bearer ") :] != BEARER_TOKEN_HASH
+                        not _auth.startswith("Bearer ")
+                        or _auth[7:].strip() != BEARER_TOKEN_HASH
                     ):
                         abort(401, description="Unauthorized")
 
@@ -538,6 +572,7 @@ class App:
                         }
                     ),
                     dns_control_list=get_control_list(),
+                    bearer_token_hash=BEARER_TOKEN_HASH,
                 )
 
             @cls._app.route("/logs")

@@ -107,3 +107,18 @@ Ideally, this structure simplifies testing, maintenance, and future extensions.
 ## Installation
 
 ... pending
+
+### DHCP
+
+#### WORKFLOW
+
+| Step | Message Type | Trigger                         | Server Action                            | Client Action                              | State         |
+| ---- | ------------ | ------------------------------- | ---------------------------------------- | ------------------------------------------ | ------------- |
+| 1    | DHCPDISCOVER | Client starts looking for an IP | Records request, selects an available IP | Broadcasts discovery to find a DHCP server | **INIT**      |
+| 2    | DHCPOFFER    | Server offers an IP             | Assigns an IP from the pool, sends offer | Waits for offers from servers              | **OFFERED**   |
+| 3    | DHCPREQUEST  | Client accepts an offer         | Receives request, verifies availability  | Requests the selected IP                   | **REQUESTED** |
+| 4    | DHCPACK      | Server confirms lease           | Saves lease to database, sends ACK       | Configures IP and starts using it          | **BOUND**     |
+| 5    | DHCPNAK      | IP conflict or lease expired    | Rejects request, client must restart     | Receives NAK, restarts process             | **REJECTED**  |
+| 6    | DHCPDECLINE  | Client detects conflict         | Marks IP as bad, removes it from pool    | Rejects IP, restarts with DISCOVER         | **DECLINED**  |
+| 7    | DHCPRELEASE  | Client leaves network           | Frees up the IP in the pool              | Sends RELEASE, stops using IP              | **RELEASED**  |
+| 8    | DHCPINFORM   | Client wants config info        | Provides extra options (e.g., DNS)       | Requests additional DHCP settings          | **INFORMED**  |

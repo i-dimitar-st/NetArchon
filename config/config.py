@@ -1,8 +1,8 @@
-import threading
+from threading import RLock
 from copy import deepcopy
 from pathlib import Path
 from typing import Any
-import yaml
+from yaml import safe_load
 
 
 DEFAULT_CONFIG_PATH = Path(__file__).parent / "config.yaml"
@@ -10,7 +10,7 @@ DEFAULT_CONFIG_PATH = Path(__file__).parent / "config.yaml"
 
 class Config:
     def __init__(self, path: Path = DEFAULT_CONFIG_PATH):
-        self._lock = threading.RLock()
+        self._lock = RLock()
         self._path: Path = path
         self._config = {}
         self._load_config()
@@ -18,9 +18,8 @@ class Config:
     def _load_config(self):
         with self._lock:
             with open(self._path, mode="r", encoding="utf-8") as _file_handle:
-                _raw = yaml.safe_load(_file_handle)
                 # ConfigSchema.model_validate(raw)
-                self._config = _raw
+                self._config = safe_load(_file_handle)
 
     def reload(self):
         self._load_config()

@@ -511,13 +511,12 @@
 
                 confirmRemoveBtn.addEventListener("click", () => {
                     if (!domainToRemove) return;
-
+                    const token = "{{ bearer_token_hash }}";
                     fetch("/config", {
                         method: "POST",
                         headers: {
                             "Content-Type": "application/json",
-                            Authorization:
-                                "Bearer 743f69afe3e2e4eea124304a12eb87ae88b9d7c1a72a05dc5121c62b26c748d8",
+                            Authorization: `Bearer ${token}`,
                         },
                         body: JSON.stringify({
                             category: "blacklist",
@@ -567,13 +566,12 @@
                         blacklistUrl.reportValidity();
                         return;
                     }
-
+                    const token = "{{ bearer_token_hash }}";
                     fetch("/config", {
                         method: "POST",
                         headers: {
                             "Content-Type": "application/json",
-                            Authorization:
-                                "Bearer 743f69afe3e2e4eea124304a12eb87ae88b9d7c1a72a05dc5121c62b26c748d8",
+                            Authorization: `Bearer ${token}`,
                         },
                         body: JSON.stringify({
                             category: "blacklist",

@@ -1,4 +1,4 @@
-import re
+from re import match
 from dnslib import DNSRecord, DNSLabel
 
 
@@ -57,7 +57,7 @@ class DNSUtils:
         for _label in _labels:
             if not (1 <= len(_label) <= 63):
                 return False
-            if not re.match(r"^[a-z0-9-_]+$", _label):
+            if not match(r"^[a-z0-9-_]+$", _label):
                 return False
             if _label.startswith("-") or _label.endswith("-"):
                 return False

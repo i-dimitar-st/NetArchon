@@ -1,5 +1,5 @@
-import time
-import threading
+from time import monotonic, time
+from threading import RLock
 from typing import Optional, Any
 from functools import wraps
 from collections import deque, OrderedDict
@@ -13,7 +13,7 @@ TTL_DEFAULT = 600
 class Metrics:
     """Store timing samples and calculate percentiles."""
 
-    _lock = threading.RLock()
+    _lock = RLock()
 
     @classmethod
     def init(cls, max_size: int = 100):
@@ -26,7 +26,7 @@ class Metrics:
     def add_sample(cls, duration: float):
         """Add a timing sample."""
         with cls._lock:
-            cls._samples.append((time.monotonic(), duration))
+            cls._samples.append((monotonic(), duration))
 
     @classmethod
     def get_count(cls) -> int:
@@ -70,17 +70,17 @@ class MRUCache:
     - The last index corresponds to the oldest key.
 
     Example:
-        After adding keys in this order: 'a', 'b', 'c', the internal order is:
+        adding keys in this order: 'a', 'b', 'c', the internal order is:
         cache => ['c', 'b', 'a']
-        After adding 'd':
+        adding 'd':
         cache => ['d', 'c', 'b', 'a']
-        After adding 'a' again (updates usage, moves to front):
+        adding 'a' again (moves to front):
         cache => ['a', 'd', 'c', 'b']
     """
 
     def __init__(self, max_size: int = MRU_MAX_SIZE):
         """Initialize cache with max size."""
-        self._lock = threading.RLock()
+        self._lock = RLock()
         self._cache = OrderedDict()
         self._max_size = max_size
 
@@ -132,7 +132,7 @@ class TTLCache:
 
     def __init__(self, max_size: int = TTL_MAX_SIZE, ttl: int = TTL_DEFAULT):
         """Initialize cache with max size and default TTL."""
-        self._lock = threading.RLock()
+        self._lock = RLock()
         self._cache: dict[Any, tuple[Any, float]] = {}  # key -> (value, expiry)
         self._max_size: int = max_size
         self._ttl: int = ttl
@@ -158,7 +158,7 @@ class TTLCache:
     def _clean_expired(self):
         """Remove expired entries."""
         with self._lock:
-            now = time.time()
+            now = time()
             for key in list(self._cache):
                 if self._cache[key][1] < now:
                     del self._cache[key]
@@ -177,7 +177,7 @@ class TTLCache:
     def add(self, key: Any, value: Any, ttl: Optional[int] = None):
         """Get value by key, None if expired/missing."""
         with self._lock:
-            expiry: float = time.time() + (ttl if ttl and ttl > 0 else self._ttl)
+            expiry: float = time() + (ttl if ttl and ttl > 0 else self._ttl)
             self._cache[key] = (value, expiry)
 
     @clean_expired
@@ -195,6 +195,12 @@ class TTLCache:
                 if _value == value:
                     return _key
             return None
+
+    @clean_expired
+    def keys(self) -> list[Any]:
+        """Return all non-expired keys in the cache."""
+        with self._lock:
+            return list(self._cache.keys())
 
     def remove(self, key: Any):
         """Remove key from cache."""
