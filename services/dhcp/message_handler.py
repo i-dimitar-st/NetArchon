@@ -24,7 +24,7 @@ DHCP_CONFIG = config.get("dhcp")
 INTERFACE = DHCP_CONFIG.get("interface")
 SERVER_IP = DHCP_CONFIG.get("ip")
 LEASE_TIME = DHCP_CONFIG.get("lease_time_seconds")
-NO_IP_ASSIGNED = "0.0.0.0"
+NO_IP_ASSIGNED = DHCP_CONFIG.get("no_ip_assigned")
 
 
 class DHCPMessageHandler:

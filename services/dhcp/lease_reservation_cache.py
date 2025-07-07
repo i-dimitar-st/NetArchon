@@ -3,8 +3,10 @@ from typing import Optional
 from functools import wraps
 from config.config import config
 
-DHCP_CACHE_SIZE = 100
-DHCP_CACHE_TTL = 60
+DHCP_CONF = config.get("dhcp")
+LEASE_RESERVATION_CACHE = DHCP_CONF.get("lease_reservation_cache")
+CACHE_SIZE = LEASE_RESERVATION_CACHE.get("size")
+CACHE_TTL = LEASE_RESERVATION_CACHE.get("ttl")
 
 
 def is_init(func):
@@ -22,7 +24,7 @@ class LeaseReservationCache:
     initialized = False
 
     @classmethod
-    def init(cls, max_size: int = DHCP_CACHE_SIZE, ttl: int = DHCP_CACHE_TTL):
+    def init(cls, max_size: int = CACHE_SIZE, ttl: int = CACHE_TTL):
         if cls._cache is not None:
             raise RuntimeError("Cache is not none")
         cls._cache = TTLCache(max_size=max_size, ttl=ttl)

@@ -1,10 +1,9 @@
 # Root only
 /.vscode/
 /venv/
+/certificates/
 /logs/
 /db/
-/dump.log
-/certificates/
 
 # Project 
 /services/neural_net/models/

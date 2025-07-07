@@ -122,6 +122,7 @@ def send_arp_request(
         timeout=timeout,
         iface=iface,
         verbose=False,
+        filter="arp",
     )
 
     if _answered:

@@ -44,19 +44,14 @@ class DHCPStorage:
             raise RuntimeError("Already init")
 
         with cls._lock:
-            try:
-                _conn: Connection = connect(":memory:", check_same_thread=False)
-                _cursor: Cursor = _conn.cursor()
-                _cursor.execute(DBSchemas.dhcpLeases)
-                _conn.commit()
-                cls._conn: Connection = _conn
-                cls._cursor: Cursor = _cursor
-                cls.logger: Logger = logger
-                cls.logger.debug("%s initialized.", cls.__name__)
-            except Exception as _err:
-                if _conn:
-                    _conn.close()
-                cls.logger.debug("Faild to initialize %s : %s.", cls.__name__, _err)
+            _conn: Connection = connect(":memory:", check_same_thread=False)
+            _cursor: Cursor = _conn.cursor()
+            _cursor.execute(DBSchemas.dhcpLeases)
+            _conn.commit()
+            cls._conn: Connection = _conn
+            cls._cursor: Cursor = _cursor
+            cls.logger: Logger = logger
+            cls.logger.debug("%s initialized.", cls.__name__)
 
     @classmethod
     @is_init
@@ -214,9 +209,10 @@ class DHCPStorage:
                 cls._cursor.execute(
                     "DELETE FROM leases WHERE expiry_time < ?", (int(time()),)
                 )
+                _deleted: int = cls._cursor.rowcount
                 cls._conn.commit()
-                if cls._cursor.rowcount:
-                    cls.logger.debug("Deleted %s expired leases.", cls._cursor.rowcount)
+                if _deleted:
+                    cls.logger.debug("Deleted %s expired leases.", _deleted)
             except Exception as err:
                 cls.logger.error("Error during lease cleanup: %s", err)
 

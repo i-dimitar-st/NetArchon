@@ -77,11 +77,18 @@ dhcp:
     ntp_server: "192.168.20.100"
     ip_pool_start: "192.168.20.101"
     ip_pool_end: "192.168.20.254"
+    no_ip_assigned: "0.0.0.0"
     cidr: 24
     lease_time_seconds: 1209600
     mtu: 1500
     rcvd_queue_size: 100
     deque_size: 100
+    lease_reservation_cache:
+        size: 100
+        ttl: 60
+    db_persistance:
+        interval: 60
+        worker_join_timeout: 0.5
     client_discovery:
         interval: 30
         retries: 2
@@ -92,7 +99,6 @@ dhcp:
             inter_delay: 0.001
             worker_join: 0.5
         workers: 50
-
     timeouts:
         arp: 3
         worker_get: 0.2

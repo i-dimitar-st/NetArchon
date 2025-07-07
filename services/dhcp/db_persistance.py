@@ -6,7 +6,9 @@ from functools import wraps
 from config.config import config
 
 DHCP_CONFIG = config.get("dhcp")
-DB_PERSISTENCE_INTERVAL = 60
+DB_PERSISTANCE = DHCP_CONFIG.get("db_persistance")
+DB_PERSISTENCE_INTERVAL = DB_PERSISTANCE.get("interval")
+WORKER_JOIN_TIMEOUT = DB_PERSISTANCE.get("worker_join_timeout")
 
 
 def is_init(func):
@@ -51,11 +53,14 @@ class DbPersistanceService:
         with cls._lock:
             if cls.running:
                 raise RuntimeError("Already running")
+            if cls._worker is not None:
+                raise RuntimeError("Already running")
 
             cls._stop_event.clear()
             cls.running = True
             cls._worker = Thread(target=cls._work, daemon=True)
             cls._worker.start()
+            cls.logger.debug("%s Started.", cls.__name__)
 
     @classmethod
     @is_init
@@ -63,12 +68,13 @@ class DbPersistanceService:
     def stop(cls):
         with cls._lock:
             cls._stop_event.set()
-            if cls._worker:
-                cls._worker.join(timeout=1)
+            if cls._worker is not None:
+                cls._worker.join(timeout=WORKER_JOIN_TIMEOUT)
                 if cls._worker.is_alive():
                     cls.logger.warning("%s did not stop after timeout.", cls.__name__)
                 else:
                     cls.logger.debug("%s Stopped.", cls.__name__)
+            cls._worker = None
             cls.running = False
 
     @classmethod
@@ -99,6 +105,3 @@ class DbPersistanceService:
                 cls.logger.warning("Error: %s", err)
 
             cls._stop_event.wait(cls._interval)
-        with cls._lock:
-            cls.running = False
-            cls._worker = None
