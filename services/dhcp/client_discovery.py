@@ -1,16 +1,24 @@
-from ipaddress import IPv4Address, IPv4Network, AddressValueError
+from ipaddress import IPv4Address, IPv4Network
 from threading import RLock, Event, Thread
-from collections import Counter
-from typing import Optional, List
+from typing import Optional, List, Set, Dict
 from functools import wraps
+from concurrent.futures import ThreadPoolExecutor
+from asyncio import (
+    get_running_loop,
+    AbstractEventLoop,
+    Future,
+    gather,
+    new_event_loop,
+    set_event_loop,
+    sleep as asyncioSleep,
+)
 from time import sleep
-from copy import deepcopy
 from logging import Logger
 
 from scapy.sendrecv import srp
 from scapy.layers.l2 import Ether, ARP
-from scapy.packet import Packet
 
+from utils.dhcp_utils import is_net_interface_valid
 from models.models import ArpClient
 from services.dhcp.db_core import DHCPStorage
 from config.config import config
@@ -24,20 +32,173 @@ BROADCAST_IP = DHCP_CONFIG.get("broadcast_ip")
 BROADCAST_MAC = DHCP_CONFIG.get("broadcast_mac")
 IP_RANGE_START = DHCP_CONFIG.get("ip_pool_start")
 IP_RANGE_END = DHCP_CONFIG.get("ip_pool_end")
-
 CIDR = DHCP_CONFIG.get("cidr")
-ARP_TIMEOUT_SUBNET = 2
-ARP_TIMEOUT_SINGLE = 1
-ARP_RETRIES = 3
-ARP_RETRIES_DELAY = 0.5
-APR_INTER_DELAY = 0.005
 
-WORKER_GET_TIMEOUT = 0.2
-WORKER_SLEEP_TIMEOUT = 0.1
-WORKER_JOIN_TIMEOUT = 0.5
-ARP_REQUEST = 1
+CLIENT_DISCOVERY = DHCP_CONFIG.get("client_discovery")
+DISCOVERY_TIMEOUTS = CLIENT_DISCOVERY.get("timeouts")
+DISCOVERY_WORKERS = CLIENT_DISCOVERY.get("workers")
+DISCOVERY_INTERVAL = CLIENT_DISCOVERY.get("interval")
 
-CLIENT_DISCOVERY_INTERVAL = 30
+ARP_RETRIES = CLIENT_DISCOVERY.get("retries")
+
+ARP_TIMEOUT_SUBNET = DISCOVERY_TIMEOUTS.get("subnet")
+ARP_TIMEOUT_SINGLE = DISCOVERY_TIMEOUTS.get("single")
+ARP_RETRIES_DELAY = DISCOVERY_TIMEOUTS.get("retry_delay")
+APR_INTER_DELAY = DISCOVERY_TIMEOUTS.get("inter_delay")
+WORKER_JOIN_TIMEOUT = DISCOVERY_TIMEOUTS.get("worker_join")
+
+
+def discover_live_clients(
+    network: IPv4Network,
+    broadcast_mac: str = BROADCAST_MAC,
+    timeout: float = ARP_TIMEOUT_SUBNET,
+    inter_delay: float = APR_INTER_DELAY,
+    retry_delay: float = ARP_RETRIES_DELAY,
+    retries: int = ARP_RETRIES,
+    iface: str = INTERFACE,
+) -> Dict[str, ArpClient]:
+    """
+    Perform an ARP scan over the network to discover live clients.
+    Args:
+        network (IPv4Network): Target subnet to scan.
+        broadcast_mac (str): Broadcast MAC address.
+        timeout (float): Timeout for each ARP request.
+        inter_delay (float): Delay between ARP requests.
+        iface (str): Network interface to use.
+        verbose (bool): Enable scapy verbose output.
+    Raises:
+        RuntimeError: If the network is not initialized.
+    Returns:
+        Dict[str, ArpClient]: Mapping of IP addresses to ArpClient instances.
+                             Returns empty dict if no clients found or on error.
+    """
+    if not network:
+        raise RuntimeError("missing network wrong init")
+
+    clients: Dict[str, ArpClient] = {}
+
+    try:
+        for _ in range(retries):
+            answered, _ = srp(
+                [
+                    Ether(dst=broadcast_mac) / ARP(pdst=str(ip))
+                    for ip in network.hosts()
+                ],
+                timeout=timeout,
+                inter=inter_delay,
+                filter="arp",
+                verbose=False,
+                iface=iface,
+            )
+            for _, _resp in answered:
+                if _resp[ARP].psrc not in clients:
+                    clients[_resp[ARP].psrc] = ArpClient(
+                        mac=_resp[ARP].hwsrc, ip=_resp[ARP].psrc
+                    )
+
+            sleep(retry_delay)
+
+    except Exception as err:
+        raise RuntimeError(str(err))
+
+    return clients
+
+
+def send_arp_request(
+    ip: IPv4Address, iface: str = INTERFACE, timeout: float = ARP_TIMEOUT_SINGLE
+) -> ArpClient | None:
+    """
+    Send an ARP request to a single IP address on a given interface.
+    Args:
+        ip (str): The target IP address to query.
+        iface (str, optional): Network interface to send the request on. Defaults to INTERFACE.
+        timeout (float, optional): Timeout in seconds to wait for a response. Defaults to ARP_TIMEOUT_SINGLE.
+    Returns:
+        ArpClient | None: An ArpClient object if a device responds, None if no response.
+                         Raises RuntimeError if more than one device responds.
+    """
+    _answered, _ = srp(
+        Ether(dst="ff:ff:ff:ff:ff:ff") / ARP(pdst=str(ip)),
+        timeout=timeout,
+        iface=iface,
+        verbose=False,
+    )
+
+    if _answered:
+        if len(_answered) == 1:
+            _, _recv = _answered[0]
+            return ArpClient(mac=_recv[ARP].hwsrc, ip=_recv[ARP].psrc)
+        if len(_answered) > 1:
+            raise RuntimeError("More than 1 device")
+
+    return None
+
+
+# async def arp_scan_async(
+#     network: IPv4Network = IPv4Network("192.168.20.0/24"),
+#     iface: str = INTERFACE,
+#     timeout: float = ARP_TIMEOUT_SUBNET,
+#     retries: int = ARP_RETRIES,
+#     delay: float = ARP_RETRIES_DELAY,
+#     max_workers: int = DISCOVERY_WORKERS,
+# ) -> Dict[str, ArpClient]:
+#     """
+#     Perform an asynchronous ARP scan of the given IPv4 network.
+#     Args:
+#         network (IPv4Network, optional): The target subnet to scan. Defaults to 192.168.20.0/24.
+#         iface (str, optional): Network interface to send ARP requests. Defaults to INTERFACE.
+#         timeout (float, optional): Timeout for each ARP request. Defaults to ARP_TIMEOUT_SUBNET.
+#         retries (int, optional): Number of scan retries to improve discovery. Defaults to ARP_RETRIES.
+#         delay (float, optional): Delay in seconds between retries. Defaults to ARP_RETRIES_DELAY.
+#         max_workers (int, optional): Maximum concurrent threads for sending requests. Defaults to THREAD_WORKERS.
+
+#     Returns:
+#         List[ArpClient]: List of discovered live clients on the network.
+#     """
+
+#     discovered_clients = {}
+
+#     _event_loop: AbstractEventLoop = get_running_loop()
+#     _thread_pool = ThreadPoolExecutor(max_workers=max_workers)
+
+#     for _ in range(retries):
+#         _arp_futures: List[Future[ArpClient | None]] = [
+#             _event_loop.run_in_executor(
+#                 _thread_pool, send_arp_request, _ip_addr, iface, timeout
+#             )
+#             for _ip_addr in network.hosts()
+#         ]
+#         for _result in await gather(*_arp_futures, return_exceptions=True):
+#             if isinstance(_result, Exception):
+#                 continue
+#             if _result and isinstance(_result, ArpClient):
+#                 discovered_clients[str(_result.ip)] = _result
+#         await asyncioSleep(delay)
+
+#     _thread_pool.shutdown(wait=True)
+#     return discovered_clients
+
+
+# def run_arp_scan(network: IPv4Network) -> Dict[str, ArpClient]:
+#     """
+#     Run a synchronous ARP scan on the specified IPv4 network.
+#     This function creates a new event loop and runs the asynchronous ARP scan,
+#     returning the discovered clients.
+#     Args:
+#         network (IPv4Network): The IPv4 network to scan.
+#     Returns:
+#         List[ArpClient]: List of live clients discovered on the network.
+#     """
+
+#     _loop: AbstractEventLoop = new_event_loop()
+#     set_event_loop(_loop)
+
+#     result: Dict[str, ArpClient] = _loop.run_until_complete(
+#         arp_scan_async(network=network)
+#     )
+#     _loop.close()
+
+#     return result
 
 
 def is_init(func):
@@ -71,19 +232,41 @@ def is_not_running(func):
 
 
 class ClientDiscoveryService:
+    """
+    Discovers live clients on a local IPv4 network using ARP scans.
+    Maintains a list of active devices and helps find available IPs for DHCP allocation.
+
+    ### Main Features:
+    - Periodically scans the subnet using ARP.
+    - Tracks discovered clients in a thread-safe list.
+    - Returns available IPs not currently leased or in use.
+    - Supports clean start/stop lifecycle.
+
+    ### Key Dependencies:
+    - `scapy` for ARP scanning.
+    - `DHCPStorage` for tracking leased IPs.
+    - `ArpClient` to represent discovered devices.
+    - `config["dhcp"]` for network setup.
+    - `logger` passed during init for diagnostics.
+
+    ### Lifecycle:
+    - Call `init(logger)` to configure.
+    - Use `start()` to begin scanning.
+    - Use `stop()` to halt discovery.
+    - Call `get_available_ip()` to fetch a usable IP.
+    """
+
     _lock = RLock()
-    _stop_event: Optional[Event] = None
+    _stop_event = Event()
     _worker: Optional[Thread] = None
     initialized = False
     running = False
 
-    # Config
     _ip_range_start: Optional[IPv4Address] = None
     _ip_range_end: Optional[IPv4Address] = None
-    _network: Optional[IPv4Network] = None
-    _live_clients: List[ArpClient] = []
+    network: Optional[IPv4Network] = None
+    _live_clients: Dict[str, ArpClient]
 
-    # Configurable system parameters
     _server_ip: str
     _iface: str
     _server_mac: str
@@ -104,25 +287,30 @@ class ClientDiscoveryService:
         iface: str = INTERFACE,
         server_mac: str = SERVER_MAC,
         broadcast_mac: str = BROADCAST_MAC,
-        arp_request_type: int = ARP_REQUEST,
         arp_timeout_subnet: float = ARP_TIMEOUT_SUBNET,
         arp_timeout_single: float = ARP_TIMEOUT_SINGLE,
+        client_discovery_interval: int = DISCOVERY_INTERVAL,
     ):
         with cls._lock:
-            cls._network = IPv4Network(f"{server_ip}/{cidr}", strict=False)
+
+            if not is_net_interface_valid(iface):
+                raise RuntimeError("Invalid Interface")
+
+            cls.network = IPv4Network(f"{server_ip}/{cidr}", strict=False)
             cls._ip_range_start = IPv4Address(ip_range_start)
             cls._ip_range_end = IPv4Address(ip_range_end)
+
+            cls._client_discovery_interval = client_discovery_interval
 
             cls._server_ip = server_ip
             cls._iface = iface
             cls._server_mac = server_mac
             cls._broadcast_mac = broadcast_mac
-            cls._arp_request_type = arp_request_type
             cls._arp_timeout_subnet = arp_timeout_subnet
             cls._arp_timeout_single = arp_timeout_single
-            cls._live_clients = []
-            cls._stop_event = Event()
-            cls.logger: Logger = logger
+            cls._live_clients: Dict[str, ArpClient] = {}
+
+            cls.logger = logger
             cls.initialized = True
 
     @classmethod
@@ -140,159 +328,98 @@ class ClientDiscoveryService:
     @is_running
     def stop(cls):
         with cls._lock:
-            if cls._stop_event:
-                cls._stop_event.set()
-            _worker = cls._worker
-
-        if _worker:
-            _worker.join(timeout=1)
-            if _worker.is_alive():
-                cls.logger.warning("%s did not stop after timeout.", cls.__name__)
-                return
-            else:
-                cls.logger.debug("%s Stopped.", cls.__name__)
+            cls._stop_event.set()
+            if cls._worker:
+                cls._worker.join(timeout=WORKER_JOIN_TIMEOUT)
+                cls._worker = None
+            cls.running = False
+            cls._stop_event.clear()
+        cls.logger.debug("%s Stopped.", cls.__name__)
 
     @classmethod
     @is_init
     @is_running
-    def _work(
-        cls,
-        interval=CLIENT_DISCOVERY_INTERVAL,
-        retry_cont=ARP_RETRIES,
-        retry_delay=ARP_RETRIES_DELAY,
-    ):
+    def _work(cls):
+
         if cls._stop_event is None:
-            raise RuntimeError("mising top event, wrong init")
+            raise RuntimeError("missing stop event, wrong init")
+
+        if cls.network is None:
+            raise RuntimeError("Network not init")
+
         while not cls._stop_event.is_set():
             try:
-                _scanned_clients = dict()
-                _counts = Counter()
-                for _ in range(retry_cont):
-                    for _current_scan_client in cls._discover_live_clients():
-                        _counts[_current_scan_client.mac] += 1
-                        _scanned_clients[_current_scan_client.mac] = (
-                            _current_scan_client
-                        )
-
-                    sleep(retry_delay)
-
                 with cls._lock:
-                    cls._live_clients = [
-                        _scanned_clients[_mac]
-                        for _mac, _count in _counts.items()
-                        if _count >= retry_cont
-                    ]
+                    cls._live_clients = discover_live_clients(network=cls.network)
+                    # cls._live_clients = run_arp_scan(network=cls.network)
                     cls.logger.debug("Discovered %s clients.", len(cls._live_clients))
-
             except Exception as _err:
                 cls.logger.warning("Error discovering clients: %s", _err)
-
-            cls._stop_event.wait(interval)
-
+            cls._stop_event.wait(cls._client_discovery_interval)
         with cls._lock:
             cls.running = False
-
-    @classmethod
-    def _discover_live_clients(cls) -> List[ArpClient]:
-        if not cls._network:
-            raise RuntimeError("missing network wrong init")
-        try:
-            _arp_req_pcks: List[Packet] = [
-                Ether(dst=cls._broadcast_mac, src=cls._server_mac)
-                / ARP(pdst=str(ip), psrc=cls._server_ip, op=cls._arp_request_type)
-                for ip in cls._network.hosts()
-            ]
-
-            _answered_arp_req_pcks, _ = srp(
-                _arp_req_pcks,
-                timeout=cls._arp_timeout_subnet,
-                verbose=False,
-                inter=APR_INTER_DELAY,
-                iface=cls._iface,
-            )
-
-            _seen = set()
-            return [
-                ArpClient(mac=_pkt[ARP].hwsrc, ip=_pkt[ARP].psrc)
-                for _, _pkt in _answered_arp_req_pcks
-                if _pkt[ARP].hwsrc not in _seen
-                and _seen.add(_pkt[ARP].hwsrc)
-                is None  # _seen.add(pkt[ARP].hwsrc) returns None when successfull
-            ]
-
-        except Exception as err:
-            cls.logger.error("Error during ARP discovery: %s", err)
-            return []
-
-    @classmethod
-    def _probe_ip(cls, ip: str) -> Optional[ArpClient]:
-        try:
-            IPv4Address(ip)
-
-            arp_request: Packet = Ether(
-                dst=cls._broadcast_mac, src=cls._server_mac
-            ) / ARP(pdst=ip, psrc=cls._server_ip, op=cls._arp_request_type)
-
-            answered, _ = srp(
-                arp_request,
-                timeout=cls._arp_timeout_single,
-                verbose=False,
-                iface=cls._iface,
-            )
-
-            if len(answered) == 1:
-                _, recv_pck = answered[0]
-                return ArpClient(mac=recv_pck[ARP].hwsrc, ip=recv_pck[ARP].psrc)
-
-            if len(answered) > 1:
-                cls.logger.warning("Multiple ARP responses received for IP %s", ip)
-
-        except AddressValueError:
-            cls.logger.error("Invalid IP _probe_ip: %s", ip)
-
-        except Exception as err:
-            cls.logger.error("Error sending ARP to %s: %s", ip, err)
-
-        return None
 
     @classmethod
     @is_init
     @is_running
     def get_live_clients(cls) -> List[ArpClient]:
+        """
+        Currently discovered live clients.
+        Returns:
+            List[ArpClient]: Deep copy of the active clients detected via ARP scanning.
+        """
         with cls._lock:
-            return deepcopy(cls._live_clients)
+            return list(cls._live_clients.values())
 
     @classmethod
     @is_init
     @is_running
-    def get_live_client_by_ip(cls, ip: str) -> Optional[ArpClient]:
+    def get_live_client_by_ip(cls, ip: str) -> ArpClient | None:
+        """
+        Get a discovered client by its IP address.
+        Args:
+            ip (str): The IP address to look up.
+        Returns:
+            ArpClient | None: Matching client if found, otherwise None.
+        """
         with cls._lock:
-            for client in cls._live_clients:
-                if client.ip == ip:
-                    return ArpClient(mac=client.mac, ip=client.ip)
-        return None
+            return cls._live_clients.get(ip)
 
     @classmethod
     @is_init
     @is_running
-    def get_available_ip(cls) -> str:
+    def get_available_ip(cls) -> IPv4Address | None:
+        """
+        Find the next available IP address in the configured range.
+        Skips:
+            - IPs outside the configured pool.
+            - IPs currently leased by DHCP.
+            - IPs discovered via ARP.
+            - IPs responding to a fresh ARP probe.
+        Returns:
+            IPv4Address | None: An unused IP address or None if none are available.
+        """
         if cls._ip_range_start is None or cls._ip_range_end is None:
             raise RuntimeError("Not initialized.")
+        if cls.network is None:
+            raise RuntimeError("Network not init")
 
         with cls._lock:
-            discovered_ips = {client.ip for client in cls._live_clients}
-            leased_ips = DHCPStorage.get_all_leased_ips()
 
-        for ip_int in range(int(cls._ip_range_start), int(cls._ip_range_end) + 1):
-            candidate_ip = str(IPv4Address(ip_int))
-            if candidate_ip in leased_ips or candidate_ip in discovered_ips:
-                continue
+            _discovered_ips: Set[str] = set(cls._live_clients.keys())
+            _leased_ips: Set[str] = DHCPStorage.get_all_leased_ips()
 
-            if cls._probe_ip(candidate_ip):
-                continue
+            for _ip in cls.network.hosts():
 
-            cls.logger.debug("Proposing IP: %s", candidate_ip)
-            return candidate_ip
+                if not (cls._ip_range_start <= _ip <= cls._ip_range_end):
+                    continue
+                if str(_ip) in _leased_ips or str(_ip) in _discovered_ips:
+                    continue
+                if send_arp_request(ip=_ip):
+                    continue
 
-        cls.logger.warning("No available IPs found.")
-        return ""
+                cls.logger.debug("Proposing IP: %s", _ip)
+                return _ip
+
+            cls.logger.warning("No available IPs found.")
+            return None

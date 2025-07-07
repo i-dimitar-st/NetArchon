@@ -31,7 +31,7 @@ def is_running(func):
 
 class DbPersistanceService:
     _lock = RLock()
-    _stop_event = None
+    _stop_event = Event()
     _worker = None
     _interval = None
     initialized = False
@@ -40,7 +40,6 @@ class DbPersistanceService:
     @classmethod
     def init(cls, logger: Logger, interval=float(DB_PERSISTENCE_INTERVAL)):
         with cls._lock:
-            cls._stop_event = Event()
             cls._worker = None
             cls._interval = interval
             cls.logger: Logger = logger
@@ -52,8 +51,8 @@ class DbPersistanceService:
         with cls._lock:
             if cls.running:
                 raise RuntimeError("Already running")
-            if cls._stop_event:
-                cls._stop_event.clear()
+
+            cls._stop_event.clear()
             cls.running = True
             cls._worker = Thread(target=cls._work, daemon=True)
             cls._worker.start()
@@ -63,8 +62,7 @@ class DbPersistanceService:
     @is_running
     def stop(cls):
         with cls._lock:
-            if cls._stop_event:
-                cls._stop_event.set()
+            cls._stop_event.set()
             if cls._worker:
                 cls._worker.join(timeout=1)
                 if cls._worker.is_alive():

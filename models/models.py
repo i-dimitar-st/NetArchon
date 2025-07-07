@@ -1,5 +1,6 @@
 from time import time
 from ipaddress import IPv4Address
+from dataclasses import dataclass
 from enum import Enum, unique
 from enum import IntEnum
 from collections.abc import Sequence
@@ -375,13 +376,13 @@ class DBSchemas:
     """
 
 
+@dataclass(frozen=True)
 class ArpClient:
-    def __init__(self, mac: str, ip: str):
-        self.mac = mac
-        self.ip = ip
+    mac: str
+    ip: str
 
     def __repr__(self):
-        return f"mac='{self.mac}', ip='{self.ip}')"
+        return f"mac='{self.mac}',ip='{self.ip}'"
 
     def to_dict(self) -> dict:
         return {"mac": self.mac, "ip": self.ip}

@@ -3,6 +3,7 @@ from functools import wraps
 from time import time
 from logging import Logger
 from threading import RLock
+from typing import Set
 from pathlib import Path
 from config.config import config
 from models.models import DBSchemas
@@ -134,7 +135,7 @@ class DHCPStorage:
 
     @classmethod
     @is_init
-    def get_all_leased_ips(cls) -> set:
+    def get_all_leased_ips(cls) -> Set[str]:
         """Get a list of currently leased IPs."""
 
         with cls._lock:
@@ -143,8 +144,8 @@ class DHCPStorage:
                     lease[0]
                     for lease in cls._cursor.execute("SELECT ip FROM leases").fetchall()
                 }
-            except Exception as e:
-                cls.logger.error(f"Failed to get active leases: {e}")
+            except Exception as _err:
+                cls.logger.error("Failed to get active leases: %s.", _err)
                 return set()
 
     @classmethod

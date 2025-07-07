@@ -8,6 +8,11 @@ from ipaddress import (
 )
 from scapy.layers.dhcp import DHCP
 from scapy.packet import Packet
+from scapy.arch import get_if_list
+
+
+def is_net_interface_valid(iface: str) -> bool:
+    return iface in get_if_list()
 
 
 class DHCPUtilities:

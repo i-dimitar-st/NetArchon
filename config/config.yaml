@@ -82,6 +82,17 @@ dhcp:
     mtu: 1500
     rcvd_queue_size: 100
     deque_size: 100
+    client_discovery:
+        interval: 30
+        retries: 2
+        timeouts:
+            subnet: 2.5
+            single: 1.0
+            retry_delay: 1.0
+            inter_delay: 0.001
+            worker_join: 0.5
+        workers: 50
+
     timeouts:
         arp: 3
         worker_get: 0.2
@@ -139,7 +150,6 @@ logging:
             level: ERROR
             formatter: default
             stream: ext://sys.stdout
-
     root:
         level: INFO
         handlers: [file, console]

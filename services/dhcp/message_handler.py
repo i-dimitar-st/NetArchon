@@ -1,5 +1,7 @@
+from ipaddress import IPv4Address
 from logging import Logger
 from threading import RLock
+from typing import List
 from scapy.sendrecv import sendp
 from scapy.layers.dhcp import BOOTP
 from scapy.packet import Packet
@@ -64,16 +66,15 @@ class DHCPMessageHandler:
             cls.logger.debug(
                 "Rcvd DISCOVER XID=%s, MAC=%s.", dhcp_message.xid, dhcp_message.mac
             )
-
-            proposed_ip = ClientDiscoveryService.get_available_ip()
+            proposed_ip: IPv4Address | None = ClientDiscoveryService.get_available_ip()
             if not proposed_ip:
                 cls.logger.warning("No available IP")
                 return
 
-            LeaseReservationCache.reserve(ip=proposed_ip, mac=dhcp_message.mac)
+            LeaseReservationCache.reserve(ip=str(proposed_ip), mac=dhcp_message.mac)
             offer = DHCPResponseFactory.build(
                 dhcp_type=DHCPType.OFFER,
-                your_ip=proposed_ip,
+                your_ip=str(proposed_ip),
                 request_packet=dhcp_message.packet,
             )
             cls._send_response(offer)
