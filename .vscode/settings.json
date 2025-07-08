@@ -1,17 +1,11 @@
 {
     "cSpell.enabled": false,
-
     "python.defaultInterpreterPath": "${workspaceFolder}/venv/bin/python",
     "python.terminal.activateEnvironment": true,
     "python.envFile": "${workspaceFolder}/.env",
     "python.formatting.provider": "black",
-    "python.formatting.blackArgs": ["--line-length", "100", "--skip-string-normalization"],
-    "editor.formatOnSave": true,
-    "[python]": {
-        "editor.defaultFormatter": "ms-python.black-formatter"
-    },
-
-    "python.analysis.typeCheckingMode": "basic",
+    "python.formatting.blackArgs": ["--line-length", "88"],
+    "python.analysis.typeCheckingMode": "standard",
     "python.analysis.autoSearchPaths": true,
     "python.analysis.useLibraryCodeForTypes": true,
     "python.analysis.inlayHints.variableTypes": true,

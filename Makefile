@@ -4,25 +4,34 @@ ACTIVATE := source $(VENV)/bin/activate
 SCRIPTS := scripts
 SRC := src
 
-.PHONY: venv requirements ssl config systemd test
+.PHONY: set_net_buffers \
+		install_venv install_requirements \
+		install_requirements \
+		generate_ssl \
+		generate_config \
+		create_systemd \
+		run_tests
 
-venv:
+set_net_buffers:
+	$(SCRIPTS)/set_buffers.sh
+
+install_venv:
 	$(PYTHON) -m venv $(VENV)
 
-requirements:
+install_requirements:
 	$(VENV)/bin/pip install -r requirements.txt
 
-requirements-dev:
+install_requirements-dev:
 	$(VENV)/bin/pip install -r requirements-dev.txt
 
-ssl:
+generate_ssl:
 	$(SCRIPTS)/generate_ssl.sh
 
-config:
+generate_config:
 	$(PYTHON) $(SCRIPTS)/make_config.py
 
-systemd:
+create_systemd:
 	$(SCRIPTS)/make_systemd_service.sh
 
-test:
+run_tests:
 	@APP_ROOT_PATH=$(shell pwd) $(VENV)/bin/python -m pytest -s --tb=line

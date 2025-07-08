@@ -3,11 +3,12 @@ from threading import RLock
 from typing import Optional, Any
 from functools import wraps
 from collections import deque, OrderedDict
+from config.config import config
 
-
-MRU_MAX_SIZE = 60
-TTL_MAX_SIZE = 100
-TTL_DEFAULT = 600
+LIBS_CONF = config.get("libs")
+MRU_MAX_SIZE = LIBS_CONF.get("mru_max_size")
+TTL_MAX_SIZE = LIBS_CONF.get("ttl_max_size")
+TTL_DEFAULT = LIBS_CONF.get("ttl_default")
 
 
 class Metrics:
@@ -127,6 +128,32 @@ class MRUCache:
             self._cache.clear()
 
 
+def ttl_clean_expired(func):
+    """
+    Decorator to remove expired cache entries before executing the decorated method.    
+    Calls the instance's `_clean_expired` method to purge stale items, 
+    ensuring the cache is up-to-date during the decorated method's operation.
+    """
+    @wraps(func)
+    def wrapper(self, *args, **kwargs):
+        self._clean_expired()  # pylint: disable=protected-access
+        return func(self, *args, **kwargs)
+    return wrapper
+
+
+def ttl_evict(func):
+    """
+    Decorator to evict oldest cache entries if the cache exceeds its maximum size
+    before executing the decorated method.
+    Calls the instance's `_evict` method to maintain cache size constraints.
+    """
+    @wraps(func)
+    def wrapper(self, *args, **kwargs):
+        self._evict()  # pylint: disable=protected-access
+        return func(self, *args, **kwargs)
+    return wrapper
+
+
 class TTLCache:
     """Simple, thread-safe, one-directional TTL cache (key → value)."""
 
@@ -136,24 +163,6 @@ class TTLCache:
         self._cache: dict[Any, tuple[Any, float]] = {}  # key -> (value, expiry)
         self._max_size: int = max_size
         self._ttl: int = ttl
-
-    @staticmethod
-    def clean_expired(func):
-        @wraps(func)
-        def wrapper(self, *args, **kwargs):
-            self._clean_expired()
-            return func(self, *args, **kwargs)
-
-        return wrapper
-
-    @staticmethod
-    def evict(func):
-        @wraps(func)
-        def wrapper(self, *args, **kwargs):
-            self._evict()
-            return func(self, *args, **kwargs)
-
-        return wrapper
 
     def _clean_expired(self):
         """Remove expired entries."""
@@ -172,22 +181,22 @@ class TTLCache:
                 for key in sorted_keys[:to_evict]:
                     del self._cache[key]
 
-    @clean_expired
-    @evict
+    @ttl_clean_expired
+    @ttl_evict
     def add(self, key: Any, value: Any, ttl: Optional[int] = None):
-        """Get value by key, None if expired/missing."""
+        """Add item, ttl is optinal default assigned if missing."""
         with self._lock:
             expiry: float = time() + (ttl if ttl and ttl > 0 else self._ttl)
             self._cache[key] = (value, expiry)
 
-    @clean_expired
+    @ttl_clean_expired
     def get(self, key: Any) -> Optional[Any]:
         """Get value by key or None if expired/missing."""
         with self._lock:
             item: tuple[Any, float] | None = self._cache.get(key)
             return item[0] if item else None
 
-    @clean_expired
+    @ttl_clean_expired
     def get_by_value(self, value: Any) -> Optional[Any]:
         """Find key by value or None."""
         with self._lock:
@@ -196,7 +205,7 @@ class TTLCache:
                     return _key
             return None
 
-    @clean_expired
+    @ttl_clean_expired
     def keys(self) -> list[Any]:
         """Return all non-expired keys in the cache."""
         with self._lock:
@@ -212,7 +221,7 @@ class TTLCache:
         with self._lock:
             self._cache.clear()
 
-    @clean_expired
+    @ttl_clean_expired
     def size(self) -> int:
         """Returns cache size."""
         with self._lock:

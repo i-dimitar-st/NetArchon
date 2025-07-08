@@ -55,7 +55,7 @@ class DNSUtils:
         _domain = domain.lower().rstrip(".")
         _labels = _domain.split(".")
         for _label in _labels:
-            if not (1 <= len(_label) <= 63):
+            if not 1 <= len(_label) <= 63:
                 return False
             if not match(r"^[a-z0-9-_]+$", _label):
                 return False

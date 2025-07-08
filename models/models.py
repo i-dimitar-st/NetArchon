@@ -1,20 +1,21 @@
 from time import time
-from ipaddress import IPv4Address
 from dataclasses import dataclass
 from enum import Enum, unique
 from enum import IntEnum
-from collections.abc import Sequence
+
 from dnslib import DNSRecord
-from utils.dns_utils import DNSUtils
 from scapy.packet import Packet
 from scapy.layers.l2 import Ether
 from scapy.layers.inet import IP, UDP
 from scapy.layers.dhcp import BOOTP, DHCP
+
 from utils.dhcp_utils import DHCPUtilities
+from utils.dns_utils import DNSUtils
 
 
 @unique
 class DHCPLeaseType(IntEnum):
+    """DHCPLeaseType"""
     DISCOVER = 1
     OFFER = 2
     REQUEST = 3
@@ -32,6 +33,7 @@ class DHCPLeaseType(IntEnum):
 
 @unique
 class DnsResponseCode(IntEnum):
+    """DnsResponseCode"""
     NO_ERROR = 0
     FORMAT_ERROR = 1
     SERVER_FAILURE = 2
@@ -39,12 +41,13 @@ class DnsResponseCode(IntEnum):
     NOT_IMPLEMENTED = 4
     REFUSED = 5
 
-    def __str__(self) -> int:
-        return self.value
+    def __str__(self) -> str:
+        return str(self.value)
 
 
 @unique
 class DnsRequestType(IntEnum):
+    """DnsRequestType"""
     A = 1
     NS = 2
     CNAME = 5
@@ -93,6 +96,7 @@ class DnsRequestType(IntEnum):
 
 @unique
 class LogLevel(Enum):
+    """LogLevel"""
     DEBUG = 10
     INFO = 20
     WARNING = 30
@@ -101,6 +105,7 @@ class LogLevel(Enum):
 
     @classmethod
     def _missing_(cls, value):
+        """Handle cases where a value passed to the Enum is not found among its members"""
         if isinstance(value, str):
             value = value.strip().upper()
             for member in cls:
@@ -109,57 +114,9 @@ class LogLevel(Enum):
         return cls.DEBUG  # fallback
 
 
-class DnsServersIpv4(Sequence):
-    """
-    Holds a validated list of IPv4 DNS server addresses.
-    - Validates each address on initialization.
-    - Supports iteration and string representation of the server list.
-    """
-
-    def __init__(self, servers: list[str]):
-        """
-        Initialize with a list of IPv4 DNS server strings.
-        - No empty servers allowd.
-        """
-        if not servers or not isinstance(servers, list):
-            raise ValueError("Must provide a non-empty list of DNS servers")
-        self._servers = []
-        for _server in servers:
-            if not DnsServersIpv4._is_ipv4_server(_server):
-                raise ValueError(f"Invalid IPv4 address: {_server}")
-            self._servers.append(_server)
-
-    def __getitem__(self, index: int) -> str:
-        """
-        Return the DNS server at the specified index.
-        """
-        return self._servers[index]
-
-    def __repr__(self):
-        """
-        Return a string representation of the DNS server list.
-        """
-        return repr(self._servers)
-
-    def __len__(self):
-        """
-        Return the number of DNS servers stored.
-        """
-        return len(self._servers)
-
-    @staticmethod
-    def _is_ipv4_server(ip: str) -> bool:
-        """
-        Check if the given string is a valid IPv4 address.
-        """
-        try:
-            IPv4Address(ip)
-            return True
-        except:
-            return False
-
-
 class DNSReqMessage:
+    """DNSReqMessage"""
+
     def __init__(self, raw: bytes, addr: tuple):
         self.received = time()
         self.raw: bytes = raw
@@ -421,12 +378,12 @@ class DhcpMessage:
         self.param_req_list: list[int] = DHCPUtilities.extract_param_req_list(packet)
 
     def __str__(self) -> str:
-        return "TYPE:%s, XID:%s, MAC:%s, IP_req:%s, HOSTNAME:%s." % (
-            self.dhcp_type,
-            self.xid,
-            self.mac,
-            self.requested_ip,
-            self.hostname,
+        return (
+            f"TYPE:{self.dhcp_type}, "
+            f"XID:{self.xid}, "
+            f"MAC:{self.mac}, "
+            f"IP_req:{self.requested_ip}, "
+            f"HOSTNAME:{self.hostname}."
         )
 
     @property

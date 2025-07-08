@@ -9,6 +9,8 @@ DEFAULT_CONFIG_PATH = Path(__file__).parent / "config.yaml"
 
 
 class Config:
+    """Defines application level Config"""
+
     def __init__(self, path: Path = DEFAULT_CONFIG_PATH):
         self._lock = RLock()
         self._path: Path = path
@@ -22,9 +24,11 @@ class Config:
                 self._config = safe_load(_file_handle)
 
     def reload(self):
+        """Reload config"""
         self._load_config()
 
     def get(self, key: str) -> Any:
+        """Get parameter from config obj"""
 
         if not isinstance(key, str) or not key:
             raise ValueError("Key must be a non-empty str.")

@@ -1,12 +1,13 @@
-from libs.libs import TTLCache
 from typing import Optional
 from functools import wraps
+
 from config.config import config
+from libs.libs import TTLCache
 
 DHCP_CONF = config.get("dhcp")
 LEASE_RESERVATION_CACHE = DHCP_CONF.get("lease_reservation_cache")
-CACHE_SIZE = LEASE_RESERVATION_CACHE.get("size")
-CACHE_TTL = LEASE_RESERVATION_CACHE.get("ttl")
+CACHE_SIZE = int(LEASE_RESERVATION_CACHE.get("size"))
+CACHE_TTL = int(LEASE_RESERVATION_CACHE.get("ttl"))
 
 
 def is_init(func):

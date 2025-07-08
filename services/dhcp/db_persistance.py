@@ -1,8 +1,9 @@
 from logging import Logger
 from threading import RLock, Event, Thread
+from functools import wraps
+
 from services.dhcp.db_core import DHCPStorage, DHCPStats
 from services.dhcp.client_discovery import ClientDiscoveryService
-from functools import wraps
 from config.config import config
 
 DHCP_CONFIG = config.get("dhcp")

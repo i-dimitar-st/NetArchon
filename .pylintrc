@@ -1,17 +1,37 @@
 [MASTER]
-ignore=venv
 jobs=1
-max-line-length=100
+persistent=yes
+fail-under=10
+ignore=CVS
 
 [MESSAGES CONTROL]
 disable=
-    C0114,  ; missing module docstring
-    R0903,  ; too few public methods (simple class)
-    E0401,  ; import-error (common in virtual envs)
-    W0613   ; unused arguments
+    C0114,  # missing module docstring
+    C0301,  # line too long
+    C0330,  # bad continuation
+    C0303,   # trailing whitespace
+    W0613   # unused vars
+
+[BASIC]
+argument-naming-style=snake_case
+attr-naming-style=snake_case
+variable-naming-style=snake_case
+function-naming-style=snake_case
+class-naming-style=PascalCase
+const-naming-style=UPPER_CASE
+bad-names=foo,bar,baz,toto,tutu,tata
+good-names=i,j,k,ex,Run,_
+
+[FORMAT]
+max-line-length=88
+indent-string='    '
+
+[DESIGN]
+max-args=5
+max-attributes=7
+max-returns=6
+max-statements=50
 
 [REPORTS]
 reports=no
-
-[FORMAT]
-indent-string=    # 4 spaces
+score=yes

@@ -2,6 +2,7 @@
 from concurrent.futures import Future, ThreadPoolExecutor, as_completed
 from functools import lru_cache
 from json import load
+from ipaddress import IPv4Address
 from pathlib import Path
 from queue import Full, Empty, Queue
 from random import sample
@@ -24,7 +25,7 @@ from fnmatch import fnmatch
 from dnslib import DNSRecord, QTYPE, RR, A
 
 # Local
-from models.models import DNSReqMessage, DnsResponseCode, DnsServersIpv4
+from models.models import DNSReqMessage, DnsResponseCode
 from config.config import config
 from services.logger.logger import MainLogger
 from services.dns.db import DnsQueryHistoryDb, DnsStatsDb
@@ -286,7 +287,7 @@ class ExternalResolverService:
     _timeout_buffer: float = EXTERNAL_TIMEOUT_BUFFER
     _max_workers: int = EXTERNAL_WORKERS
     _executor: Optional[ThreadPoolExecutor] = None
-    _dns_servers: Optional[DnsServersIpv4] = None
+    _dns_servers: Optional[list[IPv4Address]] = None
 
     @classmethod
     def init(
@@ -294,7 +295,7 @@ class ExternalResolverService:
         port: int = DNS_PORT,
         timeout: float = EXTERNAL_TIMEOUT,
         timeout_buffer: float = EXTERNAL_TIMEOUT_BUFFER,
-        dns_servers: list = EXTERNAL_DNS_SERVERS,
+        dns_servers: list[IPv4Address] = EXTERNAL_DNS_SERVERS,
         max_msg_size: int = DNS_UDP_PACKET_MAX_SIZE,
         max_workers: int = EXTERNAL_WORKERS,
     ):
@@ -305,7 +306,7 @@ class ExternalResolverService:
         with cls._lock:
             if cls._executor is not None:
                 raise RuntimeError("Already initialized")
-            cls._dns_servers = DnsServersIpv4(dns_servers)
+            cls._dns_servers = [IPv4Address(ip) for ip in dns_servers]
             cls._port = port
             cls._max_msg_size = max_msg_size
             cls._timeout = timeout
@@ -371,17 +372,17 @@ class ExternalResolverService:
                     return reply
 
                 except Exception as err:
-                    dns_logger.error(f"{_dns_server_ip} errored with {str(err)}.")
+                    dns_logger.error("Error with ip %s : %s.", _dns_server_ip, err)
 
         except Exception as err:
-            dns_logger.error(f"Error with DNS futures: {str(err)}.")
+            dns_logger.error("Error with DNS futures :%s.", err)
 
         # All failed
         return None
 
     @classmethod
     def _query_external_dns_server(
-        cls, request: DNSRecord, dns_server: str
+        cls, request: DNSRecord, dns_server: IPv4Address
     ) -> DNSRecord:
         """Send DNS query to a single upstream DNS server and return the response."""
 

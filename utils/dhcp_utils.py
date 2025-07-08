@@ -12,6 +12,7 @@ from scapy.arch import get_if_list
 
 
 def is_net_interface_valid(iface: str) -> bool:
+    """is_net_interface_valid"""
     return iface in get_if_list()
 
 
@@ -43,6 +44,7 @@ class DHCPUtilities:
 
     @staticmethod
     def extract_hostname_from_packet(packet: Packet) -> str:
+        """extract_hostname_from_packet"""
         for option in packet[DHCP].options:
             if option[0] == "hostname":
                 return DHCPUtilities.convert_binary_to_string(option[1])

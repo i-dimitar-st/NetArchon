@@ -18,6 +18,11 @@ certificates:
     cert: cert.pem
     key: key.pem
 
+libs:
+    mru_max_size: 60
+    ttl_max_size: 100
+    ttl_default: 600
+
 network:
     lan:
         name: enp2s0
