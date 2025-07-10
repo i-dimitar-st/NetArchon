@@ -96,7 +96,7 @@ dhcp:
         worker_join_timeout: 0.5
     client_discovery:
         interval: 30
-        retries: 2
+        retries: 1
         timeouts:
             subnet: 2.5
             single: 1.0
