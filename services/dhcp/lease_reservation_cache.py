@@ -1,4 +1,3 @@
-from typing import Optional
 from functools import wraps
 
 from config.config import config
@@ -11,6 +10,7 @@ CACHE_TTL = int(LEASE_RESERVATION_CACHE.get("ttl"))
 
 
 def is_init(func):
+    """Is service initialized"""
     @wraps(func)
     def wrapper(cls, *args, **kwargs):
         if not getattr(cls, "initialized", False):
@@ -21,11 +21,41 @@ def is_init(func):
 
 
 class LeaseReservationCache:
-    _cache: Optional[TTLCache] = None
-    initialized = False
+    """
+    LeaseReservationCache
+
+    Purpose:
+        In-memory service to track IP-to-MAC reservations for DHCP lease allocation.
+        Prevents assigning the same IP to multiple clients simultaneously.
+        Maintains TTL-based expiration on reservations.
+
+    Dependencies:
+        - TTLCache: Custom cache with TTL support.
+          Must provide: add(), get(), get_by_value(), remove(), keys(), clear().
+
+    Usage:
+        1. Initialize cache (required before use)
+            LeaseReservationCache.init()
+        2. Reserve IP
+            LeaseReservationCache.reserve("192.168.1.10", "AA:BB:CC:DD:EE:FF")
+        3. Check MAC/IP
+            mac = LeaseReservationCache.get_mac("192.168.1.10")
+            ip = LeaseReservationCache.get_ip("AA:BB:CC:DD:EE:FF")
+        4. Unreserve
+            LeaseReservationCache.unreserve("192.168.1.10", "AA:BB:CC:DD:EE:FF")
+        5. Get all reservations
+            LeaseReservationCache.get_all_ips()
+
+    Notes:
+        - Cache expires reservations after TTL automatically.
+        - Init must be called once during application setup.
+    """
+    _cache: TTLCache | None = None
+    initialized: bool = False
 
     @classmethod
     def init(cls, max_size: int = CACHE_SIZE, ttl: int = CACHE_TTL):
+        """Initialize"""
         if cls._cache is not None:
             raise RuntimeError("Cache is not none")
         cls._cache = TTLCache(max_size=max_size, ttl=ttl)
@@ -55,14 +85,14 @@ class LeaseReservationCache:
 
     @classmethod
     @is_init
-    def get_mac(cls, ip: str) -> Optional[str]:
+    def get_mac(cls, ip: str) -> str | None:
         """Return MAC reserved on IP or None."""
         if cls._cache:
             return cls._cache.get(ip)
 
     @classmethod
     @is_init
-    def get_ip(cls, mac: str) -> Optional[str]:
+    def get_ip(cls, mac: str) -> str | None:
         """Return IP reserved by MAC or None."""
         if cls._cache:
             return cls._cache.get_by_value(mac)

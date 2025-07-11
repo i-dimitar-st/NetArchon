@@ -8,10 +8,12 @@ from scapy.packet import Packet
 
 from models.models import (
     DHCPResponseFactory,
-    DhcpMessage,
+    DHCPMessage,
     DHCPLeaseType,
 )
-from services.dhcp.db_core import DHCPStorage, DHCPStats
+
+from services.dhcp.db_dhcp_leases import DHCPStorage
+from services.dhcp.db_dhcp_stats import DHCPStats
 from services.dhcp.client_discovery import ClientDiscoveryService
 from services.dhcp.db_persistance import DbPersistanceService
 from services.dhcp.message_handler import DHCPMessageHandler
@@ -21,7 +23,6 @@ from config.config import config
 
 
 DHCP_CONFIG = config.get("dhcp")
-
 INTERFACE = DHCP_CONFIG.get("interface")
 PORT = DHCP_CONFIG.get("port")
 SERVER_IP = DHCP_CONFIG.get("ip")
@@ -31,22 +32,24 @@ BROADCAST_MAC = DHCP_CONFIG.get("broadcast_mac")
 SUBNET_MASK = DHCP_CONFIG.get("subnet")
 ROUTER = DHCP_CONFIG.get("router_ip")
 NAME_SERVER = DHCP_CONFIG.get("ntp_server")
-IP_RANGE_START = DHCP_CONFIG.get("ip_pool_start")
-IP_RANGE_END = DHCP_CONFIG.get("ip_pool_end")
-CIDR = DHCP_CONFIG.get("cidr")
-LEASE_TIME = DHCP_CONFIG.get("lease_time_seconds")
-REBINDING_TIME = int(LEASE_TIME * 0.875)
-RENEWAL_TIME = int(LEASE_TIME * 0.5)
-MTU = DHCP_CONFIG.get("mtu")
 
-RECEIVED_QUEUE_SIZE = 100
-INBOUND_REQUESTS_DEQUE_SIZE = 60
+LEASE_TIME = int(DHCP_CONFIG.get("lease_time_seconds"))
+REBINDING_TIME_RATIO = float(DHCP_CONFIG.get("rebinding_time_ratio"))
+REBINDING_TIME = int(LEASE_TIME * REBINDING_TIME_RATIO)
+RENEWAL_TIME_RATIO = float(DHCP_CONFIG.get("renewal_time_ratio"))
+RENEWAL_TIME = int(LEASE_TIME * RENEWAL_TIME_RATIO)
+
+MTU = int(DHCP_CONFIG.get("mtu"))
+
+RECEIVED_QUEUE_SIZE = int(DHCP_CONFIG.get("rcvd_queue_size"))
+INBOUND_REQ_DEQUE_SIZE = int(DHCP_CONFIG.get("deque_size"))
 BOOTP_FLAG_BROADCAST = 0x8000
 
-DHCP_WORKERS = 10
-WORKER_GET_TIMEOUT = 0.2
-WORKER_SLEEP_TIMEOUT = 0.1
-WORKER_JOIN_TIMEOUT = 0.5
+WORKERS = DHCP_CONFIG.get("workers")
+TIMEOUTS = DHCP_CONFIG.get("timeouts")
+WORKER_GET_TIMEOUT = float(TIMEOUTS.get("worker_get"))
+WORKER_SLEEP_TIMEOUT = float(TIMEOUTS.get("worker_sleep"))
+WORKER_JOIN_TIMEOUT = float(TIMEOUTS.get("worker_join"))
 
 
 dhcp_logger: Logger = MainLogger.get_logger(service_name="DHCP", log_level="debug")
@@ -63,7 +66,7 @@ class DHCPServer:
     def init(
         cls,
         received_queue_size=RECEIVED_QUEUE_SIZE,
-        inbound_requests_deque_size=INBOUND_REQUESTS_DEQUE_SIZE,
+        inbound_requests_deque_size=INBOUND_REQ_DEQUE_SIZE,
     ) -> None:
 
         if cls._initialised:
@@ -87,12 +90,12 @@ class DHCPServer:
             rebinding_time=REBINDING_TIME,
             mtu=MTU,
         )
+        DHCPStorage.init(logger=dhcp_logger)
+        DHCPStats.init(logger=dhcp_logger)
+        DbPersistanceService.init(logger=dhcp_logger)
         LeaseReservationCache.init()
         DHCPMessageHandler.init(logger=dhcp_logger)
         ClientDiscoveryService.init(logger=dhcp_logger)
-        DbPersistanceService.init(logger=dhcp_logger)
-        DHCPStorage.init(logger=dhcp_logger)
-        DHCPStats.init(logger=dhcp_logger)
 
         cls._initialised = True
 
@@ -115,12 +118,12 @@ class DHCPServer:
             _traffic_listener.start()
             cls._workers["dhcp-traffic_listener"] = _traffic_listener
 
-            for _index in range(DHCP_WORKERS):
+            for _index in range(WORKERS):
                 _worker = Thread(
-                    target=cls._processor, name=f"dhcp-worker_{_index}", daemon=True
+                    target=cls._processor, name=f"dhcp-worker-{_index}", daemon=True
                 )
                 _worker.start()
-                cls._workers[f"dhcp-worker_{_index}"] = _worker
+                cls._workers[f"dhcp-worker-{_index}"] = _worker
             dhcp_logger.info("Started %s", cls.__name__)
 
     @classmethod
@@ -175,7 +178,7 @@ class DHCPServer:
         while cls._running:
             dhcp_message = None
             try:
-                dhcp_message = DhcpMessage(
+                dhcp_message = DHCPMessage(
                     cls._received_queue.get(timeout=worker_get_timeout)
                 )
 

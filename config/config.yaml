@@ -83,31 +83,35 @@ dhcp:
     ip_pool_start: "192.168.20.101"
     ip_pool_end: "192.168.20.254"
     no_ip_assigned: "0.0.0.0"
+    default_hostname: "unknown"
     cidr: 24
     lease_time_seconds: 1209600
+    rebinding_time_ratio: 0.875
+    renewal_time_ratio: 0.5
     mtu: 1500
     rcvd_queue_size: 100
     deque_size: 100
+    workers: 10
     lease_reservation_cache:
         size: 100
         ttl: 60
     db_persistance:
         interval: 60
-        worker_join_timeout: 0.5
+        timeouts:
+            worker_join: 0.5
     client_discovery:
         interval: 30
-        retries: 1
         timeouts:
-            subnet: 2.5
+            subnet: 3.0
             single: 1.0
-            retry_delay: 1.0
-            inter_delay: 0.001
+            inter_delay: 0.005
             worker_join: 0.5
         workers: 50
     timeouts:
         arp: 3
         worker_get: 0.2
         worker_sleep: 0.1
+        worker_join: 0.5
         lease_discovery: 300
         persistence: 60
 
@@ -115,6 +119,7 @@ memory_management:
     interval: 300
 
 database:
+    persistance_worker_join_timeout: 0.5
     persistence_interval: 30
     blacklists_loading_interval: 30
     dhcp:

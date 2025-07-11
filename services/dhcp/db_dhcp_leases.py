@@ -3,23 +3,29 @@ from functools import wraps
 from time import time
 from logging import Logger
 from threading import RLock
-from typing import Set
 from pathlib import Path
+
 from config.config import config
-from models.models import DBSchemas
+from models.models import DBSchemas, LeaseType
 
 PATHS = config.get("paths")
 ROOT_PATH = Path(PATHS.get("root"))
 DB_PATH = ROOT_PATH / PATHS.get("database")
+
 DHCP_CONFIG = config.get("dhcp")
 DB_CONFIG = config.get("database")
-DHCP_DB_CONFIG = DB_CONFIG.get("dhcp")
-DB_LEASES_FULLPATH = DB_PATH / DHCP_DB_CONFIG.get("leases").get("path")
-DB_STATS_FULLPATH = DB_PATH / DHCP_DB_CONFIG.get("stats").get("path")
+
+DEFAULT_HOSTNAME = DHCP_CONFIG.get("default_hostname")
 LEASE_TIME = int(DHCP_CONFIG.get("lease_time_seconds"))
+
+DHCP_DB_CONFIG = DB_CONFIG.get("dhcp")
+DB_LEASES_PATH = DB_PATH / DHCP_DB_CONFIG.get("leases").get("path")
 
 
 def is_init(func):
+    """
+    Decorator to verify DB connection, cursor are initialized.
+    """
     @wraps(func)
     def wrapper(cls, *args, **kwargs):
         if not isinstance(getattr(cls, "_conn", None), Connection):
@@ -32,30 +38,85 @@ def is_init(func):
 
 
 class DHCPStorage:
+    """
+    Purpose:
+        Manage DHCP lease records in an in-memory SQLite database.
+        Supports adding, querying, removing, and cleaning up DHCP leases.
+        Ensures thread-safe operations with a class-level lock.
+
+    Dependencies:
+        - sqlite3 (Python standard library): for in-memory and file-based database operations.
+        - threading.RLock: to guarantee thread-safe access to the database.
+        - logging.Logger: for logging events, errors, and debugging info.
+        - config.config: for configuration constants like default lease time and hostname.
+        - models.models.DBSchemas: provides the SQL schema for the leases table.
+        - LeaseType (enum): defines lease types as 'static' or 'dynamic'.
+
+    Usage:
+        1. Initialize the storage before use:
+            DHCPStorage.init(logger)
+        2. Add or update leases:
+            DHCPStorage.add_lease(mac, ip, hostname, lease_time, lease_type)
+        3. Query leases by MAC or IP:
+            DHCPStorage.get_lease_by_mac(mac)
+            DHCPStorage.get_mac_by_ip(ip)
+        4. Get all leases or all leased IPs:
+            DHCPStorage.get_all_leases()
+            DHCPStorage.get_all_leased_ips()
+        5. Remove leases by MAC or multiple MACs:
+            DHCPStorage.remove_lease_by_mac(mac)
+            DHCPStorage.remove_leases_by_macs(set_of_macs)
+        6. Cleanup expired leases:
+            DHCPStorage.remove_expired_leases()
+        7. Persist in-memory DB to disk:
+            DHCPStorage.save_to_disk(path)
+        8. Close the database cleanly:
+            DHCPStorage.close()
+
+    Notes:
+        - Must call `init()` before using any other method.
+        - All database operations are thread-safe.
+        - Lease types are stored as strings derived from the LeaseType enum.
+    """
 
     _lock = RLock()
 
     @classmethod
     def init(cls, logger: Logger):
+        """
+        Initialize in-memory SQLite DB and prepare schema.
+        Crete table.
+        Args:
+            logger (Logger): Logger instance for debug/warning output.
+        Raises:
+            RuntimeError if already initialized.
+        """
         if (
-            getattr(cls, "_conn", None) is not None
-            or getattr(cls, "_cursor", None) is not None
+            getattr(cls, "_conn", None) is not None or
+            getattr(cls, "_cursor", None) is not None
         ):
             raise RuntimeError("Already init")
 
         with cls._lock:
-            _conn: Connection = connect(":memory:", check_same_thread=False)
+            cls.logger: Logger = logger
+            _conn: Connection = connect(
+                ":memory:", check_same_thread=False
+            )
             _cursor: Cursor = _conn.cursor()
             _cursor.execute(DBSchemas.dhcpLeases)
             _conn.commit()
             cls._conn: Connection = _conn
             cls._cursor: Cursor = _cursor
-            cls.logger: Logger = logger
             cls.logger.debug("%s initialized.", cls.__name__)
 
     @classmethod
     @is_init
-    def save_to_disk(cls, path=DB_LEASES_FULLPATH):
+    def save_to_disk(cls, path=DB_LEASES_PATH):
+        """
+        Persist the in-memory database to disk file.
+        Args:
+            path (Path): Destination file path (default configured path).
+        """
         with cls._lock:
             _conn_disk: Connection = connect(path)
             cls._conn.backup(_conn_disk)
@@ -67,10 +128,27 @@ class DHCPStorage:
         cls,
         mac: str,
         ip: str,
-        hostname: str = "unknown",
+        hostname: str = DEFAULT_HOSTNAME,
         lease_time: int = LEASE_TIME,
-        lease_type: str = "dynamic",
-    ) -> None:
+        lease_type: LeaseType = LeaseType.STATIC,
+    ):
+        """
+        Add or update a DHCP lease entry in the database.
+
+        Args:
+            mac (str): MAC address of the client device.
+            ip (str): IP address assigned to the client.
+            hostname (str, optional): Hostname of the client device. Defaults to DEFAULT_HOSTNAME.
+            lease_time (int, optional): Lease duration in seconds. Defaults to LEASE_TIME.
+            lease_type (LeaseType, optional): Lease type, static or dynamic. def static.
+
+        Behavior:
+            - Inserts a new lease or replaces existing entry matching MAC/IP.
+            - Sets current timestamp and calculates expiry time.
+            - Stores lease_type as string value in DB.
+            - Thread-safe; uses class-level lock.
+            - Logs success or errors, with error stack trace on failure.
+    """
 
         with cls._lock:
             try:
@@ -81,14 +159,21 @@ class DHCPStorage:
                     INSERT OR REPLACE INTO 
                     leases (mac, ip, hostname, timestamp, expiry_time, type)
                     VALUES (?, ?, ?, ?, ?, ?)
-                    """
-                _values = (mac, ip, hostname, _current_time, _expiry_time, lease_type)
+                """
+                _values: tuple[str, str, str, int, int, str] = (
+                    mac,
+                    ip,
+                    hostname,
+                    _current_time,
+                    _expiry_time,
+                    lease_type.value
+                )
                 cls._cursor.execute(_statement, _values)
                 cls._conn.commit()
-                cls.logger.debug(f"Added MAC:{mac} IP:{ip}")
+                cls.logger.debug("Added MAC:%s IP:%s.", mac, ip)
 
             except Exception as err:
-                cls.logger.error(f"Failed to add lease: {str(err)}")
+                cls.logger.error("Error adding lease %s.", err)
 
     @classmethod
     @is_init
@@ -130,7 +215,7 @@ class DHCPStorage:
 
     @classmethod
     @is_init
-    def get_all_leased_ips(cls) -> Set[str]:
+    def get_all_leased_ips(cls) -> set[str]:
         """Get a list of currently leased IPs."""
 
         with cls._lock:
@@ -219,111 +304,12 @@ class DHCPStorage:
     @classmethod
     @is_init
     def close(cls):
+        """
+        Close DB cursor and connection cleanly.
+        """
         with cls._lock:
             if cls._cursor:
                 cls._cursor.close()
             if cls._conn:
                 cls._conn.close()
-            cls.logger.debug("DHCPStorage shutdown completed")
-
-
-class DHCPStats:
-
-    _lock = RLock()
-    _valid_columns = set()
-
-    @staticmethod
-    def _is_init(func):
-        def wrapper(cls, *args, **kwargs):
-            if not isinstance(getattr(cls, "_conn", None), Connection):
-                raise RuntimeError("DB connection not initialized or invalid.")
-            if not isinstance(getattr(cls, "_cursor", None), Cursor):
-                raise RuntimeError("DB cursor not initialized or invalid.")
-            return func(cls, *args, **kwargs)
-
-        return wrapper
-
-    @classmethod
-    def init(cls, logger: Logger):
-
-        if (
-            getattr(cls, "_conn", None) is not None
-            or getattr(cls, "_cursor", None) is not None
-        ):
-            raise RuntimeError("Already init")
-
-        with cls._lock:
-            cls.logger: Logger = logger
-            cls._conn: Connection = connect(
-                database=":memory:", check_same_thread=False
-            )
-            cls._cursor: Cursor = cls._conn.cursor()
-            cls._create_table()
-
-    @classmethod
-    @_is_init
-    def _create_table(cls):
-
-        with cls._lock:
-            cls._cursor.execute(DBSchemas.dhcpStats)
-            cls._conn.commit()
-            cls._cursor.execute(
-                """
-                INSERT OR IGNORE
-                INTO stats (id,start_time)
-                VALUES (1, ?)
-                """,
-                (int(time()),),
-            )
-            cls._conn.commit()
-            cls._valid_columns.update(
-                {
-                    col[1]
-                    for col in cls._cursor.execute(
-                        "PRAGMA table_info(stats)"
-                    ).fetchall()
-                }
-            )
-
-    @classmethod
-    @_is_init
-    def _is_key_valid(cls, key: str) -> bool:
-        if not cls._valid_columns:
-            return False
-        return bool(key in cls._valid_columns)
-
-    @classmethod
-    @_is_init
-    def increment(cls, key: str, count: int = 1):
-
-        if not cls._is_key_valid(key):
-            return
-
-        with cls._lock:
-            cls._cursor.execute(
-                f"""
-                UPDATE stats
-                SET {key} = {key} + ?,
-                    last_updated = ?
-                WHERE id = 1
-                """,
-                (count, int(time())),
-            )
-            cls._conn.commit()
-
-    @classmethod
-    @_is_init
-    def save_to_disk(cls, path: Path = DB_STATS_FULLPATH):
-        with cls._lock:
-            _conn_disk: Connection = connect(path)
-            cls._conn.backup(_conn_disk)
-            _conn_disk.close()
-
-    @classmethod
-    @_is_init
-    def close(cls):
-        with cls._lock:
-            if cls._cursor:
-                cls._cursor.close()
-            if cls._conn:
-                cls._conn.close()
+            cls.logger.debug("%s shutdown.", cls.__name__)

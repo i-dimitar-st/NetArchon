@@ -114,6 +114,12 @@ class LogLevel(Enum):
         return cls.DEBUG  # fallback
 
 
+@unique
+class LeaseType(str, Enum):
+    STATIC = "static"
+    DYNAMIC = "dynamic"
+
+
 class DNSReqMessage:
     """DNSReqMessage"""
 
@@ -287,7 +293,7 @@ class DBSchemas:
             hostname TEXT DEFAULT 'unknown',
             timestamp INTEGER NOT NULL,
             expiry_time INTEGER NOT NULL,
-            type TEXT DEFAULT 'dynamic'
+            type TEXT DEFAULT 'static'
         )
     """
     dnsHistory: str = """
@@ -360,7 +366,7 @@ class DHCPType(IntEnum):
         return str(self.value)
 
 
-class DhcpMessage:
+class DHCPMessage:
     def __init__(self, packet: Packet):
         self.received = time()
         self.packet: Packet = packet  # Raw Scapy packet

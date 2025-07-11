@@ -10,6 +10,9 @@ from scapy.layers.dhcp import DHCP
 from scapy.packet import Packet
 from scapy.arch import get_if_list
 
+DEFAULT_HOSTNAME = "unknown"
+DEFAULT_DHCP_TYPE = -1
+
 
 def is_net_interface_valid(iface: str) -> bool:
     """is_net_interface_valid"""
@@ -24,7 +27,7 @@ class DHCPUtilities:
         for opt in packet[DHCP].options:
             if opt[0] == "message-type":
                 return int(opt[1])
-        return -1
+        return DEFAULT_DHCP_TYPE
 
     @staticmethod
     def extract_req_addr_from_packet(packet: Packet) -> str:
@@ -48,7 +51,7 @@ class DHCPUtilities:
         for option in packet[DHCP].options:
             if option[0] == "hostname":
                 return DHCPUtilities.convert_binary_to_string(option[1])
-        return "unknown"
+        return DEFAULT_HOSTNAME
 
     @staticmethod
     def extract_param_req_list(packet: Packet) -> list[int]:

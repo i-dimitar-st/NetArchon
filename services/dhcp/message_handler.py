@@ -1,7 +1,7 @@
 from ipaddress import IPv4Address
 from logging import Logger
 from threading import RLock
-from typing import List
+
 from scapy.sendrecv import sendp
 from scapy.layers.dhcp import BOOTP
 from scapy.packet import Packet
@@ -9,22 +9,24 @@ from scapy.packet import Packet
 from models.models import (
     DHCPResponseFactory,
     ArpClient,
-    DhcpMessage,
+    DHCPMessage,
     DHCPType,
     DHCPLeaseType,
+    LeaseType
 )
-from services.dhcp.db_core import DHCPStorage, DHCPStats
+
+from services.dhcp.db_dhcp_leases import DHCPStorage
+from services.dhcp.db_dhcp_stats import DHCPStats
 from services.dhcp.client_discovery import ClientDiscoveryService
 from services.dhcp.lease_reservation_cache import LeaseReservationCache
 from utils.dhcp_utils import DHCPUtilities
 from config.config import config
 
-
 DHCP_CONFIG = config.get("dhcp")
-INTERFACE = DHCP_CONFIG.get("interface")
-SERVER_IP = DHCP_CONFIG.get("ip")
-LEASE_TIME = DHCP_CONFIG.get("lease_time_seconds")
-NO_IP_ASSIGNED = DHCP_CONFIG.get("no_ip_assigned")
+INTERFACE = str(DHCP_CONFIG.get("interface"))
+SERVER_IP = str(DHCP_CONFIG.get("ip"))
+LEASE_TIME = int(DHCP_CONFIG.get("lease_time_seconds"))
+NO_IP_ASSIGNED = str(DHCP_CONFIG.get("no_ip_assigned"))
 
 
 class DHCPMessageHandler:
@@ -34,10 +36,46 @@ class DHCPMessageHandler:
 
     @classmethod
     def init(cls, logger: Logger):
+        """
+        Initilise
+
+        Args:
+            logger: Logger instance where to log.
+
+        """
         cls.logger: Logger = logger
 
     @classmethod
-    def handle_message(cls, dhcp_message: DhcpMessage):
+    def handle_message(cls, dhcp_message: DHCPMessage):
+        """
+        Process an incoming DHCP message based on its DHCP type.
+
+        Dependencies:
+            - DhcpMessage: a structured representation of a DHCP packet, must have `dhcp_type`.
+            - DHCPType: Enum defining valid DHCP message types (DISCOVER, REQUEST, etc.).
+            - Class methods: `_handle_discover`, `_handle_request`, `_handle_decline`, `_handle_release`, `_handle_inform`.
+            - Threading lock (`cls._lock`) for concurrency control.
+            - Logger (`cls.logger`) for logging warnings and exceptions.
+
+        Args:
+            dhcp_message (DhcpMessage): Parsed DHCP message object containing type and relevant data.
+
+        Behavior:
+            - Acquires thread lock for safe concurrent access.
+            - Uses a match-case statement to dispatch the message to the appropriate handler method:
+                * DISCOVER -> _handle_discover
+                * REQUEST  -> _handle_request
+                * DECLINE  -> _handle_decline
+                * RELEASE  -> _handle_release
+                * INFORM   -> _handle_inform
+            - Logs a warning for unknown DHCP message types.
+            - Catches and logs any exceptions with full traceback to avoid crashing the handler.
+
+        Usage:
+            Called whenever a DHCP message is received and parsed.
+            Example:
+                DHCPHandler.handle_message(parsed_dhcp_message)
+        """
         with cls._lock:
             try:
                 match dhcp_message.dhcp_type:
@@ -52,7 +90,7 @@ class DHCPMessageHandler:
                     case DHCPType.INFORM:
                         cls._handle_inform(dhcp_message)
                     case _:
-                        cls.logger.warning("Type %s unknown.", dhcp_message.dhcp_type)
+                        cls.logger.warning("Unknown dhcp type %s.", dhcp_message.dhcp_type)
 
             except Exception as err:
                 cls.logger.exception(
@@ -60,11 +98,11 @@ class DHCPMessageHandler:
                 )
 
     @classmethod
-    def _handle_discover(cls, dhcp_message: DhcpMessage):
-        """Handles DHCPDISCOVER messages (RFC 2131, Section 4.1) sent by clients to discover DHCP servers."""
+    def _handle_discover(cls, dhcp_message: DHCPMessage):
+        """DHCPDISCOVER (RFC 2131, Section 4.1) sent by clients to discover DHCP servers."""
         with cls._lock:
             cls.logger.debug(
-                "Rcvd DISCOVER XID=%s, MAC=%s.", dhcp_message.xid, dhcp_message.mac
+                "Got DISCOVER XID=%s, MAC=%s.", dhcp_message.xid, dhcp_message.mac
             )
             proposed_ip: IPv4Address | None = ClientDiscoveryService.get_available_ip()
             if not proposed_ip:
@@ -80,7 +118,7 @@ class DHCPMessageHandler:
             cls._send_response(offer)
 
     @classmethod
-    def _handle_request(cls, dhcp_message: DhcpMessage):
+    def _handle_request(cls, dhcp_message: DHCPMessage):
 
         cls.logger.debug(
             f"DHCP REQUEST "
@@ -112,6 +150,7 @@ class DHCPMessageHandler:
                             dhcp_message.requested_ip,
                             dhcp_message.hostname,
                             LEASE_TIME,
+                            LeaseType.DYNAMIC
                         )
                         LeaseReservationCache.unreserve(
                             dhcp_message.requested_ip, dhcp_message.mac
@@ -189,7 +228,7 @@ class DHCPMessageHandler:
             cls._send_response(response)
 
     @classmethod
-    def _handle_decline(cls, dhcp_message: DhcpMessage):
+    def _handle_decline(cls, dhcp_message: DHCPMessage):
         """Handles DHCP Decline messages (RFC 2131, Section 4.3.2)"""
 
         declined_ip = dhcp_message.requested_ip
@@ -230,8 +269,8 @@ class DHCPMessageHandler:
             cls._send_response(response)
 
     @classmethod
-    def _handle_release(cls, dhcp_message: DhcpMessage):
-        """DHCP Release (Section 4.4 of RFC 2131) sent by the client to release an IP address that it no longer needs."""
+    def _handle_release(cls, dhcp_message: DHCPMessage):
+        """DHCP Release (Section 4.4 of RFC 2131) sent by client to release from IP address"""
 
         cls.logger.debug(
             "Received DHCPRELEASE XID=%s, IP=%s, MAC=%s.",
@@ -244,7 +283,7 @@ class DHCPMessageHandler:
             DHCPStorage.remove_lease_by_mac(dhcp_message.mac)
 
     @classmethod
-    def _handle_inform(cls, dhcp_message: DhcpMessage):
+    def _handle_inform(cls, dhcp_message: DHCPMessage):
         """DHCPINFORM (Section 3.3.2 of RFC 2131)"""
 
         cls.logger.debug(
@@ -264,14 +303,28 @@ class DHCPMessageHandler:
 
     @classmethod
     def _send_response(cls, packet: Packet):
-        """Send a DHCP packet on the configured interface."""
+        """
+        Send a DHCP packet on the configured network interface.
+
+        Args:
+            packet (Packet): The DHCP packet to send (Scapy Packet).
+
+        Behavior:
+            - Increments global DHCP stats counters: total sent and by DHCP message type.
+            - Logs details DHCP type, transaction ID (XID), client mac, and your IP.
+            - Sends the packet on the pre-configured interface using `sendp`.
+            - Catches and logs any exceptions without raising.
+        """
         try:
             DHCPStats.increment(key="sent_total")
-            DHCPStats.increment(
-                key=f"sent_{DHCPLeaseType(DHCPUtilities.extract_dhcp_type_from_packet(packet)).name.lower()}"
-            )
+
+            _stats_key = DHCPLeaseType(
+                DHCPUtilities.extract_dhcp_type_from_packet(packet)
+            ).name.lower()
+
+            DHCPStats.increment(key=f"sent_{_stats_key}")
             cls.logger.debug(
-                "Send: TYPE:%s, XID:%s, CHADDR:%s, YIADDR:%s.",
+                "Send TYPE:%s, XID:%s, CHADDR:%s, YIADDR:%s.",
                 DHCPUtilities.extract_dhcp_type_from_packet(packet),
                 packet[BOOTP].xid,
                 packet[BOOTP].chaddr[:6].hex(":"),
