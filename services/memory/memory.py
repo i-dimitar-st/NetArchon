@@ -1,13 +1,15 @@
 import gc
+import inspect
+from collections import Counter
 from os import getpid
 from threading import Event, Thread
 from time import time
-from collections import Counter
+
+import objgraph
 from psutil import Process
+
 from config.config import config
 from services.logger.logger import MainLogger
-import objgraph
-import inspect
 
 WORKER_JOIN_TIMEOUT = 1
 MEMORY_MANAGEMENT = config.get("memory_management")

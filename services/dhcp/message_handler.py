@@ -2,25 +2,24 @@ from ipaddress import IPv4Address
 from logging import Logger
 from threading import RLock
 
-from scapy.sendrecv import sendp
 from scapy.layers.dhcp import BOOTP
 from scapy.packet import Packet
+from scapy.sendrecv import sendp
 
+from config.config import config
 from models.models import (
-    DHCPResponseFactory,
     ArpClient,
-    DHCPMessage,
-    DHCPType,
     DHCPLeaseType,
-    LeaseType
+    DHCPMessage,
+    DHCPResponseFactory,
+    DHCPType,
+    LeaseType,
 )
-
+from services.dhcp.client_discovery import ClientDiscoveryService
 from services.dhcp.db_dhcp_leases import DHCPStorage
 from services.dhcp.db_dhcp_stats import DHCPStats
-from services.dhcp.client_discovery import ClientDiscoveryService
 from services.dhcp.lease_reservation_cache import LeaseReservationCache
 from utils.dhcp_utils import DHCPUtilities
-from config.config import config
 
 DHCP_CONFIG = config.get("dhcp")
 INTERFACE = str(DHCP_CONFIG.get("interface"))
@@ -78,6 +77,7 @@ class DHCPMessageHandler:
         """
         with cls._lock:
             try:
+                DHCPStats.increment(key="received_total")
                 match dhcp_message.dhcp_type:
                     case DHCPType.DISCOVER:
                         cls._handle_discover(dhcp_message)
@@ -102,7 +102,7 @@ class DHCPMessageHandler:
         """DHCPDISCOVER (RFC 2131, Section 4.1) sent by clients to discover DHCP servers."""
         with cls._lock:
             cls.logger.debug(
-                "Got DISCOVER XID=%s, MAC=%s.", dhcp_message.xid, dhcp_message.mac
+                "DISCOVER XID=%s, MAC=%s.", dhcp_message.xid, dhcp_message.mac
             )
             proposed_ip: IPv4Address | None = ClientDiscoveryService.get_available_ip()
             if not proposed_ip:

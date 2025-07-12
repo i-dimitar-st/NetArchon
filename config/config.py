@@ -1,9 +1,9 @@
-from threading import RLock
 from copy import deepcopy
 from pathlib import Path
+from threading import RLock
 from typing import Any
-from yaml import safe_load
 
+from yaml import safe_load
 
 DEFAULT_CONFIG_PATH = Path(__file__).parent / "config.yaml"
 

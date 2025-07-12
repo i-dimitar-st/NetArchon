@@ -1,5 +1,6 @@
+from typing import Any, Dict, List, Optional
+
 from pydantic import BaseModel, Field, IPvAnyAddress
-from typing import List, Dict, Optional, Any
 
 
 class Meta(BaseModel):

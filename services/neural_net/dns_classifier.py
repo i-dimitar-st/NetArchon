@@ -2,11 +2,12 @@ import os
 import sqlite3
 from pathlib import Path
 from typing import List, Tuple
+
 import torch
-from torch.utils.data import DataLoader, Dataset
-import torch.optim as optim
 import torch.nn as nn
 import torch.nn.functional as F
+import torch.optim as optim
+from torch.utils.data import DataLoader, Dataset
 
 "/projects/gitlab/netarchon/"
 

@@ -1,40 +1,39 @@
-from platform import version, system, release, machine, processor, node
-from os import getloadavg
-from time import time, ctime
-from logging import getLogger, WARNING
-
-from sqlite3 import Cursor, connect
-from multiprocessing import Process
-from socket import AF_INET, AF_PACKET
-from datetime import datetime, timezone
-from json import load, dump
-from threading import RLock
-from hashlib import sha256
-from typing import Any
 from copy import deepcopy
+from datetime import datetime, timezone
+from hashlib import sha256
+from json import dump, load
+from logging import WARNING, getLogger
+from multiprocessing import Process
+from os import getloadavg
 from pathlib import Path
+from platform import machine, node, processor, release, system, version
+from socket import AF_INET, AF_PACKET
+from sqlite3 import Cursor, connect
+from threading import RLock
+from time import ctime, time
+from typing import Any
 
-from utils.dns_utils import DNSUtils
-from services.logger.logger import MainLogger
-from config.config import config
-
+from asgiref.wsgi import WsgiToAsgi
+from flask import Flask, abort, jsonify, render_template, request
 from psutil import (
     Process as PsutilProcess,
     boot_time,
-    cpu_percent as sys_cpu_percent,
-    net_if_addrs,
-    cpu_freq,
     cpu_count,
-    sensors_temperatures,
-    virtual_memory,
-    swap_memory,
+    cpu_freq,
+    cpu_percent as sys_cpu_percent,
     disk_partitions,
     disk_usage,
+    net_if_addrs,
     net_io_counters,
+    sensors_temperatures,
+    swap_memory,
+    virtual_memory,
 )
-from flask import Flask, render_template, request, abort, jsonify
-from asgiref.wsgi import WsgiToAsgi
 from uvicorn import run as runUvicorn
+
+from config.config import config
+from services.logger.logger import MainLogger
+from utils.dns_utils import DNSUtils
 
 APP_CONFIG = config.get("app")
 PORT = APP_CONFIG.get("port")

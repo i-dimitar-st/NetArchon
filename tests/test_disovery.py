@@ -1,9 +1,10 @@
 from dataclasses import dataclass
-from typing import Dict
 from ipaddress import IPv4Network
-from scapy.sendrecv import srp, sr
-from scapy.layers.l2 import Ether, ARP
-from scapy.layers.inet import IP, ICMP
+from typing import Dict
+
+from scapy.layers.inet import ICMP, IP
+from scapy.layers.l2 import ARP, Ether
+from scapy.sendrecv import sr, srp
 
 
 @dataclass

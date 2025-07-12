@@ -1,11 +1,12 @@
+import concurrent.futures
+import socket
 import sys
 import threading
 import time
 import unittest
-import socket
-import concurrent.futures
-from dnslib import DNSRecord, QTYPE
 from pathlib import Path
+
+from dnslib import QTYPE, DNSRecord
 
 root_dir = Path(__file__).parent.parent.resolve()
 sys.path.insert(0, str(root_dir))

@@ -1,5 +1,6 @@
 from re import match
-from dnslib import DNSRecord, DNSLabel
+
+from dnslib import DNSLabel, DNSRecord
 
 
 class DNSUtils:

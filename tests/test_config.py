@@ -1,10 +1,11 @@
-import os
 import copy
-import yaml
-import pytest
+import os
 from pathlib import Path
-from config.config import Config
 
+import pytest
+import yaml
+
+from config.config import Config
 
 APP_ROOT_PATH = Path(os.environ.get("APP_ROOT_PATH", "."))
 CONFIG_PATH: Path = APP_ROOT_PATH / "config" / "config.yaml"

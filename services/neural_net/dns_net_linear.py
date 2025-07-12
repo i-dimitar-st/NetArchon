@@ -1,14 +1,14 @@
 
-import os
 import math
+import os
 import sqlite3
-from pathlib import Path
 from collections import Counter
+from pathlib import Path
 from typing import List, Tuple
+
 import torch
 import torch.nn as neural_net
 from torch.optim import AdamW
-
 
 ROOT_PATH = Path(__file__).resolve().parents[1]
 DNS_CONTROL_LISTS_PATH = ROOT_PATH / 'config' / 'dns_control_list.json'

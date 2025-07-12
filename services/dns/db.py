@@ -3,13 +3,13 @@ from pathlib import Path
 from sqlite3 import Connection, Cursor, connect
 from threading import RLock
 from time import time
-from typing import Optional, Any
+from typing import Any, Optional
+
+from config.config import config
+from models.models import DBSchemas
 
 # Local
 from utils.dns_utils import DNSUtils
-from models.models import DBSchemas
-from config.config import config
-
 
 PATHS = config.get("paths")
 ROOT_PATH = Path(PATHS.get("root"))

@@ -1,4 +1,5 @@
 import logging.config
+
 from config.config import config
 from models.models import LogLevel
 

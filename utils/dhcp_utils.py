@@ -1,14 +1,15 @@
 from ipaddress import (
     IPv4Address,
-    IPv6Address,
     IPv4Network,
+    IPv6Address,
     IPv6Network,
     ip_address,
     ip_network,
 )
+
+from scapy.arch import get_if_list
 from scapy.layers.dhcp import DHCP
 from scapy.packet import Packet
-from scapy.arch import get_if_list
 
 DEFAULT_HOSTNAME = "unknown"
 DEFAULT_DHCP_TYPE = -1

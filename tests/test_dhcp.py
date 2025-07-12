@@ -1,9 +1,9 @@
-import time
 import asyncio
-from concurrent.futures import ThreadPoolExecutor
-from scapy.all import ARP, Ether, srp, IP, ICMP
-from ipaddress import IPv4Network
 import time
+from concurrent.futures import ThreadPoolExecutor
+from ipaddress import IPv4Network
+
+from scapy.all import ARP, ICMP, IP, Ether, srp
 
 
 def send_arp_request(iface: str, ip: str, timeout: float) -> dict | None:

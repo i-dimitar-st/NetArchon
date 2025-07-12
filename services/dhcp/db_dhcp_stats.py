@@ -1,9 +1,9 @@
-from sqlite3 import Connection, Cursor, connect
 from functools import wraps
-from time import time
 from logging import Logger
-from threading import RLock
 from pathlib import Path
+from sqlite3 import Connection, Cursor, connect
+from threading import RLock
+from time import time
 
 from config.config import config
 from models.models import DBSchemas
@@ -94,6 +94,8 @@ class DHCPStats:
             _cursor: Cursor = _conn.cursor()
             _cursor.execute(DBSchemas.dhcpStats)
             _conn.commit()
+            _columns = _cursor.execute("PRAGMA table_info(stats);").fetchall()
+            cls._valid_columns = {col[1] for col in _columns if col[1] != "id"}
             cls._conn: Connection = _conn
             cls._cursor: Cursor = _cursor
             cls.logger.debug("%s initialized.", cls.__name__)

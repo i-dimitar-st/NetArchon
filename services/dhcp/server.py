@@ -1,26 +1,20 @@
-from logging import Logger
-from queue import Queue, Full, Empty
-from threading import RLock, Thread, current_thread
 from collections import deque
+from logging import Logger
+from queue import Empty, Full, Queue
+from threading import RLock, Thread, current_thread
 
-from scapy.sendrecv import sniff
 from scapy.packet import Packet
+from scapy.sendrecv import sniff
 
-from models.models import (
-    DHCPResponseFactory,
-    DHCPMessage,
-    DHCPLeaseType,
-)
-
+from config.config import config
+from models.models import DHCPMessage, DHCPResponseFactory
+from services.dhcp.client_discovery import ClientDiscoveryService
 from services.dhcp.db_dhcp_leases import DHCPStorage
 from services.dhcp.db_dhcp_stats import DHCPStats
-from services.dhcp.client_discovery import ClientDiscoveryService
 from services.dhcp.db_persistance import DbPersistanceService
-from services.dhcp.message_handler import DHCPMessageHandler
 from services.dhcp.lease_reservation_cache import LeaseReservationCache
+from services.dhcp.message_handler import DHCPMessageHandler
 from services.logger.logger import MainLogger
-from config.config import config
-
 
 DHCP_CONFIG = config.get("dhcp")
 INTERFACE = DHCP_CONFIG.get("interface")
@@ -75,7 +69,7 @@ class DHCPServer:
         cls._received_queue = Queue(maxsize=received_queue_size)
         cls._dedup_queue = deque(maxlen=inbound_requests_deque_size)
 
-        DHCPResponseFactory.initialize(
+        DHCPResponseFactory.init(
             server_ip=SERVER_IP,
             server_mac=SERVER_MAC,
             port=PORT,
@@ -119,9 +113,7 @@ class DHCPServer:
             cls._workers["dhcp-traffic_listener"] = _traffic_listener
 
             for _index in range(WORKERS):
-                _worker = Thread(
-                    target=cls._processor, name=f"dhcp-worker-{_index}", daemon=True
-                )
+                _worker = Thread(target=cls._processor, name=f"dhcp-worker-{_index}", daemon=True)
                 _worker.start()
                 cls._workers[f"dhcp-worker-{_index}"] = _worker
             dhcp_logger.info("Started %s", cls.__name__)
@@ -178,9 +170,7 @@ class DHCPServer:
         while cls._running:
             dhcp_message = None
             try:
-                dhcp_message = DHCPMessage(
-                    cls._received_queue.get(timeout=worker_get_timeout)
-                )
+                dhcp_message = DHCPMessage(cls._received_queue.get(timeout=worker_get_timeout))
 
                 if (
                     dhcp_message.mac.lower() == server_mac.lower()
@@ -192,10 +182,6 @@ class DHCPServer:
                     continue
                 cls._dedup_queue.append(dhcp_message.dedup_key)
 
-                DHCPStats.increment(key="received_total_valid")
-                DHCPStats.increment(
-                    key=f"received_{DHCPLeaseType(dhcp_message.dhcp_type).name.lower()}"
-                )
                 DHCPMessageHandler.handle_message(dhcp_message)
 
             except Empty:

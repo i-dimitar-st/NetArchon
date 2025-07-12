@@ -1,37 +1,37 @@
 # Native
 from concurrent.futures import Future, ThreadPoolExecutor, as_completed
+from fnmatch import fnmatch
 from functools import lru_cache
-from json import load
 from ipaddress import IPv4Address
+from json import load
 from pathlib import Path
-from queue import Full, Empty, Queue
+from queue import Empty, Full, Queue
 from random import sample
 from select import select
 from socket import (
-    socket,
     AF_INET,
+    SO_RCVBUF,
+    SO_REUSEADDR,
     SOCK_DGRAM,
     SOL_SOCKET,
-    SO_REUSEADDR,
-    SO_RCVBUF,
+    socket,
     timeout as socketTimeout,
 )
-from threading import Lock, Event, Thread, RLock
+from threading import Event, Lock, RLock, Thread
 from time import monotonic
-from typing import Optional, Any
-from fnmatch import fnmatch
+from typing import Any, Optional
 
 # 3rd party
-from dnslib import DNSRecord, QTYPE, RR, A
+from dnslib import QTYPE, RR, A, DNSRecord
+
+from config.config import config
+from libs.libs import MRUCache, TTLCache
 
 # Local
-from models.models import DNSReqMessage, DnsResponseCode
-from config.config import config
-from services.logger.logger import MainLogger
+from models.models import DNSReqMessage, DNSResponseCode
 from services.dns.db import DnsQueryHistoryDb, DnsStatsDb
-from libs.libs import TTLCache, MRUCache
+from services.logger.logger import MainLogger
 from utils.dns_utils import DNSUtils
-
 
 PATHS = config.get("paths")
 ROOT_PATH = Path(PATHS.get("root"))
@@ -51,9 +51,7 @@ EXTERNAL_WORKERS = WORKERS_CONFIG.get("external", 300)
 PROCESS_WORKERS = WORKERS_CONFIG.get("processors", 100)
 
 BLACKLISTS_CONFIG = config.get("dns").get("blacklists_config")
-BLACKLIST_PATH = ROOT_PATH / BLACKLISTS_CONFIG.get(
-    "path", "config/dns_control_list.json"
-)
+BLACKLIST_PATH = ROOT_PATH / BLACKLISTS_CONFIG.get("path", "config/dns_control_list.json")
 BLACKLIST_CACHE_SIZE = BLACKLISTS_CONFIG.get("cache_size", 100)
 BLACKLISTS_LOADING_INTERVAL = BLACKLISTS_CONFIG.get("loading_interval", 30)
 
@@ -68,12 +66,8 @@ DNS_STATIC_ZONES = config.get("dns").get("static_zones")
 
 RESOURCE_LIMITS = config.get("dns").get("resource_limits")
 DNS_LOCAL_RECV_QUEUE_SIZE = RESOURCE_LIMITS.get("queues").get("receive", 100)
-METRICS_SAMPLE_BUFFER_SIZE = RESOURCE_LIMITS.get("caches").get(
-    "metrics_sample_buffer_size", 100
-)
-DNS_DEDUPLICATION_CACHE_SIZE = RESOURCE_LIMITS.get("caches").get(
-    "deduplication_cache_size", 100
-)
+METRICS_SAMPLE_BUFFER_SIZE = RESOURCE_LIMITS.get("caches").get("metrics_sample_buffer_size", 100)
+DNS_DEDUPLICATION_CACHE_SIZE = RESOURCE_LIMITS.get("caches").get("deduplication_cache_size", 100)
 DNS_REPLY_CACHE_SIZE = RESOURCE_LIMITS.get("caches").get("reply_cache_size", 100)
 
 
@@ -217,12 +211,10 @@ class BlacklistService:
             control_list: Any = load(file_handle)
         return {
             "blacklist": set(
-                url.strip().lower()
-                for url in control_list.get("blacklist", {}).get("urls", [])
+                url.strip().lower() for url in control_list.get("blacklist", {}).get("urls", [])
             ),
             "blacklist_rules": set(
-                rule.strip().lower()
-                for rule in control_list.get("blacklist", {}).get("rules", [])
+                rule.strip().lower() for rule in control_list.get("blacklist", {}).get("rules", [])
             ),
         }
 
@@ -359,9 +351,7 @@ class ExternalResolverService:
 
         try:
             # As completed return first completed so we want that and cancel rest
-            for _completed in as_completed(
-                futures, timeout=cls._timeout + cls._timeout_buffer
-            ):
+            for _completed in as_completed(futures, timeout=cls._timeout + cls._timeout_buffer):
                 _dns_server_ip: str = futures[_completed]
                 try:
                     # Get first resut but cancel other futures to avoid zombies.
@@ -381,9 +371,7 @@ class ExternalResolverService:
         return None
 
     @classmethod
-    def _query_external_dns_server(
-        cls, request: DNSRecord, dns_server: IPv4Address
-    ) -> DNSRecord:
+    def _query_external_dns_server(cls, request: DNSRecord, dns_server: IPv4Address) -> DNSRecord:
         """Send DNS query to a single upstream DNS server and return the response."""
 
         if not request or not dns_server:
@@ -481,16 +469,14 @@ class LocalResolverService:
         if BlacklistService.is_blacklisted(dns_req_message.domain):
             DnsStatsDb.increment(key="request_blacklisted")
             reply: DNSRecord = dns_req_message.dns_message.reply()
-            reply.header.rcode = DnsResponseCode.REFUSED
+            reply.header.rcode = DNSResponseCode.REFUSED
             cls._send_reply(dns_req_message, reply)
             return True
 
         return False
 
     @classmethod
-    def _handle_local(
-        cls, dns_req_message: DNSReqMessage, zones: dict = DNS_STATIC_ZONES
-    ) -> bool:
+    def _handle_local(cls, dns_req_message: DNSReqMessage, zones: dict = DNS_STATIC_ZONES) -> bool:
         """
         Check if the requested domain matches any local DNS zone and respond with the
         corresponding IP address if found.
@@ -504,9 +490,7 @@ class LocalResolverService:
                     continue
 
                 if dns_req_message.domain.endswith(_zone.lower()):
-                    _hostname: str = DNSUtils.extract_hostname(
-                        dns_req_message.domain, _zone
-                    )
+                    _hostname: str = DNSUtils.extract_hostname(dns_req_message.domain, _zone)
                     _hostname_ip: Any = zones[_zone].get(_hostname)
                     if _hostname_ip:
                         break
@@ -514,7 +498,7 @@ class LocalResolverService:
             if _hostname_ip:
                 DnsStatsDb.increment(key="request_local")
                 reply = dns_req_message.dns_message.reply()
-                reply.header.rcode = DnsResponseCode.NO_ERROR
+                reply.header.rcode = DNSResponseCode.NO_ERROR
                 reply.add_answer(
                     RR(
                         rname=dns_req_message.dns_message.q.qname,
@@ -536,9 +520,7 @@ class LocalResolverService:
     def _handle_cache_hit(cls, dns_req_message: DNSReqMessage) -> bool:
         """Check if the DNS query result is cached and send the cached reply if found."""
 
-        _cached_reply: Optional[DNSRecord] = cls._dns_cache.get(
-            dns_req_message.cache_key
-        )
+        _cached_reply: Optional[DNSRecord] = cls._dns_cache.get(dns_req_message.cache_key)
         if _cached_reply:
             DnsStatsDb.increment(key="request_cache_hit")
             cls._send_reply(dns_req_message, _cached_reply)
@@ -555,8 +537,8 @@ class LocalResolverService:
         """
 
         try:
-            dns_res_message: Optional[DNSRecord] = (
-                ExternalResolverService.resolve_external(dns_req_message.dns_message)
+            dns_res_message: Optional[DNSRecord] = ExternalResolverService.resolve_external(
+                dns_req_message.dns_message
             )
             if dns_res_message:
                 DnsStatsDb.increment("request_external")
@@ -583,7 +565,7 @@ class LocalResolverService:
         """
         try:
             reply: DNSRecord = dns_req_message.dns_message.reply()
-            reply.header.rcode = DnsResponseCode.SERVER_FAILURE
+            reply.header.rcode = DNSResponseCode.SERVER_FAILURE
             cls._send_reply(dns_req_message, reply)
             return True
         except Exception as _err:
@@ -602,9 +584,7 @@ class LocalResolverService:
                     cls._dns_socket.sendto(dns_res_message.pack(), dns_req_message.addr)
 
         except Exception as _err:
-            dns_logger.error(
-                "Failed sending reply to %s %s.", dns_req_message.addr, _err
-            )
+            dns_logger.error("Failed sending reply to %s %s.", dns_req_message.addr, _err)
 
     @classmethod
     def _listen_traffic(cls, timeout: float = DNS_SOCKET_TIMEOUT):

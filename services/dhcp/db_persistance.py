@@ -1,12 +1,12 @@
-from logging import Logger
-from threading import RLock, Event, Thread
 from functools import wraps
+from logging import Logger
+from threading import Event, RLock, Thread
 
-from services.dhcp.db_dhcp_leases import DHCPStorage
-from services.dhcp.db_dhcp_stats import DHCPStats
-from services.dhcp.client_discovery import ClientDiscoveryService
 from config.config import config
 from models.models import LeaseType
+from services.dhcp.client_discovery import ClientDiscoveryService
+from services.dhcp.db_dhcp_leases import DHCPStorage
+from services.dhcp.db_dhcp_stats import DHCPStats
 
 DB_CONFIG = config.get("database")
 PERSISTANCE_INTERVAL = float(DB_CONFIG.get("persistence_interval"))

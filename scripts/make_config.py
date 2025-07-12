@@ -1,10 +1,10 @@
 #!/usr/bin/python3
 
+import ipaddress
+import json
 import os
 import subprocess
-import json
 import time
-import ipaddress
 from datetime import datetime
 from pathlib import Path
 

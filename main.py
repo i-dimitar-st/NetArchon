@@ -1,13 +1,12 @@
 from logging import Logger
-from signal import signal, SIGINT, SIGTERM, SIGQUIT, SIGABRT
+from signal import SIGABRT, SIGINT, SIGQUIT, SIGTERM, signal
 from threading import Event
 
-from services.logger.logger import MainLogger
+from services.app.app import App
 from services.dhcp.server import DHCPServer
 from services.dns.dns import DNSServer
-from services.app.app import App
+from services.logger.logger import MainLogger
 from services.memory.memory import MemoryManager
-
 
 logger: Logger = MainLogger.get_logger(service_name="MAIN")
 shutdown_event = Event()

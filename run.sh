@@ -2,11 +2,12 @@ PYTHONPATH=.
 VENV_BINARY=./venv/bin/python
 SCRIPT=main.py
 
-# -u: Unbuffered stdout/stderr (real-time logs).
-# -O: Enable optimized mode:
-#     - Removes all assert statements (they are not executed).
-#     - Sets the built-in constant __debug__ to False (disables debug-only code blocks).
+# -u: Unbuffered stdout/stderr for real-time logs.
+# -O: Optimized mode (removes asserts, sets __debug__ to False).
+# -B: Don't write .pyc files or __pycache__ folders.
+# sudo -E: Preserve environment variables when using sudo.
 
-sudo PYTHONDONTWRITEBYTECODE=1 \
+sudo -E \
+     PYTHONDONTWRITEBYTECODE=1 \
      PYTHONPATH=${PYTHONPATH} \
-     ${VENV_BINARY} -u -O ${SCRIPT}
+     ${VENV_BINARY} -B -u -O ${SCRIPT}

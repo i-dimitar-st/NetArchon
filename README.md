@@ -6,14 +6,15 @@
 
 **NetArchon** is a self-hosted network control platform designed for managing and securing local networks. It runs efficiently on dedicated devices like Raspberry Pi and offers:
 
--   Robust **DHCP server** with ARP-based IP conflict detection
--   Production-grade **recursive DNS resolver** featuring caching and domain/URL/IP filtering
+-   **DHCP server** with ARP-based IP conflict detection
+-   **Recursive DNS resolver** featuring caching and domain/URL/IP filtering
 -   **Traffic monitoring** tools for enhanced network visibility
 -   **Flask-based web interface** for seamless control and diagnostics
--   Real-time **visualization** through Grafana dashboards
+-   GUI
 -   LSTM-based recurrent neural network blacklist engine for proactive threat filtering
 
-The project architecture follows a strict class-per-module pattern. While this approach may feel somewhat detached from typical OOP conventions, it is intentionally chosen to prioritize long-term simplicity and memory stability.
+The project architecture follows a "class-as-a-service" pattern with really classes as lite aktor nets (sort of), each service manages its state and responsiblities.
+While this approach may feel somewhat detached from typical OOP conventions, it is intentionally chosen to prioritize long-term simplicity and memory stability.
 
 This design enforces:
 

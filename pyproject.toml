@@ -1,4 +1,12 @@
 [tool.black]
-line-length = 88
+line-length = 100
 skip-string-normalization = true
 target-version = ['py38']
+
+[tool.isort]
+combine_as_imports = true
+force_grid_wrap = 0
+include_trailing_comma = true
+line_length = 100
+multi_line_output = 3
+profile = "black"

@@ -1,5 +1,5 @@
-from dnslib import CLASS
-from dnslib import DNSRecord, DNSLabel, QTYPE, RR, A, DNSQuestion
+from dnslib import CLASS, QTYPE, RR, A, DNSLabel, DNSQuestion, DNSRecord
+
 from utils.dns_utils import DNSUtils
 
 
