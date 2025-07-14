@@ -6,7 +6,7 @@ from threading import RLock
 from time import time
 
 from config.config import config
-from models.models import DBSchemas, LeaseType
+from services.dhcp.models import DHCPLeasesSchema, DHCPLeaseType
 
 PATHS = config.get("paths")
 ROOT_PATH = Path(PATHS.get("root"))
@@ -26,6 +26,7 @@ def is_init(func):
     """
     Decorator to verify DB connection, cursor are initialized.
     """
+
     @wraps(func)
     def wrapper(cls, *args, **kwargs):
         if not isinstance(getattr(cls, "_conn", None), Connection):
@@ -91,19 +92,14 @@ class DHCPStorage:
         Raises:
             RuntimeError if already initialized.
         """
-        if (
-            getattr(cls, "_conn", None) is not None or
-            getattr(cls, "_cursor", None) is not None
-        ):
+        if getattr(cls, "_conn", None) is not None or getattr(cls, "_cursor", None) is not None:
             raise RuntimeError("Already init")
 
         with cls._lock:
             cls.logger: Logger = logger
-            _conn: Connection = connect(
-                ":memory:", check_same_thread=False
-            )
+            _conn: Connection = connect(":memory:", check_same_thread=False)
             _cursor: Cursor = _conn.cursor()
-            _cursor.execute(DBSchemas.dhcpLeases)
+            _cursor.execute(DHCPLeasesSchema.schema)
             _conn.commit()
             cls._conn: Connection = _conn
             cls._cursor: Cursor = _cursor
@@ -130,7 +126,7 @@ class DHCPStorage:
         ip: str,
         hostname: str = DEFAULT_HOSTNAME,
         lease_time: int = LEASE_TIME,
-        lease_type: LeaseType = LeaseType.STATIC,
+        lease_type: DHCPLeaseType = DHCPLeaseType.STATIC,
     ):
         """
         Add or update a DHCP lease entry in the database.
@@ -148,7 +144,7 @@ class DHCPStorage:
             - Stores lease_type as string value in DB.
             - Thread-safe; uses class-level lock.
             - Logs success or errors, with error stack trace on failure.
-    """
+        """
 
         with cls._lock:
             try:
@@ -156,21 +152,22 @@ class DHCPStorage:
                 _expiry_time = int(_current_time + lease_time)
 
                 _statement = """
-                    INSERT OR REPLACE INTO 
+                    INSERT OR REPLACE INTO
                     leases (mac, ip, hostname, timestamp, expiry_time, type)
                     VALUES (?, ?, ?, ?, ?, ?)
                 """
+
                 _values: tuple[str, str, str, int, int, str] = (
                     mac,
                     ip,
                     hostname,
                     _current_time,
                     _expiry_time,
-                    lease_type.value
+                    lease_type.value,
                 )
                 cls._cursor.execute(_statement, _values)
                 cls._conn.commit()
-                cls.logger.debug("Added MAC:%s IP:%s.", mac, ip)
+                cls.logger.info("Added MAC:%s IP:%s.", mac, ip)
 
             except Exception as err:
                 cls.logger.error("Error adding lease %s.", err)
@@ -221,8 +218,7 @@ class DHCPStorage:
         with cls._lock:
             try:
                 return {
-                    lease[0]
-                    for lease in cls._cursor.execute("SELECT ip FROM leases").fetchall()
+                    lease[0] for lease in cls._cursor.execute("SELECT ip FROM leases").fetchall()
                 }
             except Exception as _err:
                 cls.logger.error("Failed to get active leases: %s.", _err)
@@ -256,8 +252,7 @@ class DHCPStorage:
                     (mac,),
                 )
                 cls._conn.commit()
-                if _result.rowcount:
-                    cls.logger.debug(f"Lease DB removed {_result.rowcount} MAC:{mac}")
+                cls.logger.info(f"Lease DB removed {_result.rowcount} MAC:{mac}")
 
             except Exception as err:
                 cls.logger.error(f"DB -> failed to remove lease: {str(err)}")
@@ -279,7 +274,7 @@ class DHCPStorage:
                 _result: Cursor = cls._cursor.execute(_statement, _value)
                 cls._conn.commit()
                 if _result.rowcount:
-                    cls.logger.debug(
+                    cls.logger.info(
                         f"DB -> Deleted {_result.rowcount} lease(s). Removed MACs: {set(macs)}."
                     )
             except Exception as err:
@@ -291,13 +286,10 @@ class DHCPStorage:
         """Remove expired leases."""
         with cls._lock:
             try:
-                cls._cursor.execute(
-                    "DELETE FROM leases WHERE expiry_time < ?", (int(time()),)
-                )
-                _deleted: int = cls._cursor.rowcount
+                cls._cursor.execute("DELETE FROM leases WHERE expiry_time < ?", (int(time()),))
                 cls._conn.commit()
-                if _deleted:
-                    cls.logger.debug("Deleted %s expired leases.", _deleted)
+                if cls._cursor.rowcount:
+                    cls.logger.info("Deleted %s expired leases.", cls._cursor.rowcount)
             except Exception as err:
                 cls.logger.error("Error during lease cleanup: %s", err)
 

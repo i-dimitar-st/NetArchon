@@ -18,7 +18,7 @@ def shutdown_handler(signum, frame):
     shutdown_event.set()
 
 
-def register_shutdown_signals():
+def register_shutdowns():
     """Registers shutdown handler for common interrupt signals"""
     signal(SIGINT, shutdown_handler)
     signal(SIGTERM, shutdown_handler)
@@ -29,7 +29,7 @@ def register_shutdown_signals():
 if __name__ == "__main__":
 
     logger.info("Starting services")
-    register_shutdown_signals()
+    register_shutdowns()
 
     App.init()
     MemoryManager.init()

@@ -6,7 +6,7 @@ from threading import RLock
 from time import time
 
 from config.config import config
-from models.models import DBSchemas
+from services.dhcp.models import DHCPStatsSchema
 
 PATHS = config.get("paths")
 ROOT_PATH = Path(PATHS.get("root"))
@@ -22,13 +22,14 @@ def is_init(func):
     """
     Decorator to verify DB connection, cursor, and valid columns are initialized.
     """
+
     @wraps(func)
     def wrapper(cls, *args, **kwargs):
         if not isinstance(getattr(cls, "_conn", None), Connection):
             raise RuntimeError("DB connection not initialized or invalid.")
         if not isinstance(getattr(cls, "_cursor", None), Cursor):
             raise RuntimeError("DB cursor not initialized or invalid.")
-        if not isinstance(getattr(cls, "_valid_columns", None), set):
+        if not isinstance(getattr(cls, "_valid_columns", None), frozenset):
             raise AttributeError("Valid columns missing check init.")
         return func(cls, *args, **kwargs)
 
@@ -66,7 +67,6 @@ class DHCPStats:
     """
 
     _lock = RLock()
-    _valid_columns = set()
 
     @classmethod
     def init(cls, logger: Logger):
@@ -80,24 +80,24 @@ class DHCPStats:
             RuntimeError if already initialized.
         """
 
-        if (
-            getattr(cls, "_conn", None) is not None or
-            getattr(cls, "_cursor", None) is not None
-        ):
+        if getattr(cls, "_conn", None) is not None or getattr(cls, "_cursor", None) is not None:
             raise RuntimeError("Already init")
 
         with cls._lock:
-            cls.logger: Logger = logger
-            _conn: Connection = connect(
-                ":memory:", check_same_thread=False
-            )
+
+            _conn: Connection = connect(":memory:", check_same_thread=False)
             _cursor: Cursor = _conn.cursor()
-            _cursor.execute(DBSchemas.dhcpStats)
+            _cursor.execute(DHCPStatsSchema.schema)
             _conn.commit()
-            _columns = _cursor.execute("PRAGMA table_info(stats);").fetchall()
-            cls._valid_columns = {col[1] for col in _columns if col[1] != "id"}
-            cls._conn: Connection = _conn
-            cls._cursor: Cursor = _cursor
+
+            cls._valid_columns: frozenset[str] = DHCPStatsSchema.columns
+            cls._conn = _conn
+            cls._cursor = _cursor
+
+            cls._cursor.execute("INSERT INTO stats (id) VALUES (1)")
+            cls._conn.commit()
+
+            cls.logger = logger
             cls.logger.debug("%s initialized.", cls.__name__)
 
     @classmethod
@@ -137,6 +137,7 @@ class DHCPStats:
             path (Path): Destination file path (default configured path).
         """
         with cls._lock:
+            cls._conn.commit()
             _conn_disk: Connection = connect(path)
             cls._conn.backup(_conn_disk)
             _conn_disk.close()

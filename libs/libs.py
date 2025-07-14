@@ -131,14 +131,16 @@ class MRUCache:
 
 def ttl_clean_expired(func):
     """
-    Decorator to remove expired cache entries before executing the decorated method.    
-    Calls the instance's `_clean_expired` method to purge stale items, 
+    Decorator to remove expired cache entries before executing the decorated method.
+    Calls the instance's `_clean_expired` method to purge stale items,
     ensuring the cache is up-to-date during the decorated method's operation.
     """
+
     @wraps(func)
     def wrapper(self, *args, **kwargs):
-        self._clean_expired()  # pylint: disable=protected-access
+        self.clean_expired()
         return func(self, *args, **kwargs)
+
     return wrapper
 
 
@@ -148,15 +150,19 @@ def ttl_evict(func):
     before executing the decorated method.
     Calls the instance's `_evict` method to maintain cache size constraints.
     """
+
     @wraps(func)
     def wrapper(self, *args, **kwargs):
-        self._evict()  # pylint: disable=protected-access
+        self.evict()
         return func(self, *args, **kwargs)
+
     return wrapper
 
 
 class TTLCache:
-    """Simple, thread-safe, one-directional TTL cache (key → value)."""
+    """Simple, thread-safe, one-directional TTL cache (key → value).
+    cache[key] = (value, expiry)
+    """
 
     def __init__(self, max_size: int = TTL_MAX_SIZE, ttl: int = TTL_DEFAULT):
         """Initialize cache with max size and default TTL."""
@@ -165,15 +171,15 @@ class TTLCache:
         self._max_size: int = max_size
         self._ttl: int = ttl
 
-    def _clean_expired(self):
+    def clean_expired(self):
         """Remove expired entries."""
         with self._lock:
-            now = time()
+            _now = time()
             for key in list(self._cache):
-                if self._cache[key][1] < now:
+                if self._cache[key][1] < _now:
                     del self._cache[key]
 
-    def _evict(self):
+    def evict(self):
         """Evict oldest entries if size exceeds limit."""
         with self._lock:
             sorted_keys = sorted(self._cache, key=lambda k: self._cache[k][1])
@@ -212,6 +218,7 @@ class TTLCache:
         with self._lock:
             return list(self._cache.keys())
 
+    @ttl_clean_expired
     def remove(self, key: Any):
         """Remove key from cache."""
         with self._lock:

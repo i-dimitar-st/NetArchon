@@ -3,10 +3,10 @@ from logging import Logger
 from threading import Event, RLock, Thread
 
 from config.config import config
-from models.models import LeaseType
 from services.dhcp.client_discovery import ClientDiscoveryService
 from services.dhcp.db_dhcp_leases import DHCPStorage
 from services.dhcp.db_dhcp_stats import DHCPStats
+from services.dhcp.models import DHCPLeaseType
 
 DB_CONFIG = config.get("database")
 PERSISTANCE_INTERVAL = float(DB_CONFIG.get("persistence_interval"))
@@ -15,6 +15,7 @@ WORKER_JOIN_TIMEOUT = float(DB_CONFIG.get("persistance_worker_join_timeout"))
 
 def is_init(func):
     """Is service initialized"""
+
     @wraps(func)
     def wrapper(cls, *args, **kwargs):
         if not getattr(cls, "initialized", False):
@@ -26,6 +27,7 @@ def is_init(func):
 
 def is_running(func):
     """Is service running"""
+
     @wraps(func)
     def wrapper(cls, *args, **kwargs):
         if not getattr(cls, "running", False):
@@ -60,16 +62,17 @@ class DbPersistanceService:
     Raises:
         RuntimeError if `start` or `stop` is called without initialization, or if misuse occurs.
     """
+
     _lock = RLock()
     _stop_event = Event()
     _worker: Thread | None = None
     _interval: float
-    initialized = False
+    initialized: bool = False
     running: bool = False
     logger: Logger
 
     @classmethod
-    def init(cls, logger: Logger, interval=PERSISTANCE_INTERVAL):
+    def init(cls, logger: Logger, interval: float = PERSISTANCE_INTERVAL):
         """
         Initialize the db sync worker service.
         Args:
@@ -77,10 +80,10 @@ class DbPersistanceService:
             interval: float time in sec for which data will be synced to local db.
         """
         with cls._lock:
-            cls._worker: Thread | None = None
-            cls._interval: float = interval
-            cls.logger: Logger = logger
-            cls.initialized: bool = True
+            cls._worker = None
+            cls._interval = interval
+            cls.logger = logger
+            cls.initialized = True
             cls.logger.debug("%s initialized.", cls.__name__)
 
     @classmethod
@@ -137,17 +140,14 @@ class DbPersistanceService:
 
                     DHCPStorage.remove_expired_leases()
 
-                    _active_macs = {
-                        lease[0]
-                        for lease in DHCPStorage.get_all_leases()
-                    }
+                    _active_macs = {lease[0] for lease in DHCPStorage.get_all_leases()}
 
                     for _live_client in ClientDiscoveryService.get_live_clients():
                         if _live_client.mac not in _active_macs:
                             DHCPStorage.add_lease(
                                 mac=_live_client.mac,
                                 ip=_live_client.ip,
-                                lease_type=LeaseType.STATIC,
+                                lease_type=DHCPLeaseType.STATIC,
                             )
 
                     DHCPStorage.save_to_disk()

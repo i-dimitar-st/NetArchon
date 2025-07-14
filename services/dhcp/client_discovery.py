@@ -1,14 +1,15 @@
 from functools import wraps
 from ipaddress import IPv4Address, IPv4Network
 from threading import Event, RLock, Thread
+from copy import deepcopy
 
-from scapy.layers.inet import ICMP, IP
 from scapy.layers.l2 import ARP, Ether
 from scapy.sendrecv import srp
 
 from config.config import config
-from models.models import ArpClient
 from services.dhcp.db_dhcp_leases import DHCPStorage
+from services.dhcp.live_clients import LiveClients
+from services.dhcp.models import DHCPArpClient
 from utils.dhcp_utils import is_net_interface_valid
 
 DHCP_CONFIG = config.get("dhcp")
@@ -32,74 +33,8 @@ ARP_TIMEOUT_SINGLE = float(DISCOVERY_TIMEOUTS.get("single"))
 ARP_INTER_DELAY = float(DISCOVERY_TIMEOUTS.get("inter_delay"))
 WORKER_JOIN_TIMEOUT = float(DISCOVERY_TIMEOUTS.get("worker_join"))
 
-
-def discover_live_clients_icmp(
-    network: IPv4Network,
-    broadcast_mac: str = BROADCAST_MAC,
-    timeout: float = ARP_TIMEOUT_SUBNET,
-    inter_delay: float = ARP_INTER_DELAY,
-    iface: str = INTERFACE,
-    verbose: bool = False,
-) -> dict[str, ArpClient] | dict:
-    """
-    Ping sweep over subnet to discover live clients.
-
-    Args:
-        network (IPv4Network): subnet to scan.
-        broadcast_mac (str): typically ff:ff:ff:ff:ff:ff.
-        timeout (float): timeout.
-        inter_delay (float): delay between ARP requests.
-        iface (str): network interface to use.
-        verbose (bool): Enable/disable verbose output.
-
-    Raises:
-        RuntimeError: Network is not initialized, not correct type of too wide (lower than /24).
-        Exception: Exceptions raised by the underlying ARP scanning (e.g., scapy errors).
-
-    Returns:
-        dict[str, ArpClient]: Mapping of IP addresses to ArpClient instances.
-    """
-    if not network or not isinstance(network, IPv4Network):
-        raise RuntimeError("Missing network")
-    if network.prefixlen < CIDR:
-        raise RuntimeError("Subnet too wide reduce subnet")
-
-    clients: dict[str, ArpClient] = {}
-
-    _answered_pings, _ = srp(
-        [
-            Ether(dst=broadcast_mac) /
-            IP(dst=str(_ip)) /
-            ICMP()
-            for _ip in network.hosts()
-        ],
-        timeout=timeout,
-        inter=inter_delay,
-        verbose=verbose,
-        iface=iface,
-        filter="icmp",
-    )
-
-    _answered_arp, _ = srp(
-        [
-            Ether(dst=broadcast_mac) /
-            ARP(pdst=_ip)
-            for _ip in [
-                _recv[IP].src
-                for _, _recv in _answered_pings
-            ]
-        ],
-        timeout=timeout,
-        inter=inter_delay,
-        verbose=verbose,
-        iface=iface,
-        filter="arp",
-    )
-
-    for _sent, _recv in _answered_arp:
-        clients[_recv[ARP].psrc] = ArpClient(mac=_recv[ARP].hwsrc, ip=_recv[ARP].psrc)
-
-    return clients
+MIN_CTR = int(CLIENT_DISCOVERY.get("min_ctr"))
+MAX_CTR = int(CLIENT_DISCOVERY.get("max_ctr"))
 
 
 def discover_live_clients_arp(
@@ -109,7 +44,7 @@ def discover_live_clients_arp(
     inter_delay: float = ARP_INTER_DELAY,
     iface: str = INTERFACE,
     verbose: bool = False,
-) -> dict[str, ArpClient] | dict:
+) -> set[DHCPArpClient] | set:
     """
     Perform an ARP scan over the network to discover live clients.
     In srp filter is hardwired to 'arp' as this is an ARP scan.
@@ -127,33 +62,26 @@ def discover_live_clients_arp(
         Exception: Exceptions raised by the underlying ARP scanning (e.g., scapy errors).
 
     Returns:
-        dict[str, ArpClient]: Mapping of IP addresses to ArpClient instances.
+        dict[str, ArpClient]: str = IP, value = ArpClient instances.
     """
+
     if not network or not isinstance(network, IPv4Network):
         raise RuntimeError("Missing network")
+
     if network.prefixlen < CIDR:
         raise RuntimeError("Subnet too wide reduce subnet")
 
-    clients: dict[str, ArpClient] = {}
-
     _answered, _ = srp(
-        [
-            Ether(dst=broadcast_mac) / ARP(pdst=str(ip))
-            for ip in network.hosts()
-        ],
+        [Ether(dst=broadcast_mac) / ARP(pdst=str(ip)) for ip in network.hosts()],
         timeout=timeout,
         inter=inter_delay,
         filter="arp",
         verbose=verbose,
         iface=iface,
     )
-
+    clients = set()
     for _, _resp in _answered:
-
-        if _resp[ARP].psrc not in clients:
-            clients[_resp[ARP].psrc] = ArpClient(
-                mac=_resp[ARP].hwsrc, ip=_resp[ARP].psrc
-            )
+        clients.add(DHCPArpClient(mac=_resp[ARP].hwsrc, ip=_resp[ARP].psrc))
 
     return clients
 
@@ -163,7 +91,7 @@ def send_arp_request(
     iface: str = INTERFACE,
     timeout: float = ARP_TIMEOUT_SINGLE,
     broadcast_mac: str = BROADCAST_MAC,
-) -> ArpClient | None:
+) -> DHCPArpClient | None:
     """
     Send an ARP request to a single IP address on a given interface.
     Args:
@@ -179,13 +107,13 @@ def send_arp_request(
         timeout=timeout,
         iface=iface,
         filter="arp",
-        verbose=False
+        verbose=False,
     )
 
     if _answered:
         if len(_answered) == 1:
             _, _recv = _answered[0]
-            return ArpClient(mac=_recv[ARP].hwsrc, ip=_recv[ARP].psrc)
+            return DHCPArpClient(mac=_recv[ARP].hwsrc, ip=_recv[ARP].psrc)
         if len(_answered) > 1:
             raise RuntimeError("More than 1 device")
 
@@ -253,25 +181,42 @@ class ClientDiscoveryService:
     - Call get_available_ip() to fetch a usable IP.
     """
 
+    _config = {}
+    _default_config = {
+        "server_ip": SERVER_IP,
+        "cidr": CIDR,
+        "ip_range_start": IP_RANGE_START,
+        "ip_range_end": IP_RANGE_END,
+        "interface": INTERFACE,
+        "server_mac": SERVER_MAC,
+        "broadcast_mac": BROADCAST_MAC,
+        "arp_timeout_subnet": ARP_TIMEOUT_SUBNET,
+        "arp_timeout_single": ARP_TIMEOUT_SINGLE,
+        "discovery_interval": DISCOVERY_INTERVAL,
+        "min_ctr": MIN_CTR,
+        "max_ctr": MAX_CTR,
+        "inter_delay": ARP_INTER_DELAY,
+    }
+
     _lock = RLock()
     _stop_event = Event()
     _worker: Thread | None = None
     initialized = False
     running = False
 
+    live_clients: dict[str, DHCPArpClient]
+    live_clients_tracker: LiveClients
+
     _ip_range_start: IPv4Address | None = None
     _ip_range_end: IPv4Address | None = None
     network: IPv4Network | None = None
-    _live_clients: dict[str, ArpClient]
 
     _server_ip: str
     _iface: str
     _server_mac: str
     _broadcast_mac: str
-    _arp_request_type: int
     _arp_timeout_subnet: float
     _arp_timeout_single: float
-    _arp_retries: int
 
     @classmethod
     def init(
@@ -321,7 +266,8 @@ class ClientDiscoveryService:
             cls._broadcast_mac = broadcast_mac
             cls._arp_timeout_subnet = arp_timeout_subnet
             cls._arp_timeout_single = arp_timeout_single
-            cls._live_clients: dict[str, ArpClient] = {}
+            cls.live_clients: dict[str, DHCPArpClient] = {}
+            cls.live_clients_tracker = LiveClients(max_count=MAX_CTR, min_count=MIN_CTR)
 
             cls.logger = logger
             cls.initialized = True
@@ -372,32 +318,51 @@ class ClientDiscoveryService:
 
         while not cls._stop_event.is_set():
             try:
+
+                _live_scan_clients: set[DHCPArpClient] = discover_live_clients_arp(
+                    network=cls.network
+                )
                 with cls._lock:
-                    cls._live_clients = discover_live_clients_arp(network=cls.network)
-                    cls._live_clients.update(discover_live_clients_icmp(network=cls.network))
-                    cls.logger.debug("Discovered %s clients.", len(cls._live_clients))
+
+                    for _arp_client_live in _live_scan_clients:
+                        cls.live_clients_tracker.increase(_arp_client_live)
+
+                    # We need list here to make a copy as we mutate cls.live_clients_tracker
+                    for _arp_client in list(cls.live_clients_tracker.arp_clients):
+                        if _arp_client not in _live_scan_clients:
+                            cls.live_clients_tracker.decrease(_arp_client)
+
+                    cls.live_clients = {
+                        client.ip: deepcopy(client)
+                        for client in cls.live_clients_tracker.get_tracked_clients()
+                    }
+
+                    cls.logger.debug("%s clients.", len(cls.live_clients))
+
             except RuntimeError as err:
                 cls.logger.warning("Error discovering clients: %s", err)
+
             cls._stop_event.wait(cls._client_discovery_interval)
+
         with cls._lock:
             cls.running = False
 
     @classmethod
     @client_disc_is_init
     @client_disc_is_running
-    def get_live_clients(cls) -> list[ArpClient]:
+    def get_live_clients(cls) -> list[DHCPArpClient]:
         """
         Currently discovered live clients.
         Returns:
             List[ArpClient]: Deep copy of the active clients detected via ARP scanning.
         """
         with cls._lock:
-            return list(cls._live_clients.values())
+            return list(cls.live_clients.values())
 
     @classmethod
     @client_disc_is_init
     @client_disc_is_running
-    def get_live_client_by_ip(cls, ip: str) -> ArpClient | None:
+    def get_live_client_by_ip(cls, ip: str) -> DHCPArpClient | None:
         """
         Get a discovered client by its IP address.
         Args:
@@ -406,7 +371,7 @@ class ClientDiscoveryService:
             ArpClient | None: Matching client if found, otherwise None.
         """
         with cls._lock:
-            return cls._live_clients.get(ip)
+            return cls.live_clients.get(ip)
 
     @classmethod
     @client_disc_is_init
@@ -430,15 +395,9 @@ class ClientDiscoveryService:
         with cls._lock:
             for _ip in cls.network.hosts():
 
-                if (
-                    _ip < cls._ip_range_start or
-                    _ip > cls._ip_range_end
-                ):
+                if _ip < cls._ip_range_start or _ip > cls._ip_range_end:
                     continue
-                if (
-                    str(_ip) in DHCPStorage.get_all_leased_ips() or
-                    str(_ip) in cls._live_clients
-                ):
+                if str(_ip) in DHCPStorage.get_all_leased_ips() or str(_ip) in cls.live_clients:
                     continue
                 if send_arp_request(ip=_ip):
                     continue

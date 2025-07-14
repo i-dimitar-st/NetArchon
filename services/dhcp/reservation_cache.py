@@ -11,6 +11,7 @@ CACHE_TTL = int(LEASE_RESERVATION_CACHE.get("ttl"))
 
 def is_init(func):
     """Is service initialized"""
+
     @wraps(func)
     def wrapper(cls, *args, **kwargs):
         if not getattr(cls, "initialized", False):
@@ -50,6 +51,7 @@ class LeaseReservationCache:
         - Cache expires reservations after TTL automatically.
         - Init must be called once during application setup.
     """
+
     _cache: TTLCache | None = None
     initialized: bool = False
 
@@ -89,6 +91,7 @@ class LeaseReservationCache:
         """Return MAC reserved on IP or None."""
         if cls._cache:
             return cls._cache.get(ip)
+        return None
 
     @classmethod
     @is_init
@@ -96,6 +99,7 @@ class LeaseReservationCache:
         """Return IP reserved by MAC or None."""
         if cls._cache:
             return cls._cache.get_by_value(mac)
+        return None
 
     @classmethod
     @is_init
