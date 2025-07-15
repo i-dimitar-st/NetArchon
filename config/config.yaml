@@ -102,8 +102,9 @@ dhcp:
             worker_join: 0.5
     client_discovery:
         interval: 30
+        start_ctr: 25
         min_ctr: 1
-        max_ctr: 10
+        max_ctr: 30
         timeouts:
             subnet: 5.0
             single: 1.0

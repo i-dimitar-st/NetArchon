@@ -147,7 +147,7 @@ class DbPersistanceService:
                             DHCPStorage.add_lease(
                                 mac=_live_client.mac,
                                 ip=_live_client.ip,
-                                lease_type=DHCPLeaseType.STATIC,
+                                lease_type=DHCPLeaseType.MANUAL,
                             )
 
                     DHCPStorage.save_to_disk()

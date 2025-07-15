@@ -1,7 +1,7 @@
+from copy import deepcopy
 from functools import wraps
 from ipaddress import IPv4Address, IPv4Network
 from threading import Event, RLock, Thread
-from copy import deepcopy
 
 from scapy.layers.l2 import ARP, Ether
 from scapy.sendrecv import srp
@@ -328,7 +328,7 @@ class ClientDiscoveryService:
                         cls.live_clients_tracker.increase(_arp_client_live)
 
                     # We need list here to make a copy as we mutate cls.live_clients_tracker
-                    for _arp_client in list(cls.live_clients_tracker.arp_clients):
+                    for _arp_client in list(cls.live_clients_tracker.clients):
                         if _arp_client not in _live_scan_clients:
                             cls.live_clients_tracker.decrease(_arp_client)
 

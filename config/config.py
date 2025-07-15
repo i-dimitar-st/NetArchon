@@ -15,9 +15,9 @@ class Config:
         self._lock = RLock()
         self._path: Path = path
         self._config = {}
-        self._load_config()
+        self._load()
 
-    def _load_config(self):
+    def _load(self):
         with self._lock:
             with open(self._path, mode="r", encoding="utf-8") as _file_handle:
                 # ConfigSchema.model_validate(raw)
@@ -25,7 +25,7 @@ class Config:
 
     def reload(self):
         """Reload config"""
-        self._load_config()
+        self._load()
 
     def get(self, key: str) -> Any:
         """Get parameter from config obj"""
