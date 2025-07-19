@@ -9,6 +9,7 @@ logging.config.dictConfig(LOGGER_CONFIG)
 
 class MainLogger:
     """Aplication wide logging def"""
+
     @classmethod
     def get_logger(cls, service_name: str = "MAIN", log_level: str = "DEBUG") -> logging.Logger:
         """Logging instance getter, configurable by service name and level"""

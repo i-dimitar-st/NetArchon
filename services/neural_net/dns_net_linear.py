@@ -1,4 +1,3 @@
-
 import math
 import os
 import sqlite3
@@ -50,7 +49,7 @@ def calculate_entropy(s: str) -> float:
 
 def extract_features(domain: str) -> List[float]:
     MAX_LENGTH = 500
-    normalized_domain = [ord(c)/(1+ord(c)) for c in domain[:MAX_LENGTH]]
+    normalized_domain = [ord(c) / (1 + ord(c)) for c in domain[:MAX_LENGTH]]
     if len(normalized_domain) < MAX_LENGTH:
         normalized_domain.extend([0.0] * (MAX_LENGTH - len(normalized_domain)))
     return normalized_domain

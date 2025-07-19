@@ -10,7 +10,6 @@ from config.config import config
 from services.dhcp.db_dhcp_leases import DHCPStorage
 from services.dhcp.live_clients import LiveClients
 from services.dhcp.models import DHCPArpClient
-from utils.dhcp_utils import is_net_interface_valid
 
 DHCP_CONFIG = config.get("dhcp")
 
@@ -35,6 +34,24 @@ WORKER_JOIN_TIMEOUT = float(DISCOVERY_TIMEOUTS.get("worker_join"))
 
 MIN_CTR = int(CLIENT_DISCOVERY.get("min_ctr"))
 MAX_CTR = int(CLIENT_DISCOVERY.get("max_ctr"))
+
+
+def _get_default_config() -> dict:
+    return {
+        "server_ip": SERVER_IP,
+        "cidr": CIDR,
+        "ip_range_start": IP_RANGE_START,
+        "ip_range_end": IP_RANGE_END,
+        "interface": INTERFACE,
+        "server_mac": SERVER_MAC,
+        "broadcast_mac": BROADCAST_MAC,
+        "arp_timeout_subnet": ARP_TIMEOUT_SUBNET,
+        "arp_timeout_single": ARP_TIMEOUT_SINGLE,
+        "discovery_interval": DISCOVERY_INTERVAL,
+        "min_ctr": MIN_CTR,
+        "max_ctr": MAX_CTR,
+        "inter_delay": ARP_INTER_DELAY,
+    }
 
 
 def discover_live_clients_arp(
@@ -86,7 +103,7 @@ def discover_live_clients_arp(
     return clients
 
 
-def send_arp_request(
+def discover_live_client_arp(
     ip: IPv4Address,
     iface: str = INTERFACE,
     timeout: float = ARP_TIMEOUT_SINGLE,
@@ -182,92 +199,36 @@ class ClientDiscoveryService:
     """
 
     _config = {}
-    _default_config = {
-        "server_ip": SERVER_IP,
-        "cidr": CIDR,
-        "ip_range_start": IP_RANGE_START,
-        "ip_range_end": IP_RANGE_END,
-        "interface": INTERFACE,
-        "server_mac": SERVER_MAC,
-        "broadcast_mac": BROADCAST_MAC,
-        "arp_timeout_subnet": ARP_TIMEOUT_SUBNET,
-        "arp_timeout_single": ARP_TIMEOUT_SINGLE,
-        "discovery_interval": DISCOVERY_INTERVAL,
-        "min_ctr": MIN_CTR,
-        "max_ctr": MAX_CTR,
-        "inter_delay": ARP_INTER_DELAY,
-    }
 
     _lock = RLock()
     _stop_event = Event()
     _worker: Thread | None = None
+
     initialized = False
     running = False
 
-    live_clients: dict[str, DHCPArpClient]
     live_clients_tracker: LiveClients
 
-    _ip_range_start: IPv4Address | None = None
-    _ip_range_end: IPv4Address | None = None
     network: IPv4Network | None = None
-
-    _server_ip: str
-    _iface: str
-    _server_mac: str
-    _broadcast_mac: str
-    _arp_timeout_subnet: float
-    _arp_timeout_single: float
+    ip_range_start: IPv4Address | None = None
+    ip_range_end: IPv4Address | None = None
 
     @classmethod
-    def init(
-        cls,
-        logger,
-        server_ip: str = SERVER_IP,
-        cidr: int = CIDR,
-        ip_range_start: str = IP_RANGE_START,
-        ip_range_end: str = IP_RANGE_END,
-        iface: str = INTERFACE,
-        server_mac: str = SERVER_MAC,
-        broadcast_mac: str = BROADCAST_MAC,
-        arp_timeout_subnet: float = ARP_TIMEOUT_SUBNET,
-        arp_timeout_single: float = ARP_TIMEOUT_SINGLE,
-        client_discovery_interval: int = DISCOVERY_INTERVAL,
-    ):
-        """
-        Initialize the client discovery service with network and timing parameters.
-
-        Args:
-            logger (Logger): Logger instance for logging events.
-            server_ip (str): IP address of the server.
-            cidr (int): subnet cidr ex 24.
-            ip_range_start (str): Start IP of the scanning range.
-            ip_range_end (str): End IP of the scanning range.
-            iface (str): Network interface to use.
-            server_mac (str): MAC address of the server.
-            broadcast_mac (str): Broadcast MAC address.
-            arp_timeout_subnet (float): ARP timeout for subnet scans.
-            arp_timeout_single (float): ARP timeout for single IP scans.
-            client_discovery_interval (int): Interval in seconds for client discovery.
-        """
+    def init(cls, logger, **kwargs):
         with cls._lock:
 
-            if not is_net_interface_valid(iface):
-                raise RuntimeError("Invalid Interface")
+            cls._config = _get_default_config()
+            cls._config.update(kwargs)
 
-            cls.network = IPv4Network(f"{server_ip}/{cidr}", strict=False)
-            cls._ip_range_start = IPv4Address(ip_range_start)
-            cls._ip_range_end = IPv4Address(ip_range_end)
+            cls.network = IPv4Network(
+                f"{cls._config.get("server_ip")}/{cls._config.get("cidr")}", strict=False
+            )
+            cls.ip_range_start = IPv4Address(cls._config.get("ip_range_start"))
+            cls.ip_range_end = IPv4Address(cls._config.get("ip_range_end"))
 
-            cls._client_discovery_interval = client_discovery_interval
-
-            cls._server_ip = server_ip
-            cls._iface = iface
-            cls._server_mac = server_mac
-            cls._broadcast_mac = broadcast_mac
-            cls._arp_timeout_subnet = arp_timeout_subnet
-            cls._arp_timeout_single = arp_timeout_single
-            cls.live_clients: dict[str, DHCPArpClient] = {}
-            cls.live_clients_tracker = LiveClients(max_count=MAX_CTR, min_count=MIN_CTR)
+            cls.live_clients_tracker = LiveClients(
+                max_count=cls._config["max_ctr"], min_count=cls._config["min_ctr"]
+            )
 
             cls.logger = logger
             cls.initialized = True
@@ -319,30 +280,25 @@ class ClientDiscoveryService:
         while not cls._stop_event.is_set():
             try:
 
-                _live_scan_clients: set[DHCPArpClient] = discover_live_clients_arp(
+                live_scan_clients: set[DHCPArpClient] = discover_live_clients_arp(
                     network=cls.network
                 )
                 with cls._lock:
 
-                    for _arp_client_live in _live_scan_clients:
+                    for _arp_client_live in live_scan_clients:
                         cls.live_clients_tracker.increase(_arp_client_live)
 
                     # We need list here to make a copy as we mutate cls.live_clients_tracker
-                    for _arp_client in list(cls.live_clients_tracker.clients):
-                        if _arp_client not in _live_scan_clients:
+                    for _arp_client in list(cls.live_clients_tracker.live_clients):
+                        if _arp_client not in live_scan_clients:
                             cls.live_clients_tracker.decrease(_arp_client)
 
-                    cls.live_clients = {
-                        client.ip: deepcopy(client)
-                        for client in cls.live_clients_tracker.get_tracked_clients()
-                    }
-
-                    cls.logger.debug("%s clients.", len(cls.live_clients))
+                    cls.logger.debug("%s clients.", len(cls.live_clients_tracker.client_counter))
 
             except RuntimeError as err:
                 cls.logger.warning("Error discovering clients: %s", err)
 
-            cls._stop_event.wait(cls._client_discovery_interval)
+            cls._stop_event.wait(cls._config["discovery_interval"])
 
         with cls._lock:
             cls.running = False
@@ -357,7 +313,7 @@ class ClientDiscoveryService:
             List[ArpClient]: Deep copy of the active clients detected via ARP scanning.
         """
         with cls._lock:
-            return list(cls.live_clients.values())
+            return list(deepcopy(cls.live_clients_tracker.get_tracked_clients()))
 
     @classmethod
     @client_disc_is_init
@@ -371,7 +327,7 @@ class ClientDiscoveryService:
             ArpClient | None: Matching client if found, otherwise None.
         """
         with cls._lock:
-            return cls.live_clients.get(ip)
+            return cls.live_clients_tracker.get_client_by_ip(ip)
 
     @classmethod
     @client_disc_is_init
@@ -387,23 +343,26 @@ class ClientDiscoveryService:
         Returns:
             IPv4Address | None: An unused IP address or None if none are available.
         """
-        if cls._ip_range_start is None or cls._ip_range_end is None:
+
+        if cls.ip_range_start is None or cls.ip_range_end is None:
             raise RuntimeError("Not initialized.")
         if cls.network is None:
             raise RuntimeError("Network not init")
 
         with cls._lock:
-            for _ip in cls.network.hosts():
+            _leased_ips: set[str] = DHCPStorage.get_all_leased_ips()
+            candidates: list[IPv4Address] = [
+                ip
+                for ip in cls.network.hosts()
+                if cls.ip_range_start <= ip <= cls.ip_range_end
+                and str(ip) not in _leased_ips
+                and not cls.live_clients_tracker.get_client_by_ip(str(ip))
+            ]
 
-                if _ip < cls._ip_range_start or _ip > cls._ip_range_end:
-                    continue
-                if str(_ip) in DHCPStorage.get_all_leased_ips() or str(_ip) in cls.live_clients:
-                    continue
-                if send_arp_request(ip=_ip):
-                    continue
+        for ip in candidates:
+            if not discover_live_client_arp(ip=ip):
+                cls.logger.debug("Proposing IP: %s", ip)
+                return ip
 
-                cls.logger.debug("Proposing IP: %s", _ip)
-                return _ip
-
-            cls.logger.warning("No available IPs found.")
-            return None
+        cls.logger.warning("No available IPs found.")
+        return None

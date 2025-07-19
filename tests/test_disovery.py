@@ -47,13 +47,16 @@ def discover_live_clients_icmp(
         timeout=timeout,
         inter=inter_delay,
         verbose=verbose,
-        iface=iface
+        iface=iface,
     )
 
     print(_answered_pings)
 
     _answered_arp, _ = srp(
-        [Ether(dst=broadcast_mac) / ARP(pdst=_ip) for _ip in [recv[IP].src for _, recv in _answered_pings]],
+        [
+            Ether(dst=broadcast_mac) / ARP(pdst=_ip)
+            for _ip in [recv[IP].src for _, recv in _answered_pings]
+        ],
         timeout=timeout,
         inter=inter_delay,
         verbose=verbose,
@@ -76,7 +79,7 @@ if __name__ == "__main__":
     results = discover_live_clients_icmp(
         network=subnet,
         server_ip="192.168.20.100",  # Must be bound to iface below
-        iface="enp2s0",              # Use the correct interface
+        iface="enp2s0",  # Use the correct interface
         verbose=True,
     )
 

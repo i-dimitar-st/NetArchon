@@ -1,402 +1,546 @@
 <!DOCTYPE html>
 <html lang="en">
-  <head>
-    <meta charset="UTF-8" />
-    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-    <title>DHCP</title>
-    <link rel="icon" href="{{ url_for('static', filename='favicon.svg') }}" type="image/svg+xml" />
-    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/bootstrap/5.3.0/css/bootstrap.min.css" />
-    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css" />
-    <style>
-      :root {
-        --primary-color: #4361ee;
-        --secondary-color: #3f37c9;
-        --accent-color: #4895ef;
-        --light-bg: #f8f9fa;
-        --card-shadow: 0 4px 6px rgba(0, 0, 0, 0.05);
-        --hover-bg: rgba(67, 97, 238, 0.05);
-      }
+    <head>
+        <meta charset="UTF-8" />
+        <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+        <title>DHCP</title>
+        <link
+            rel="icon"
+            href="{{ url_for('static', filename='favicon.svg') }}"
+            type="image/svg+xml"
+        />
+        <link
+            rel="stylesheet"
+            href="https://cdnjs.cloudflare.com/ajax/libs/bootstrap/5.3.0/css/bootstrap.min.css"
+        />
+        <link
+            rel="stylesheet"
+            href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css"
+        />
+        <style>
+            :root {
+                --primary-color: #4361ee;
+                --secondary-color: #3f37c9;
+                --accent-color: #4895ef;
+                --light-bg: #f8f9fa;
+                --card-shadow: 0 4px 6px rgba(0, 0, 0, 0.05);
+                --hover-bg: rgba(67, 97, 238, 0.05);
+            }
 
-      body {
-        background-color: #f0f2f5;
-        font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Oxygen, Ubuntu, Cantarell, sans-serif;
-      }
+            body {
+                background-color: #f0f2f5;
+                font-family: -apple-system, BlinkMacSystemFont, "Segoe UI",
+                    Roboto, Oxygen, Ubuntu, Cantarell, sans-serif;
+            }
 
-      .navbar {
-        box-shadow: 0 2px 4px rgba(0, 0, 0, 0.08);
-        background: linear-gradient(135deg, var(--primary-color), var(--secondary-color));
-      }
+            .navbar {
+                box-shadow: 0 2px 4px rgba(0, 0, 0, 0.08);
+                background: linear-gradient(
+                    135deg,
+                    var(--primary-color),
+                    var(--secondary-color)
+                );
+            }
 
-      .navbar-brand i {
-        font-size: 1.2rem;
-      }
+            .navbar-brand i {
+                font-size: 1.2rem;
+            }
 
-      .card {
-        border: none;
-        border-radius: 10px;
-        box-shadow: var(--card-shadow);
-        transition: all 0.3s ease;
-        overflow: hidden;
-      }
+            .card {
+                border: none;
+                border-radius: 10px;
+                box-shadow: var(--card-shadow);
+                transition: all 0.3s ease;
+                overflow: hidden;
+            }
 
-      .card:hover {
-        box-shadow: 0 10px 20px rgba(0, 0, 0, 0.08);
-      }
+            .card:hover {
+                box-shadow: 0 10px 20px rgba(0, 0, 0, 0.08);
+            }
 
-      .card-header {
-        border-bottom: 1px solid rgba(0, 0, 0, 0.05);
-        padding: 1rem 1.5rem;
-      }
+            .card-header {
+                border-bottom: 1px solid rgba(0, 0, 0, 0.05);
+                padding: 1rem 1.5rem;
+            }
 
-      .card-header i {
-        font-size: 1.2rem;
-        opacity: 0.8;
-      }
+            .card-header i {
+                font-size: 1.2rem;
+                opacity: 0.8;
+            }
 
-      .stats-item {
-        transition: all 0.2s ease;
-        border-radius: 8px;
-        margin-bottom: 4px;
-      }
+            .stats-item {
+                transition: all 0.2s ease;
+                border-radius: 8px;
+                margin-bottom: 4px;
+            }
 
-      .stats-item:hover {
-        background-color: var(--hover-bg);
-      }
+            .stats-item:hover {
+                background-color: var(--hover-bg);
+            }
 
-      .stats-label {
-        font-size: 0.85rem;
-        font-weight: 500;
-        color: #6c757d;
-        text-transform: uppercase;
-      }
+            .stats-label {
+                font-size: 0.85rem;
+                font-weight: 500;
+                color: #6c757d;
+                text-transform: uppercase;
+            }
 
-      .stats-value {
-        font-weight: 600;
-        color: #495057;
-      }
+            .stats-value {
+                font-weight: 600;
+                color: #495057;
+            }
 
-      .table-container {
-        border-radius: 8px;
-        overflow: hidden;
-        border: 1px solid rgba(0, 0, 0, 0.05);
-      }
+            .table-container {
+                border-radius: 8px;
+                overflow: hidden;
+                border: 1px solid rgba(0, 0, 0, 0.05);
+            }
 
-      .dhcp-table {
-        margin-bottom: 0;
-      }
+            .dhcp-table {
+                margin-bottom: 0;
+            }
 
-      .dhcp-table thead th {
-        background-color: var(--light-bg);
-        font-weight: 600;
-        color: var(--primary-color);
-        border-bottom: 2px solid rgba(67, 97, 238, 0.2);
-        position: sticky;
-        top: 0;
-        z-index: 10;
-        padding: 12px 15px;
-      }
+            .dhcp-table thead th {
+                background-color: var(--light-bg);
+                font-weight: 600;
+                color: var(--primary-color);
+                border-bottom: 2px solid rgba(67, 97, 238, 0.2);
+                position: sticky;
+                top: 0;
+                z-index: 10;
+                padding: 12px 15px;
+            }
 
-      .dhcp-table tbody tr {
-        transition: background-color 0.15s ease;
-      }
+            .dhcp-table tbody tr {
+                transition: background-color 0.15s ease;
+            }
 
-      .dhcp-table tbody tr:hover {
-        background-color: var(--hover-bg);
-      }
+            .dhcp-table tbody tr:hover {
+                background-color: var(--hover-bg);
+            }
 
-      .dhcp-table td {
-        vertical-align: middle;
-        padding: 12px 15px;
-        border-color: rgba(0, 0, 0, 0.03);
-      }
+            .dhcp-table td {
+                vertical-align: middle;
+                padding: 12px 15px;
+                border-color: rgba(0, 0, 0, 0.03);
+            }
 
-      .badge-dynamic {
-        background-color: var(--accent-color);
-      }
+            .badge-dynamic {
+                background-color: var(--primary-color);
+            }
 
-      .badge-static {
-        background-color: var(--secondary-color);
-      }
+            .badge-static {
+                background-color: var(--secondary-color);
+            }
 
-      /* Responsive adjustments */
-      @media (max-width: 992px) {
-        .dhcp-table td,
-        .dhcp-table th {
-          padding: 8px 10px;
-        }
-      }
+            .badge-manual {
+                background-color: var(--accent-color);
+            }
 
-      @media (max-width: 576px) {
-        .card-header {
-          padding: 0.75rem 1rem;
-        }
+            /* Responsive adjustments */
+            @media (max-width: 992px) {
+                .dhcp-table td,
+                .dhcp-table th {
+                    padding: 8px 10px;
+                }
+            }
 
-        .card-body {
-          padding: 1rem;
-        }
-      }
-    </style>
-  </head>
-  <body>
-    <!-- Navigation -->
-    <nav class="navbar navbar-expand-lg navbar-dark">
-      <div class="container">
-        <a class="navbar-brand d-flex align-items-center" href="/">
-          <i class="fas fa-network-wired me-2"></i>
-          <span>DNS Service</span>
-        </a>
-        <button class="navbar-toggler" type="button" data-bs-toggle="collapse" data-bs-target="#navbarNav">
-          <span class="navbar-toggler-icon"></span>
-        </button>
-        <div class="collapse navbar-collapse" id="navbarNav">
-          <ul class="navbar-nav ms-auto">
-            <li class="nav-item">
-              <a class="nav-link" href="/">Dashboard</a>
-            </li>
-            <li class="nav-item">
-              <a class="nav-link" href="/info">Info</a>
-            </li>
-            <li class="nav-item">
-              <a class="nav-link active" href="/dhcp">DHCP</a>
-            </li>
-            <li class="nav-item">
-              <a class="nav-link" href="/dns">DNS</a>
-            </li>
-            <li class="nav-item">
-              <a class="nav-link" href="/config">Config</a>
-            </li>
-            <li class="nav-item">
-              <a class="nav-link" href="/logs">Logs</a>
-            </li>
-          </ul>
-        </div>
-      </div>
-    </nav>
+            @media (max-width: 576px) {
+                .card-header {
+                    padding: 0.75rem 1rem;
+                }
 
-    <!-- Main Content -->
-    <div class="container py-4">
-      <div class="row g-4">
-        <!-- DHCP Statistics Section -->
-        <div class="col-md-4">
-          <div class="card h-100">
-            <div class="card-header bg-white">
-              <div class="d-flex justify-content-between align-items-center">
-                <h5 class="mb-0">DHCP Statistics</h5>
-                <i class="fas fa-chart-bar text-primary"></i>
-              </div>
-            </div>
-            <div class="card-body">
-              {% for key, value in dhcp_statistics.items() %} {% if value %}
-              <div class="stats-item d-flex justify-content-between p-2">
-                <span class="stats-label">{{ key | replace('_', ' ') | upper }}</span>
-                <span class="stats-value">{{ value }}</span>
-              </div>
-              {% endif %} {% endfor %}
-            </div>
-          </div>
-        </div>
-
-        <!-- Current Leases Section -->
-        <div class="col-md-8">
-          <div class="card">
-            <div class="card-header bg-white">
-              <div class="d-flex justify-content-between align-items-center">
-                <h5 class="mb-0">
-                  Current DHCP Leases
-                  <span class="badge bg-primary ms-2">{{ dhcp_leases | length }}</span>
-                </h5>
-                <i class="fas fa-list-alt text-primary"></i>
-              </div>
-            </div>
-            <div class="card-body">
-              <div class="table-container">
-                <div style="max-height: 500px; overflow-y: auto">
-                  <table class="table dhcp-table table-hover" id="table_dhcp_leases">
-                    <thead>
-                      <tr>
-                        <th style="cursor: pointer" id="macHeader">MAC Address <i class="fas fa-sort"></i></th>
-                        <th style="cursor: pointer" id="ipHeader">IP Address <i class="fas fa-sort"></i></th>
-                        <th style="cursor: pointer" id="hostnameHeader">Hostname <i class="fas fa-sort"></i></th>
-                        <th style="cursor: pointer" id="typeHeader">Type <i class="fas fa-sort"></i></th>
-                        <th style="cursor: pointer" id="leaseTimeHeader">Lease Time <i class="fas fa-sort"></i></th>
-                        <th style="cursor: pointer" id="expiryTimeHeader">Expiry Time <i class="fas fa-sort"></i></th>
-                      </tr>
-                    </thead>
-                    <tbody>
-                      {% for lease in dhcp_leases %}
-                      <tr>
-                        <td id="{{ lease.mac }}_lease_mac">{{ lease.mac }}</td>
-                        <td id="{{ lease.mac }}_lease_ip">{{ lease.ip }}</td>
-                        <td id="{{ lease.mac }}_lease_hostname">{{ lease.hostname }}</td>
-                        <td id="{{ lease.mac }}_lease_type">
-                          <span
-                            class="badge {% if lease.type == 'static' %}badge-static{% else %}badge-dynamic{% endif %}"
-                          >
-                            {{ lease.type if lease.type else 'dynamic' }}
-                          </span>
-                        </td>
-                        <td id="{{ lease.mac }}_lease_start" data-timestamp="{{ lease.timestamp }}"></td>
-                        <td id="{{ lease.mac }}_lease_expiry" data-timestamp="{{ lease.expiry_time }}"></td>
-                      </tr>
-                      {% endfor %}
-                    </tbody>
-                  </table>
+                .card-body {
+                    padding: 1rem;
+                }
+            }
+        </style>
+    </head>
+    <body>
+        <!-- Navigation -->
+        <nav class="navbar navbar-expand-lg navbar-dark">
+            <div class="container">
+                <a class="navbar-brand d-flex align-items-center" href="/">
+                    <i class="fas fa-network-wired me-2"></i>
+                    <span>DNS Service</span>
+                </a>
+                <button
+                    class="navbar-toggler"
+                    type="button"
+                    data-bs-toggle="collapse"
+                    data-bs-target="#navbarNav"
+                >
+                    <span class="navbar-toggler-icon"></span>
+                </button>
+                <div class="collapse navbar-collapse" id="navbarNav">
+                    <ul class="navbar-nav ms-auto">
+                        <li class="nav-item">
+                            <a class="nav-link" href="/">Dashboard</a>
+                        </li>
+                        <li class="nav-item">
+                            <a class="nav-link" href="/info">Info</a>
+                        </li>
+                        <li class="nav-item">
+                            <a class="nav-link active" href="/dhcp">DHCP</a>
+                        </li>
+                        <li class="nav-item">
+                            <a class="nav-link" href="/dns">DNS</a>
+                        </li>
+                        <li class="nav-item">
+                            <a class="nav-link" href="/config">Config</a>
+                        </li>
+                        <li class="nav-item">
+                            <a class="nav-link" href="/logs">Logs</a>
+                        </li>
+                    </ul>
                 </div>
-              </div>
             </div>
-          </div>
+        </nav>
+
+        <!-- Main Content -->
+        <div class="container py-4">
+            <div class="row g-4">
+                <!-- DHCP Statistics Section -->
+                <div class="col-md-4">
+                    <div class="card h-100">
+                        <div class="card-header bg-white">
+                            <div
+                                class="d-flex justify-content-between align-items-center"
+                            >
+                                <h5 class="mb-0">DHCP Statistics</h5>
+                                <i class="fas fa-chart-bar text-primary"></i>
+                            </div>
+                        </div>
+                        <div class="card-body">
+                            {% for key, value in dhcp_statistics.items() %} {%
+                            if value %}
+                            <div
+                                class="stats-item d-flex justify-content-between p-2"
+                            >
+                                <span class="stats-label"
+                                    >{{ key | replace('_', ' ') | upper }}</span
+                                >
+                                <span class="stats-value">{{ value }}</span>
+                            </div>
+                            {% endif %} {% endfor %}
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Current Leases Section -->
+                <div class="col-md-8">
+                    <div class="card">
+                        <div class="card-header bg-white">
+                            <div
+                                class="d-flex justify-content-between align-items-center"
+                            >
+                                <h5 class="mb-0">
+                                    DHCP Leases
+                                    <span class="badge bg-primary ms-2"
+                                        >{{ dhcp_leases | length }}</span
+                                    >
+                                </h5>
+                                <i class="fas fa-list-alt text-primary"></i>
+                            </div>
+                        </div>
+                        <div class="card-body">
+                            <div class="table-container">
+                                <div
+                                    style="max-height: 500px; overflow-y: auto"
+                                >
+                                    <table
+                                        class="table dhcp-table table-hover"
+                                        id="table_dhcp_leases"
+                                    >
+                                        <thead>
+                                            <tr>
+                                                <th
+                                                    style="cursor: pointer"
+                                                    id="macHeader"
+                                                >
+                                                    MAC Address
+                                                    <i class="fas fa-sort"></i>
+                                                </th>
+                                                <th
+                                                    style="cursor: pointer"
+                                                    id="ipHeader"
+                                                >
+                                                    IP Address
+                                                    <i class="fas fa-sort"></i>
+                                                </th>
+                                                <th
+                                                    style="cursor: pointer"
+                                                    id="hostnameHeader"
+                                                >
+                                                    Hostname
+                                                    <i class="fas fa-sort"></i>
+                                                </th>
+                                                <th
+                                                    style="cursor: pointer"
+                                                    id="typeHeader"
+                                                >
+                                                    Type
+                                                    <i class="fas fa-sort"></i>
+                                                </th>
+                                                <th
+                                                    style="cursor: pointer"
+                                                    id="leaseTimeHeader"
+                                                >
+                                                    Lease Time
+                                                    <i class="fas fa-sort"></i>
+                                                </th>
+                                                <th
+                                                    style="cursor: pointer"
+                                                    id="expiryTimeHeader"
+                                                >
+                                                    Expiry Time
+                                                    <i class="fas fa-sort"></i>
+                                                </th>
+                                            </tr>
+                                        </thead>
+                                        <tbody>
+                                            {% for lease in dhcp_leases %}
+                                            <tr>
+                                                <td
+                                                    id="{{ lease.mac }}_lease_mac"
+                                                >
+                                                    {{ lease.mac }}
+                                                </td>
+                                                <td
+                                                    id="{{ lease.mac }}_lease_ip"
+                                                >
+                                                    {{ lease.ip }}
+                                                </td>
+                                                <td
+                                                    id="{{ lease.mac }}_lease_hostname"
+                                                >
+                                                    {{ lease.hostname }}
+                                                </td>
+                                                <td
+                                                    id="{{ lease.mac }}_lease_type"
+                                                >
+                                                    <span
+                                                        class="badge {% if lease.type == 'static' %} badge-static {% elif lease.type == 'manual' %} badge-manual {% else %} badge-dynamic {% endif %}"
+                                                    >
+                                                        {{ lease.type if
+                                                        lease.type else 'manual'
+                                                        }}
+                                                    </span>
+                                                </td>
+                                                <td
+                                                    id="{{ lease.mac }}_lease_start"
+                                                    data-timestamp="{{ lease.timestamp }}"
+                                                ></td>
+                                                <td
+                                                    id="{{ lease.mac }}_lease_expiry"
+                                                    data-timestamp="{{ lease.expiry_time }}"
+                                                ></td>
+                                            </tr>
+                                            {% endfor %}
+                                        </tbody>
+                                    </table>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
         </div>
-      </div>
-    </div>
 
-    <!-- Scripts -->
-    <script src="https://cdnjs.cloudflare.com/ajax/libs/bootstrap/5.3.0/js/bootstrap.bundle.min.js"></script>
-    <script>
-      document.addEventListener("DOMContentLoaded", function () {
-        // Initialize tooltips
-        const tooltipTriggerList = [].slice.call(document.querySelectorAll('[data-bs-toggle="tooltip"]'));
-        tooltipTriggerList.map(function (tooltipTriggerEl) {
-          return new bootstrap.Tooltip(tooltipTriggerEl);
-        });
+        <!-- Scripts -->
+        <script src="https://cdnjs.cloudflare.com/ajax/libs/bootstrap/5.3.0/js/bootstrap.bundle.min.js"></script>
+        <script>
+            document.addEventListener("DOMContentLoaded", function () {
+                // Initialize tooltips
+                const tooltipTriggerList = [].slice.call(
+                    document.querySelectorAll('[data-bs-toggle="tooltip"]')
+                );
+                tooltipTriggerList.map(function (tooltipTriggerEl) {
+                    return new bootstrap.Tooltip(tooltipTriggerEl);
+                });
 
-        // Table sorting state
-        let tableSortState = {
-          column: "mac",
-          direction: "asc",
-        };
+                // Table sorting state
+                let tableSortState = {
+                    column: "mac",
+                    direction: "asc",
+                };
 
-        // Format timestamps
-        formatLeasesTimestamps();
+                // Format timestamps
+                formatLeasesTimestamps();
 
-        // Add table sorting functionality
-        const table = document.getElementById("table_dhcp_leases");
-        const tbody = table.querySelector("tbody");
-        const rows = Array.from(tbody.querySelectorAll("tr"));
+                // Add table sorting functionality
+                const table = document.getElementById("table_dhcp_leases");
+                const tbody = table.querySelector("tbody");
+                const rows = Array.from(tbody.querySelectorAll("tr"));
 
-        // Sort table function
-        function sortTable(column, type = "text") {
-          const direction = tableSortState.column === column && tableSortState.direction === "asc" ? "desc" : "asc";
-          tableSortState = { column, direction };
+                // Sort table function
+                function sortTable(column, type = "text") {
+                    const direction =
+                        tableSortState.column === column &&
+                        tableSortState.direction === "asc"
+                            ? "desc"
+                            : "asc";
+                    tableSortState = { column, direction };
 
-          // Reset all sort icons
-          document.querySelectorAll("th i.fas").forEach((icon) => {
-            icon.className = "fas fa-sort";
-          });
+                    // Reset all sort icons
+                    document.querySelectorAll("th i.fas").forEach((icon) => {
+                        icon.className = "fas fa-sort";
+                    });
 
-          // Set the appropriate sort icon
-          const headerElement = document.getElementById(`${column}Header`);
-          if (headerElement) {
-            const sortIcon = headerElement.querySelector("i");
-            sortIcon.className = `fas fa-sort-${direction === "asc" ? "up" : "down"}`;
-          }
+                    // Set the appropriate sort icon
+                    const headerElement = document.getElementById(
+                        `${column}Header`
+                    );
+                    if (headerElement) {
+                        const sortIcon = headerElement.querySelector("i");
+                        sortIcon.className = `fas fa-sort-${
+                            direction === "asc" ? "up" : "down"
+                        }`;
+                    }
 
-          // Sort the rows
-          rows.sort((a, b) => {
-            let valA, valB;
+                    // Sort the rows
+                    rows.sort((a, b) => {
+                        let valA, valB;
 
-            switch (column) {
-              case "mac":
-                valA = a.cells[0].innerText.trim();
-                valB = b.cells[0].innerText.trim();
-                break;
-              case "ip":
-                valA = a.cells[1].innerText.trim();
-                valB = b.cells[1].innerText.trim();
-                break;
-              case "hostname":
-                valA = a.cells[2].innerText.trim();
-                valB = b.cells[2].innerText.trim();
-                break;
-              case "type":
-                valA = a.cells[3].innerText.trim();
-                valB = b.cells[3].innerText.trim();
-                break;
-              case "leaseTime":
-                valA = a.cells[4].getAttribute("data-timestamp");
-                valB = b.cells[4].getAttribute("data-timestamp");
-                break;
-              case "expiryTime":
-                valA = a.cells[5].getAttribute("data-timestamp");
-                valB = b.cells[5].getAttribute("data-timestamp");
-                break;
-            }
+                        switch (column) {
+                            case "mac":
+                                valA = a.cells[0].innerText.trim();
+                                valB = b.cells[0].innerText.trim();
+                                break;
+                            case "ip":
+                                valA = a.cells[1].innerText.trim();
+                                valB = b.cells[1].innerText.trim();
+                                break;
+                            case "hostname":
+                                valA = a.cells[2].innerText.trim();
+                                valB = b.cells[2].innerText.trim();
+                                break;
+                            case "type":
+                                valA = a.cells[3].innerText.trim();
+                                valB = b.cells[3].innerText.trim();
+                                break;
+                            case "leaseTime":
+                                valA =
+                                    a.cells[4].getAttribute("data-timestamp");
+                                valB =
+                                    b.cells[4].getAttribute("data-timestamp");
+                                break;
+                            case "expiryTime":
+                                valA =
+                                    a.cells[5].getAttribute("data-timestamp");
+                                valB =
+                                    b.cells[5].getAttribute("data-timestamp");
+                                break;
+                        }
 
-            if (type === "number") {
-              valA = parseFloat(valA) || 0;
-              valB = parseFloat(valB) || 0;
-            } else if (type === "ip") {
-              // Convert IP to sortable number
-              valA = ipToNumber(valA);
-              valB = ipToNumber(valB);
-            }
+                        if (type === "number") {
+                            valA = parseFloat(valA) || 0;
+                            valB = parseFloat(valB) || 0;
+                        } else if (type === "ip") {
+                            // Convert IP to sortable number
+                            valA = ipToNumber(valA);
+                            valB = ipToNumber(valB);
+                        }
 
-            if (valA < valB) return direction === "asc" ? -1 : 1;
-            if (valA > valB) return direction === "asc" ? 1 : -1;
-            return 0;
-          });
+                        if (valA < valB) return direction === "asc" ? -1 : 1;
+                        if (valA > valB) return direction === "asc" ? 1 : -1;
+                        return 0;
+                    });
 
-          // Reorder the rows
-          rows.forEach((row) => tbody.appendChild(row));
-        }
+                    // Reorder the rows
+                    rows.forEach((row) => tbody.appendChild(row));
+                }
 
-        // Convert IP address to number for sorting
-        function ipToNumber(ip) {
-          const parts = ip.split(".");
-          if (parts.length !== 4) return 0;
-          return (
-            parseInt(parts[0]) * 16777216 + parseInt(parts[1]) * 65536 + parseInt(parts[2]) * 256 + parseInt(parts[3])
-          );
-        }
+                // Convert IP address to number for sorting
+                function ipToNumber(ip) {
+                    const parts = ip.split(".");
+                    if (parts.length !== 4) return 0;
+                    return (
+                        parseInt(parts[0]) * 16777216 +
+                        parseInt(parts[1]) * 65536 +
+                        parseInt(parts[2]) * 256 +
+                        parseInt(parts[3])
+                    );
+                }
 
-        // Format timestamps function
-        function formatLeasesTimestamps() {
-          const startTimeElements = document.querySelectorAll("[id$='_lease_start']");
-          const expiryTimeElements = document.querySelectorAll("[id$='_lease_expiry']");
+                // Format timestamps function
+                function formatLeasesTimestamps() {
+                    const startTimeElements = document.querySelectorAll(
+                        "[id$='_lease_start']"
+                    );
+                    const expiryTimeElements = document.querySelectorAll(
+                        "[id$='_lease_expiry']"
+                    );
 
-          function formatElement(element) {
-            const timestamp = element.getAttribute("data-timestamp") * 1000;
-            if (!isNaN(timestamp)) {
-              const date = new Date(timestamp);
-              const options = {
-                month: "short",
-                day: "numeric",
-                hour: "2-digit",
-                minute: "2-digit",
-              };
-              element.textContent = date.toLocaleString("en-GB", options);
+                    function formatElement(element) {
+                        const timestamp =
+                            element.getAttribute("data-timestamp") * 1000;
+                        if (!isNaN(timestamp)) {
+                            const date = new Date(timestamp);
+                            const options = {
+                                month: "short",
+                                day: "numeric",
+                                hour: "2-digit",
+                                minute: "2-digit",
+                            };
+                            element.textContent = date.toLocaleString(
+                                "en-GB",
+                                options
+                            );
 
-              // Add full timestamp as tooltip
-              element.setAttribute("data-bs-toggle", "tooltip");
-              element.setAttribute("data-bs-placement", "top");
+                            // Add full timestamp as tooltip
+                            element.setAttribute("data-bs-toggle", "tooltip");
+                            element.setAttribute("data-bs-placement", "top");
 
-              const fullOptions = {
-                year: "numeric",
-                month: "2-digit",
-                day: "2-digit",
-                hour: "2-digit",
-                minute: "2-digit",
-                second: "2-digit",
-                timeZoneName: "short",
-              };
-              element.setAttribute("title", date.toLocaleString("en-GB", fullOptions));
-            }
-          }
+                            const fullOptions = {
+                                year: "numeric",
+                                month: "2-digit",
+                                day: "2-digit",
+                                hour: "2-digit",
+                                minute: "2-digit",
+                                second: "2-digit",
+                                timeZoneName: "short",
+                            };
+                            element.setAttribute(
+                                "title",
+                                date.toLocaleString("en-GB", fullOptions)
+                            );
+                        }
+                    }
 
-          startTimeElements.forEach(formatElement);
-          expiryTimeElements.forEach(formatElement);
-        }
+                    startTimeElements.forEach(formatElement);
+                    expiryTimeElements.forEach(formatElement);
+                }
 
-        // Event listeners for sorting
-        document.getElementById("macHeader").addEventListener("click", () => sortTable("mac", "text"));
-        document.getElementById("ipHeader").addEventListener("click", () => sortTable("ip", "ip"));
-        document.getElementById("hostnameHeader").addEventListener("click", () => sortTable("hostname", "text"));
-        document.getElementById("typeHeader").addEventListener("click", () => sortTable("type", "text"));
-        document.getElementById("leaseTimeHeader").addEventListener("click", () => sortTable("leaseTime", "number"));
-        document.getElementById("expiryTimeHeader").addEventListener("click", () => sortTable("expiryTime", "number"));
+                // Event listeners for sorting
+                document
+                    .getElementById("macHeader")
+                    .addEventListener("click", () => sortTable("mac", "text"));
+                document
+                    .getElementById("ipHeader")
+                    .addEventListener("click", () => sortTable("ip", "ip"));
+                document
+                    .getElementById("hostnameHeader")
+                    .addEventListener("click", () =>
+                        sortTable("hostname", "text")
+                    );
+                document
+                    .getElementById("typeHeader")
+                    .addEventListener("click", () => sortTable("type", "text"));
+                document
+                    .getElementById("leaseTimeHeader")
+                    .addEventListener("click", () =>
+                        sortTable("leaseTime", "number")
+                    );
+                document
+                    .getElementById("expiryTimeHeader")
+                    .addEventListener("click", () =>
+                        sortTable("expiryTime", "number")
+                    );
 
-        // Initialize with default sort
-        sortTable("mac", "text");
-      });
-    </script>
-  </body>
+                // Initialize with default sort
+                sortTable("mac", "text");
+            });
+        </script>
+    </body>
 </html>

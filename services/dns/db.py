@@ -62,12 +62,8 @@ class DnsQueryHistoryDb:
         assert cls._conn is not None, "DB connection not initialized"
         with cls._lock:
             cls._cursor.execute(DBSchemas.dnsHistory)
-            cls._cursor.execute(
-                "CREATE INDEX IF NOT EXISTS idx_query ON history(query)"
-            )
-            cls._cursor.execute(
-                "CREATE INDEX IF NOT EXISTS idx_created ON history(created)"
-            )
+            cls._cursor.execute("CREATE INDEX IF NOT EXISTS idx_query ON history(query)")
+            cls._cursor.execute("CREATE INDEX IF NOT EXISTS idx_created ON history(created)")
             cls._cursor.execute(
                 "CREATE INDEX IF NOT EXISTS idx_query_counter ON history(query_counter)"
             )
@@ -233,9 +229,7 @@ class DnsStatsDb:
                 (_now, _now),
             )
             cls._conn.commit()
-            columns_info: list[Any] = cls._cursor.execute(
-                "PRAGMA table_info(stats)"
-            ).fetchall()
+            columns_info: list[Any] = cls._cursor.execute("PRAGMA table_info(stats)").fetchall()
             cls._valid_columns.update({col[1] for col in columns_info})
 
     @classmethod

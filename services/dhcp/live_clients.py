@@ -15,8 +15,8 @@ INCREMENT = 1
 
 @dataclass
 class LiveClients:
-    clients: set[DHCPArpClient] = field(default_factory=set)
-    client_ctr: Counter[DHCPArpClient] = field(default_factory=Counter)
+    live_clients: set[DHCPArpClient] = field(default_factory=set)
+    client_counter: Counter[DHCPArpClient] = field(default_factory=Counter)
     max_count: int = MAX_CTR
     start_count: int = START_CTR
     min_count: int = MIN_CTR
@@ -39,10 +39,10 @@ class LiveClients:
         - Clean up clients that fall below min_count after updating counts.
         """
         with self._lock:
-            _client_ctr: int = self.client_ctr.get(client, self.start_count)
+            _client_ctr: int = self.client_counter.get(client, self.start_count)
             if _client_ctr < self.max_count:
-                self.client_ctr[client] = _client_ctr + INCREMENT
-                self.clients.add(client)
+                self.client_counter[client] = _client_ctr + INCREMENT
+                self.live_clients.add(client)
             self._clean()
 
     def decrease(self, client: DHCPArpClient):
@@ -61,8 +61,8 @@ class LiveClients:
         - Run cleanup to remove any clients whose counts drop below min_count.
         """
         with self._lock:
-            if client in self.client_ctr:
-                self.client_ctr[client] = self.client_ctr[client] - INCREMENT
+            if client in self.client_counter:
+                self.client_counter[client] = self.client_counter[client] - INCREMENT
                 self._clean()
 
     def get_tracked_clients(self) -> set[DHCPArpClient]:
@@ -77,9 +77,9 @@ class LiveClients:
         - Return a new set to prevent external mutation of internal state.
         """
         with self._lock:
-            return set(self.clients)
+            return set(self.live_clients)
 
-    def get_client_count(self, client: DHCPArpClient) -> int | None:
+    def get_count_for_client(self, client: DHCPArpClient) -> int | None:
         """
         Get the current count for a specific DHCPArpClient.
 
@@ -90,15 +90,47 @@ class LiveClients:
             int: The count associated with the client, or START_CTR=0 if not tracked.
         """
         with self._lock:
-            return self.client_ctr.get(client)
+            return self.client_counter.get(client)
+
+    def get_client_by_ip(self, ip: str) -> DHCPArpClient | None:
+        """
+        Search and return a client by IP address.
+
+        Args:
+            ip (str): IP address to look up.
+
+        Returns:
+            DHCPArpClient or None: Client with matching IP, or None if not found.
+        """
+        with self._lock:
+            for client in self.live_clients:
+                if client.ip == ip:
+                    return client
+        return None
+
+    def get_client_by_mac(self, mac: str) -> DHCPArpClient | None:
+        """
+        Search and return a client by MAC address.
+
+        Args:
+            mac (str): MAC address to look up.
+
+        Returns:
+            DHCPArpClient or None: Client with matching MAC, or None if not found.
+        """
+        with self._lock:
+            for client in self.live_clients:
+                if client.mac.lower() == mac.lower():
+                    return client
+        return None
 
     def _clean(self):
         """Internal prune to remove clients with counts below min_count."""
         with self._lock:
             _clients_to_clean: set[DHCPArpClient] = {
-                _client for _client, _ctr in self.client_ctr.items() if _ctr < self.min_count
+                _client for _client, _ctr in self.client_counter.items() if _ctr < self.min_count
             }
             for _client in _clients_to_clean:
                 print("dropping: ", _client)
-                self.client_ctr.pop(_client, None)
-                self.clients.discard(_client)
+                self.client_counter.pop(_client, None)
+                self.live_clients.discard(_client)

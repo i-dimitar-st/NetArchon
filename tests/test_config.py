@@ -25,9 +25,7 @@ def real_config():
 def test_config_path(real_config):
     # Negative
     assert real_config._path is not None, "config path None."
-    assert isinstance(
-        real_config._path, Path
-    ), f"Invalid type: {type(real_config._path).__name__}."
+    assert isinstance(real_config._path, Path), f"Invalid type: {type(real_config._path).__name__}."
 
     # Positive
     assert real_config._path.exists(), f"Path does not exist: {real_config._path}."

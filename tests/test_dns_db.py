@@ -34,9 +34,7 @@ def test_dns_query_history_eviction():
         assert DnsQueryHistoryDb._cursor.fetchone()[0] <= max_size
 
     if DnsQueryHistoryDb._cursor:
-        DnsQueryHistoryDb._cursor.execute(
-            "SELECT query FROM history ORDER BY created DESC"
-        )
+        DnsQueryHistoryDb._cursor.execute("SELECT query FROM history ORDER BY created DESC")
         remaining_domains = [row[0] for row in DnsQueryHistoryDb._cursor.fetchall()]
         expected_domains = [d.lower() for d in domains[-max_size:]]
         assert all(domain in expected_domains for domain in remaining_domains)
@@ -65,11 +63,7 @@ def test_dns_stats_db_basic():
     # Init
     DnsStatsDb.init()
     valid_key = next(
-        iter(
-            k
-            for k in DnsStatsDb._valid_columns
-            if k not in ("id", "start_time", "last_updated")
-        )
+        iter(k for k in DnsStatsDb._valid_columns if k not in ("id", "start_time", "last_updated"))
     )
 
     # Increment valid key

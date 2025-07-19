@@ -16,9 +16,7 @@ def make_dns_record(
     record = DNSRecord()
     record.add_question(DNSQuestion(rname, rtype))
     for _ttl in ttls:
-        record.add_answer(
-            RR(rname=rname, rtype=rtype, rclass=rclass, ttl=_ttl, rdata=rdata)
-        )
+        record.add_answer(RR(rname=rname, rtype=rtype, rclass=rclass, ttl=_ttl, rdata=rdata))
     return record
 
 
@@ -43,9 +41,7 @@ def test_is_valid_domain():
     ]
 
     for domain, expected in cases:
-        assert (
-            DNSUtils.is_valid_domain(domain) == expected
-        ), f"Failed for domain: {domain}"
+        assert DNSUtils.is_valid_domain(domain) == expected, f"Failed for domain: {domain}"
 
 
 def test_is_local_query():
@@ -61,9 +57,7 @@ def test_is_local_query():
         assert type(query) is str, f"Query must be str, got {type(query)}"
         assert type(zone) is str, f"Zone must be str, got {type(zone)}"
         assert type(expected) is bool, f"Expected must be bool, got {type(expected)}"
-        assert (
-            DNSUtils.is_local_query(query, zone) == expected
-        ), f"Failed for {query=}, {zone=}"
+        assert DNSUtils.is_local_query(query, zone) == expected, f"Failed for {query=}, {zone=}"
 
 
 def test_extract_hostname():
