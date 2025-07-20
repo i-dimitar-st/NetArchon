@@ -113,7 +113,9 @@ class DHCPServer:
             cls._workers["dhcp-traffic_listener"] = _traffic_listener
 
             for _index in range(WORKERS):
-                _worker = Thread(target=cls._processor, name=f"dhcp-worker-{_index}", daemon=True)
+                _worker = Thread(
+                    target=cls._processor, name=f"dhcp-worker-{_index}", daemon=True
+                )
                 _worker.start()
                 cls._workers[f"dhcp-worker-{_index}"] = _worker
             dhcp_logger.info("Started %s", cls.__name__)
@@ -133,6 +135,17 @@ class DHCPServer:
                     thread.join(timeout=worker_join_timeout)
             cls._workers.clear()
             dhcp_logger.info("Stopped %s.", cls.__name__)
+
+    @classmethod
+    def restart(cls, worker_join_timeout=WORKER_JOIN_TIMEOUT):
+        """Stop and then start the DHCP server cleanly."""
+        if not cls._initialised:
+            raise RuntimeError("Server not initialized.")
+        if not cls._running:
+            cls.start()
+            return
+        cls.stop(worker_join_timeout=worker_join_timeout)
+        cls.start()
 
     @classmethod
     def _traffic_listener(cls, interface=INTERFACE, port=PORT):
@@ -170,7 +183,9 @@ class DHCPServer:
         while cls._running:
             dhcp_message = None
             try:
-                dhcp_message = DHCPMessage(cls._received_queue.get(timeout=worker_get_timeout))
+                dhcp_message = DHCPMessage(
+                    cls._received_queue.get(timeout=worker_get_timeout)
+                )
 
                 if (
                     dhcp_message.mac.lower() == server_mac.lower()
@@ -178,9 +193,10 @@ class DHCPServer:
                 ):
                     continue
 
-                if dhcp_message.dedup_key in cls._dedup_queue:
-                    continue
-                cls._dedup_queue.append(dhcp_message.dedup_key)
+                with cls._lock:
+                    if dhcp_message.dedup_key in cls._dedup_queue:
+                        continue
+                    cls._dedup_queue.append(dhcp_message.dedup_key)
 
                 DHCPMessageHandler.handle_message(dhcp_message)
 

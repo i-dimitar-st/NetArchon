@@ -15,11 +15,10 @@ INCREMENT = 1
 
 @dataclass
 class LiveClients:
-    live_clients: set[DHCPArpClient] = field(default_factory=set)
-    client_counter: Counter[DHCPArpClient] = field(default_factory=Counter)
-    max_count: int = MAX_CTR
-    start_count: int = START_CTR
-    min_count: int = MIN_CTR
+    live_clients: Counter[DHCPArpClient] = field(default_factory=Counter)
+    max_ctr: int = MAX_CTR
+    start_ctr: int = START_CTR
+    min_ctr: int = MIN_CTR
     _lock: RLock = field(default_factory=RLock, init=False, repr=False)
 
     def increase(self, client: DHCPArpClient):
@@ -33,17 +32,11 @@ class LiveClients:
 
         Args:
             client (DHCPArpClient): Client to add or increment.
-
-        Behavior:
-        - If client count is below max_count, increment by 1.
-        - Clean up clients that fall below min_count after updating counts.
         """
         with self._lock:
-            _client_ctr: int = self.client_counter.get(client, self.start_count)
-            if _client_ctr < self.max_count:
-                self.client_counter[client] = _client_ctr + INCREMENT
-                self.live_clients.add(client)
-            self._clean()
+            _client_ctr: int = self.live_clients.get(client, self.start_ctr)
+            if _client_ctr < self.max_ctr:
+                self.live_clients[client] = _client_ctr + INCREMENT
 
     def decrease(self, client: DHCPArpClient):
         """
@@ -61,9 +54,20 @@ class LiveClients:
         - Run cleanup to remove any clients whose counts drop below min_count.
         """
         with self._lock:
-            if client in self.client_counter:
-                self.client_counter[client] = self.client_counter[client] - INCREMENT
+            if client in self.live_clients:
+                self.live_clients[client] -= INCREMENT
                 self._clean()
+
+    def is_live(self, client: DHCPArpClient) -> bool:
+        """
+        Check if a client is currently considered live.
+
+        Args:
+            client (DHCPArpClient): The client to check.
+
+        """
+        with self._lock:
+            return self.live_clients.get(client, 0) >= self.min_ctr
 
     def get_tracked_clients(self) -> set[DHCPArpClient]:
         """
@@ -77,9 +81,13 @@ class LiveClients:
         - Return a new set to prevent external mutation of internal state.
         """
         with self._lock:
-            return set(self.live_clients)
+            return {
+                client
+                for client, count in self.live_clients.items()
+                if count >= self.min_ctr
+            }
 
-    def get_count_for_client(self, client: DHCPArpClient) -> int | None:
+    def get_count_for_client(self, client: DHCPArpClient) -> int:
         """
         Get the current count for a specific DHCPArpClient.
 
@@ -87,10 +95,10 @@ class LiveClients:
             client (DHCPArpClient): The client to query.
 
         Returns:
-            int: The count associated with the client, or START_CTR=0 if not tracked.
+            int: The count associated with the client, or 0 if not tracked.
         """
         with self._lock:
-            return self.client_counter.get(client)
+            return self.live_clients.get(client, 0)
 
     def get_client_by_ip(self, ip: str) -> DHCPArpClient | None:
         """
@@ -99,38 +107,31 @@ class LiveClients:
         Args:
             ip (str): IP address to look up.
 
-        Returns:
-            DHCPArpClient or None: Client with matching IP, or None if not found.
         """
         with self._lock:
-            for client in self.live_clients:
-                if client.ip == ip:
+            for client, count in self.live_clients.items():
+                if client.ip == ip and count >= self.min_ctr:
                     return client
         return None
 
     def get_client_by_mac(self, mac: str) -> DHCPArpClient | None:
         """
         Search and return a client by MAC address.
-
-        Args:
-            mac (str): MAC address to look up.
-
-        Returns:
-            DHCPArpClient or None: Client with matching MAC, or None if not found.
         """
         with self._lock:
-            for client in self.live_clients:
-                if client.mac.lower() == mac.lower():
+            for client, count in self.live_clients.items():
+                if count >= self.min_ctr and client.mac.lower() == mac.lower():
                     return client
         return None
 
     def _clean(self):
         """Internal prune to remove clients with counts below min_count."""
         with self._lock:
-            _clients_to_clean: set[DHCPArpClient] = {
-                _client for _client, _ctr in self.client_counter.items() if _ctr < self.min_count
+            _expired_clients: set[DHCPArpClient] = {
+                client
+                for client, count in self.live_clients.items()
+                if count < self.min_ctr
             }
-            for _client in _clients_to_clean:
-                print("dropping: ", _client)
-                self.client_counter.pop(_client, None)
-                self.live_clients.discard(_client)
+            for client in _expired_clients:
+                print("dropping:", client)
+                self.live_clients.pop(client, None)

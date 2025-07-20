@@ -6,7 +6,7 @@ from scapy.layers.dhcp import BOOTP
 from scapy.packet import Packet
 from scapy.sendrecv import sendp
 
-from config.config import config
+from config.config import config, dhcp_static_map
 from services.dhcp.client_discovery import ClientDiscoveryService
 from services.dhcp.db_dhcp_leases import DHCPStorage
 from services.dhcp.db_dhcp_stats import DHCPStats
@@ -109,7 +109,9 @@ class DHCPMessageHandler:
                         cls.logger.warning("Unknown dhcp type %s.", dhcp_msg.dhcp_type)
 
             except Exception as err:
-                cls.logger.exception("%s error processing packet: %s.", cls.__name__, err)
+                cls.logger.exception(
+                    "%s error processing packet: %s.", cls.__name__, err
+                )
 
     @classmethod
     def _handle_discover(cls, dhcp_msg: DHCPMessage):
@@ -120,12 +122,14 @@ class DHCPMessageHandler:
         with cls._lock:
             cls.logger.debug("DISCOVER XID=%s, MAC=%s.", dhcp_msg.xid, dhcp_msg.mac)
 
-            proposed_ip: IPv4Address | None = ClientDiscoveryService.get_available_ip()
+            proposed_ip: IPv4Address | None = ClientDiscoveryService.get_available_ip(
+                dhcp_msg.mac
+            )
             if not proposed_ip:
                 cls.logger.warning("No available IP to offer.")
                 return
 
-            LeaseReservationCache.reserve(ip=str(proposed_ip), mac=dhcp_msg.mac)
+            LeaseReservationCache.book(ip=str(proposed_ip), mac=dhcp_msg.mac)
 
             cls._send_response(
                 DHCPResponseFactory.build(
@@ -147,6 +151,9 @@ class DHCPMessageHandler:
         )
 
         with cls._lock:
+
+            if cls._handle_request_static_mapping(dhcp_msg):
+                return
 
             if cls._handle_request_after_offer(dhcp_msg):
                 return
@@ -173,9 +180,59 @@ class DHCPMessageHandler:
             )
 
     @classmethod
+    def _handle_request_static_mapping(cls, dhcp_msg: DHCPMessage) -> bool:
+        """
+        Handle DHCP REQUEST for clients with static IP reservation.
+
+        Returns True if processed, False otherwise.
+        """
+        static_ip = dhcp_static_map.get(dhcp_msg.mac.upper(), None)
+        if not static_ip:
+            return False
+
+        # Check if requested IP matches static reservation
+        if dhcp_msg.requested_ip != static_ip:
+            cls.logger.debug(
+                "Static client %s requested wrong IP %s, expected %s",
+                dhcp_msg.mac,
+                dhcp_msg.requested_ip,
+                static_ip,
+            )
+            cls._send_response(
+                DHCPResponseFactory.build(
+                    dhcp_type=DHCPType.NAK,
+                    your_ip=NO_IP_ASSIGNED,
+                    request_packet=dhcp_msg.packet,
+                )
+            )
+            return True
+
+        DHCPStorage.add_lease(
+            mac=dhcp_msg.mac,
+            ip=static_ip,
+            hostname=dhcp_msg.hostname,
+            lease_time=LEASE_TIME,
+            lease_type=DHCPLeaseType.STATIC,
+        )
+        LeaseReservationCache.cancel_booking(static_ip, dhcp_msg.mac)
+        cls._send_response(
+            DHCPResponseFactory.build(
+                dhcp_type=DHCPType.ACK,
+                your_ip=static_ip,
+                request_packet=dhcp_msg.packet,
+            )
+        )
+        cls.logger.debug("ACK sent for static client %s IP %s", dhcp_msg.mac, static_ip)
+        return True
+
+    @classmethod
     def _handle_request_after_offer(cls, dhcp_msg: DHCPMessage) -> bool:
 
-        if not (dhcp_msg.requested_ip and dhcp_msg.server_id and dhcp_msg.ciaddr == NO_IP_ASSIGNED):
+        if not (
+            dhcp_msg.requested_ip
+            and dhcp_msg.server_id
+            and dhcp_msg.ciaddr == NO_IP_ASSIGNED
+        ):
             return False  # Not a request-after-offer case
 
         # Client is formally requesting an IP from a server after receiving an OFFER, and it hasn't yet configured any IP locally.
@@ -201,7 +258,7 @@ class DHCPMessageHandler:
             )
             return True
 
-        if LeaseReservationCache.get_ip(dhcp_msg.mac) == dhcp_msg.requested_ip:
+        if LeaseReservationCache.get_ip_from_mac(dhcp_msg.mac) == dhcp_msg.requested_ip:
             DHCPStorage.add_lease(
                 mac=dhcp_msg.mac,
                 ip=dhcp_msg.requested_ip,
@@ -209,7 +266,7 @@ class DHCPMessageHandler:
                 lease_time=LEASE_TIME,
                 lease_type=DHCPLeaseType.DYNAMIC,
             )
-            LeaseReservationCache.unreserve(dhcp_msg.requested_ip, dhcp_msg.mac)
+            LeaseReservationCache.cancel_booking(dhcp_msg.requested_ip, dhcp_msg.mac)
             cls._send_response(
                 DHCPResponseFactory.build(
                     dhcp_type=DHCPType.ACK,
@@ -238,8 +295,8 @@ class DHCPMessageHandler:
             )
             return True
 
-        _arp_client: DHCPArpClient | None = ClientDiscoveryService.get_live_client_by_ip(
-            dhcp_msg.requested_ip
+        _arp_client: DHCPArpClient | None = (
+            ClientDiscoveryService.get_live_client_by_ip(dhcp_msg.requested_ip)
         )
 
         if _arp_client and _arp_client.mac != dhcp_msg.mac:
@@ -260,7 +317,7 @@ class DHCPMessageHandler:
                 lease_time=LEASE_TIME,
                 lease_type=DHCPLeaseType.DYNAMIC,
             )
-            LeaseReservationCache.unreserve(dhcp_msg.requested_ip, dhcp_msg.mac)
+            LeaseReservationCache.cancel_booking(dhcp_msg.requested_ip, dhcp_msg.mac)
             cls._send_response(
                 DHCPResponseFactory.build(
                     dhcp_type=DHCPType.ACK,
@@ -316,7 +373,7 @@ class DHCPMessageHandler:
             lease_time=LEASE_TIME,
             lease_type=DHCPLeaseType.DYNAMIC,
         )
-        LeaseReservationCache.unreserve(dhcp_msg.ciaddr, dhcp_msg.mac)
+        LeaseReservationCache.cancel_booking(dhcp_msg.ciaddr, dhcp_msg.mac)
         cls._send_response(
             DHCPResponseFactory.build(
                 dhcp_type=DHCPType.ACK,
@@ -339,7 +396,9 @@ class DHCPMessageHandler:
 
         with cls._lock:
             _declined_ip = dhcp_message.requested_ip
-            LeaseReservationCache.unreserve(ip=dhcp_message.requested_ip, mac=dhcp_message.mac)
+            LeaseReservationCache.cancel_booking(
+                ip=dhcp_message.requested_ip, mac=dhcp_message.mac
+            )
             _existing_lease = DHCPStorage.get_lease_by_mac(dhcp_message.mac)
             # Case 1: The client has a lease and it is for the declined IP
             if _existing_lease and _existing_lease[1] == _declined_ip:
@@ -352,7 +411,9 @@ class DHCPMessageHandler:
             else:
                 # Case 2: The client declined the IP and doesnt have active lease
                 cls.logger.debug(
-                    "Client %s declined IP %s, but no lease found.", dhcp_message.mac, _declined_ip
+                    "Client %s declined IP %s, but no lease found.",
+                    dhcp_message.mac,
+                    _declined_ip,
                 )
 
     @classmethod
@@ -407,9 +468,7 @@ class DHCPMessageHandler:
 
             DHCPStats.increment(key="sent_total")
 
-            _stats_key = (
-                f"sent_{DHCPMessageType(extract_dhcp_type_from_packet(packet)).name.lower()}"
-            )
+            _stats_key = f"sent_{DHCPMessageType(extract_dhcp_type_from_packet(packet)).name.lower()}"
 
             DHCPStats.increment(key=_stats_key)
             cls.logger.debug(

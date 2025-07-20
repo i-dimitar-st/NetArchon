@@ -97,12 +97,12 @@ dhcp:
         size: 100
         ttl: 60
     db_persistance:
-        interval: 60
+        interval: 30
         timeouts:
             worker_join: 0.5
     client_discovery:
         interval: 30
-        start_ctr: 25
+        start_ctr: 20
         min_ctr: 1
         max_ctr: 30
         timeouts:

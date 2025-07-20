@@ -103,7 +103,9 @@ async def fresh_arp_scan_async(
 
 if __name__ == "__main__":
     print("=== ARP Scan Results Asyncio ===")
-    for idx, (ip, content) in enumerate(asyncio.run(fresh_arp_scan_async(timeout=2)).items()):
+    for idx, (ip, content) in enumerate(
+        asyncio.run(fresh_arp_scan_async(timeout=2)).items()
+    ):
         print(f"{idx}: {ip} {content}")
 
     # print("=== ARP Scan Results ===")

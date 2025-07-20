@@ -177,7 +177,11 @@ class DHCPResponseFactory:
 
         _cfg: DHCPConfig | None = cls._config
         if dhcp_type == DHCPType.NAK:
-            return [("message-type", DHCPType.NAK), ("server_id", _cfg.server_ip), "end"]
+            return [
+                ("message-type", DHCPType.NAK),
+                ("server_id", _cfg.server_ip),
+                "end",
+            ]
 
         if dhcp_type in (DHCPType.ACK, DHCPType.OFFER):
             return [

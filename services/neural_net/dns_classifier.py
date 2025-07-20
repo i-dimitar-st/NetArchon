@@ -35,7 +35,11 @@ class DomainDataset(Dataset):
 
 class DomainClassifier(nn.Module):
     def __init__(
-        self, vocab_size: int, embed_dim: int = 128, output_dim: int = 1, dropout_rate: float = 0.35
+        self,
+        vocab_size: int,
+        embed_dim: int = 128,
+        output_dim: int = 1,
+        dropout_rate: float = 0.35,
     ):
         super(DomainClassifier, self).__init__()
 
@@ -64,7 +68,9 @@ class DomainClassifier(nn.Module):
 
 
 def filter_domain(input_string: str) -> str:
-    adjusted_input = [char.lower() for char in input_string if char.lower() in ALLOWED_CHARS]
+    adjusted_input = [
+        char.lower() for char in input_string if char.lower() in ALLOWED_CHARS
+    ]
     return ''.join(adjusted_input)
 
 
@@ -72,11 +78,13 @@ def collate_fn(batch: List[Tuple[str, int]]) -> Tuple[torch.Tensor, torch.Tensor
     max_domain_length = max(len(_domain[0]) for _domain in batch)
 
     padded_inputs = [
-        torch.tensor([ALLOWED_CHARS.find(char) + 1 for char in _domain[0]]) for _domain in batch
+        torch.tensor([ALLOWED_CHARS.find(char) + 1 for char in _domain[0]])
+        for _domain in batch
     ]
 
     padded_inputs = [
-        F.pad(_domain, (0, max_domain_length - len(_domain))) for _domain in padded_inputs
+        F.pad(_domain, (0, max_domain_length - len(_domain)))
+        for _domain in padded_inputs
     ]
 
     labels = [_domain[1] for _domain in batch]
@@ -174,7 +182,9 @@ def train(model, train_loader, criterion, optimizer, num_epochs=EPOCHS):
             optimizer.step()
             _running_loss += loss.item()
 
-        print(f"Epoch {_epoch+1}/{num_epochs}, Loss: {_running_loss/len(train_loader):.4f}")
+        print(
+            f"Epoch {_epoch+1}/{num_epochs}, Loss: {_running_loss/len(train_loader):.4f}"
+        )
 
 
 def evaluate(model, test_loader):
@@ -253,8 +263,12 @@ if __name__ == "__main__":
     train_dataset = DomainDataset(train_domains, train_labels)
     test_dataset = DomainDataset(test_domains, test_labels)
 
-    train_loader = DataLoader(train_dataset, batch_size=2, shuffle=True, collate_fn=collate_fn)
-    test_loader = DataLoader(test_dataset, batch_size=2, shuffle=False, collate_fn=collate_fn)
+    train_loader = DataLoader(
+        train_dataset, batch_size=2, shuffle=True, collate_fn=collate_fn
+    )
+    test_loader = DataLoader(
+        test_dataset, batch_size=2, shuffle=False, collate_fn=collate_fn
+    )
 
     print("Stage 5 - Training")
     criterion = nn.BCELoss()  # Binary Cross-Entropy loss

@@ -1,7 +1,11 @@
 from functools import wraps
 
+from cachetools import TTLCache
+
 from config.config import config
-from libs.libs import TTLCache
+
+# from libs.libs import TTLCache
+
 
 DHCP_CONF = config.get("dhcp")
 LEASE_RESERVATION_CACHE = DHCP_CONF.get("lease_reservation_cache")
@@ -10,7 +14,7 @@ CACHE_TTL = int(LEASE_RESERVATION_CACHE.get("ttl"))
 
 
 def is_init(func):
-    """Is service initialized"""
+    """Decorator to ensure the cache is initialized before use."""
 
     @wraps(func)
     def wrapper(cls, *args, **kwargs):
@@ -23,33 +27,10 @@ def is_init(func):
 
 class LeaseReservationCache:
     """
-    LeaseReservationCache
+    In-memory IP-to-MAC reservation cache for DHCP.
 
-    Purpose:
-        In-memory service to track IP-to-MAC reservations for DHCP lease allocation.
-        Prevents assigning the same IP to multiple clients simultaneously.
-        Maintains TTL-based expiration on reservations.
-
-    Dependencies:
-        - TTLCache: Custom cache with TTL support.
-          Must provide: add(), get(), get_by_value(), remove(), keys(), clear().
-
-    Usage:
-        1. Initialize cache (required before use)
-            LeaseReservationCache.init()
-        2. Reserve IP
-            LeaseReservationCache.reserve("192.168.1.10", "AA:BB:CC:DD:EE:FF")
-        3. Check MAC/IP
-            mac = LeaseReservationCache.get_mac("192.168.1.10")
-            ip = LeaseReservationCache.get_ip("AA:BB:CC:DD:EE:FF")
-        4. Unreserve
-            LeaseReservationCache.unreserve("192.168.1.10", "AA:BB:CC:DD:EE:FF")
-        5. Get all reservations
-            LeaseReservationCache.get_all_ips()
-
-    Notes:
-        - Cache expires reservations after TTL automatically.
-        - Init must be called once during application setup.
+    Each entry maps an IP address (key) to a MAC address (value).
+    Entries expire automatically after a configured TTL, managed internally by TTLCache.
     """
 
     _cache: TTLCache | None = None
@@ -57,61 +38,65 @@ class LeaseReservationCache:
 
     @classmethod
     def init(cls, max_size: int = CACHE_SIZE, ttl: int = CACHE_TTL):
-        """Initialize"""
+        """
+        Initialize the TTL cache.
+
+        Args:
+            max_size: Maximum number of entries.
+            ttl: Time-to-live for each entry in seconds.
+        """
         if cls._cache is not None:
             raise RuntimeError("Cache is not none")
-        cls._cache = TTLCache(max_size=max_size, ttl=ttl)
+        cls._cache = TTLCache(maxsize=max_size, ttl=ttl)
         cls.initialized = True
 
     @classmethod
     @is_init
-    def reserve(cls, ip: str, mac: str) -> bool:
-        """
-        Reserve IP for MAC if free or reserved by same MAC.
-        Return False if IP reserved by different MAC.
-        """
-        if cls._cache:
+    def book(cls, ip: str, mac: str) -> bool:
+        """Reserve IP for MAC if not reserved by different MAC."""
+        if cls._cache is not None:
             existing_mac = cls._cache.get(ip)
             if existing_mac and existing_mac != mac:
                 return False
-            cls._cache.add(ip, mac)
+            cls._cache[ip] = mac
         return True
 
     @classmethod
     @is_init
-    def unreserve(cls, ip: str, mac: str):
-        """Release IP reservation if reserved by MAC."""
-        if cls._cache:
+    def cancel_booking(cls, ip: str, mac: str):
+        """Remove reservation if matches."""
+        if cls._cache is not None:
             if cls._cache.get(ip) == mac:
-                cls._cache.remove(ip)
+                try:
+                    del cls._cache[ip]
+                except KeyError:
+                    pass  # Already removed
 
     @classmethod
     @is_init
-    def get_mac(cls, ip: str) -> str | None:
-        """Return MAC reserved on IP or None."""
-        if cls._cache:
+    def get_mac_from_ip(cls, ip: str) -> str | None:
+        if cls._cache is not None:
             return cls._cache.get(ip)
         return None
 
     @classmethod
     @is_init
-    def get_ip(cls, mac: str) -> str | None:
-        """Return IP reserved by MAC or None."""
-        if cls._cache:
-            return cls._cache.get_by_value(mac)
+    def get_ip_from_mac(cls, mac: str) -> str | None:
+        if cls._cache is not None:
+            for ip, cached_mac in cls._cache.items():
+                if cached_mac == mac:
+                    return ip
         return None
 
     @classmethod
     @is_init
     def get_all_ips(cls) -> list[str]:
-        """Return all IPs currently reserved in the cache."""
-        if cls._cache:
+        if cls._cache is not None:
             return list(cls._cache.keys())
         return []
 
     @classmethod
     @is_init
     def clear(cls):
-        """Clear all IP-MAC reservations from the cache."""
-        if cls._cache:
+        if cls._cache is not None:
             cls._cache.clear()

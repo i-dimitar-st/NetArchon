@@ -42,7 +42,11 @@ def print_response(response: DNSRecord = None):
     if not response:
         raise ValueError("Missing input")
 
-    ips_ttls = [(str(rr.rdata), rr.ttl) for rr in response.rr if rr.rtype in (QTYPE.A, QTYPE.AAAA)]
+    ips_ttls = [
+        (str(rr.rdata), rr.ttl)
+        for rr in response.rr
+        if rr.rtype in (QTYPE.A, QTYPE.AAAA)
+    ]
 
     print(
         f"id:{response.header.id} | rcode:{response.header.rcode} qname:{response.q.qname} qtype:{response.q.qtype}"
@@ -115,7 +119,9 @@ class TestDNSResolver(unittest.TestCase):
             ("linkedin.com", "A"),
         ]
 
-        with concurrent.futures.ThreadPoolExecutor(max_workers=len(_valid_domains)) as executor:
+        with concurrent.futures.ThreadPoolExecutor(
+            max_workers=len(_valid_domains)
+        ) as executor:
             futures = {}
             for domain, qtype in _valid_domains:
                 submit_time = time.monotonic()
@@ -129,9 +135,13 @@ class TestDNSResolver(unittest.TestCase):
                     delay = time.monotonic() - submit_time
 
                     self.assertIsNotNone(result, msg=f"No response from {domain}")
-                    self.assertEqual(result.header.rcode, 0, msg=f"Bad rcode from {domain}")
+                    self.assertEqual(
+                        result.header.rcode, 0, msg=f"Bad rcode from {domain}"
+                    )
                     self.assertLess(
-                        delay, TIMEOUT + 1, msg=f"Slow response from {domain}: {delay:.2f}s"
+                        delay,
+                        TIMEOUT + 1,
+                        msg=f"Slow response from {domain}: {delay:.2f}s",
                     )
 
                     with lock:

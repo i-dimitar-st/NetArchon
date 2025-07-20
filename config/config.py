@@ -1,11 +1,14 @@
 from copy import deepcopy
+from json import load
 from pathlib import Path
 from threading import RLock
+from types import MappingProxyType
 from typing import Any
 
 from yaml import safe_load
 
 DEFAULT_CONFIG_PATH = Path(__file__).parent / "config.yaml"
+DHCP_STATIC_MAP = Path(__file__).parent / "dhcp_static_map.json"
 
 
 class Config:
@@ -40,4 +43,15 @@ class Config:
             return deepcopy(self._config[key])
 
 
+def _load_static_mapping(path: Path = DHCP_STATIC_MAP) -> dict:
+    try:
+        with open(path, encoding="utf-8", mode="r") as file_handle:
+            return load(file_handle).get("payload")
+
+    except Exception as e:
+        print(f"Error: Failed to read {path} : {e}")
+        return {}
+
+
 config = Config()
+dhcp_static_map = MappingProxyType(_load_static_mapping())

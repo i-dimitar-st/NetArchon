@@ -43,7 +43,10 @@ def discover_live_clients_icmp(
     clients: Dict[str, ArpClient] = {}
 
     _answered_pings, _ = srp(
-        [Ether(dst=broadcast_mac) / IP(dst=str(_ip)) / ICMP() for _ip in network.hosts()],
+        [
+            Ether(dst=broadcast_mac) / IP(dst=str(_ip)) / ICMP()
+            for _ip in network.hosts()
+        ],
         timeout=timeout,
         inter=inter_delay,
         verbose=verbose,

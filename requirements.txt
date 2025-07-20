@@ -9,3 +9,4 @@ torch==2.7.1
 # app support to make async
 uvicorn==0.23.3
 asgiref==3.7.2
+cachetools==6.1.0

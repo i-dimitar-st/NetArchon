@@ -220,7 +220,9 @@ def get_dhcp_leases() -> list:
         with connect(DHCP_LEASES_DB) as _conn:
 
             _cursor: Cursor = _conn.cursor()
-            columns_raw: list[Any] = _cursor.execute("PRAGMA table_info(leases)").fetchall()
+            columns_raw: list[Any] = _cursor.execute(
+                "PRAGMA table_info(leases)"
+            ).fetchall()
 
             _columns: list[str] = [column[1] for column in columns_raw]
             _leases: list[tuple] = _cursor.execute("SELECT * FROM leases").fetchall()
@@ -244,7 +246,9 @@ def get_dns_history() -> list:
             _cursor: Cursor = _conn.cursor().execute("PRAGMA table_info(history)")
             _columns: list[str] = [_column[1] for _column in _cursor.fetchall()]
 
-            _history_records: list[tuple] = _cursor.execute("SELECT * FROM history").fetchall()
+            _history_records: list[tuple] = _cursor.execute(
+                "SELECT * FROM history"
+            ).fetchall()
 
             dns_records = []
             for history_record in _history_records:
@@ -266,7 +270,9 @@ def get_dns_statistics() -> dict:
             _row: tuple | None = _cursor.execute("SELECT * FROM stats").fetchone()
             if _row and _columns:
                 if len(_columns) != len(_row):
-                    logger.warning(f"Column count ({len(_columns)}) != Row length ({len(_row)})")
+                    logger.warning(
+                        f"Column count ({len(_columns)}) != Row length ({len(_row)})"
+                    )
                 return dict(zip(_columns, _row))
 
     except Exception as e:
@@ -403,7 +409,9 @@ def delete_from_blacklist(url: str) -> bool:
                 if url not in url_list:
                     return True
 
-                blacklist["urls"] = [url_rule for url_rule in url_list if url_rule != url]
+                blacklist["urls"] = [
+                    url_rule for url_rule in url_list if url_rule != url
+                ]
 
             config["timestamp"] = datetime.now(timezone.utc).isoformat()
             config["blacklist"] = blacklist
@@ -525,7 +533,10 @@ class App:
             def get_config():
                 if request.method == "POST":
                     _auth: str = request.headers.get("Authorization", "")
-                    if not _auth.startswith("Bearer ") or _auth[7:].strip() != BEARER_TOKEN_HASH:
+                    if (
+                        not _auth.startswith("Bearer ")
+                        or _auth[7:].strip() != BEARER_TOKEN_HASH
+                    ):
                         abort(401, description="Unauthorized")
 
                     if not request.is_json:

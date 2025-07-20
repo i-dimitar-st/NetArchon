@@ -44,10 +44,15 @@ print(f"Main router IP identified at {router_ip}")
 time.sleep(0.75)
 
 network_interfaces_raw = subprocess.run(
-    ['ip', '-j', 'addr', 'show'], stdout=subprocess.PIPE, stderr=subprocess.PIPE, text=True
+    ['ip', '-j', 'addr', 'show'],
+    stdout=subprocess.PIPE,
+    stderr=subprocess.PIPE,
+    text=True,
 )
 if network_interfaces_raw.returncode != 0:
-    print(f"Ensure command:'ip -j addr show' is supported{network_interfaces_raw.stderr}")
+    print(
+        f"Ensure command:'ip -j addr show' is supported{network_interfaces_raw.stderr}"
+    )
     exit(1)
 
 interfaces = []

@@ -5,9 +5,10 @@
 /logs/
 /db/
 
-# Project 
+# Project
 /services/neural_net/models/
 /config/dns_control_list.json
+/config/dhcp_static_map.json
 
 # Anywhere
 __pycache__/
