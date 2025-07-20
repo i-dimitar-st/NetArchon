@@ -15,11 +15,11 @@ INCREMENT = 1
 
 @dataclass
 class LiveClients:
+    _lock: RLock = field(default_factory=RLock, init=False, repr=False)
     live_clients: Counter[DHCPArpClient] = field(default_factory=Counter)
     max_ctr: int = MAX_CTR
     start_ctr: int = START_CTR
     min_ctr: int = MIN_CTR
-    _lock: RLock = field(default_factory=RLock, init=False, repr=False)
 
     def increase(self, client: DHCPArpClient):
         """

@@ -10,3 +10,4 @@ torch==2.7.1
 uvicorn==0.23.3
 asgiref==3.7.2
 cachetools==6.1.0
+pyinotify==0.9.6

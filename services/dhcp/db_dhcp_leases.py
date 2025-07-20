@@ -127,7 +127,7 @@ class DHCPStorage:
         cls,
         mac: str,
         ip: str,
-        hostname: str = DEFAULT_HOSTNAME,
+        hostname: str = "unknown",
         lease_time: int = LEASE_TIME,
         lease_type: DHCPLeaseType = DHCPLeaseType.STATIC,
     ):

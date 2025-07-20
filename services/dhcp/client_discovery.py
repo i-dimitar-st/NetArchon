@@ -336,7 +336,6 @@ class ClientDiscoveryService:
         with cls._lock:
 
             static_ip = dhcp_static_map.get(mac.upper(), None)
-            print(static_ip)
             if static_ip:
                 return IPv4Address(static_ip)
 
