@@ -86,10 +86,10 @@ class DHCPServer:
         )
         DHCPStorage.init(logger=dhcp_logger)
         DHCPStats.init(logger=dhcp_logger)
-        DbPersistanceService.init(logger=dhcp_logger)
-        LeaseReservationCache.init()
         DHCPMessageHandler.init(logger=dhcp_logger)
+        LeaseReservationCache.init()
         ClientDiscoveryService.init(logger=dhcp_logger)
+        DbPersistanceService.init(logger=dhcp_logger)
 
         cls._initialised = True
 
@@ -102,7 +102,9 @@ class DHCPServer:
         if cls._running:
             raise RuntimeError("Server already running.")
         cls._running = True
+
         with cls._lock:
+
             ClientDiscoveryService.start()
             DbPersistanceService.start()
 
@@ -188,8 +190,8 @@ class DHCPServer:
                 )
 
                 if (
-                    dhcp_message.mac.lower() == server_mac.lower()
-                    or dhcp_message.src_ip.lower() == server_ip.lower()
+                    dhcp_message.mac.lower() == server_mac.lower() or
+                    dhcp_message.src_ip.lower() == server_ip.lower()
                 ):
                     continue
 

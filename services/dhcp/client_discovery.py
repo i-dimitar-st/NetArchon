@@ -320,6 +320,7 @@ class ClientDiscoveryService:
     def get_available_ip(cls, mac: str = "") -> IPv4Address | None:
         """
         Find the next available IP address in the configured range.
+        Also handles IP in DHCP static mapping.
 
         Skips:
             - IPs outside the configured pool.

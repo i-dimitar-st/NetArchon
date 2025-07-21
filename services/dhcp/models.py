@@ -302,37 +302,6 @@ class DHCPLeasesSchema:
     """
 
 
-# class DBSchemas:
-#     dhcpStats = """
-#         CREATE TABLE IF NOT EXISTS stats (
-#             id INTEGER PRIMARY KEY CHECK (id = 1),
-#             start_time INTEGER NOT NULL DEFAULT (CAST(strftime('%s','now') AS INTEGER)),
-#             last_updated INTEGER DEFAULT 0,
-#             received_total INTEGER DEFAULT 0,
-#             received_total_valid INTEGER DEFAULT 0,
-#             received_discover INTEGER DEFAULT 0,
-#             received_request INTEGER DEFAULT 0,
-#             received_decline INTEGER DEFAULT 0,
-#             received_release INTEGER DEFAULT 0,
-#             received_inform INTEGER DEFAULT 0,
-#             sent_total INTEGER DEFAULT 0,
-#             sent_offer INTEGER DEFAULT 0,
-#             sent_ack INTEGER DEFAULT 0,
-#             sent_nak INTEGER DEFAULT 0
-#         )
-#     """
-#     dhcpLeases = """
-#         CREATE TABLE IF NOT EXISTS leases (
-#             mac TEXT PRIMARY KEY,
-#             ip TEXT NOT NULL,
-#             hostname TEXT DEFAULT 'unknown',
-#             timestamp INTEGER NOT NULL,
-#             expiry_time INTEGER NOT NULL,
-#             type TEXT DEFAULT 'static'
-#         )
-#     """
-
-
 @dataclass(frozen=True)
 class DHCPArpClient:
     mac: str

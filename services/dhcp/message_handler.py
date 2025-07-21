@@ -186,44 +186,49 @@ class DHCPMessageHandler:
 
         Returns True if processed, False otherwise.
         """
-        static_ip = dhcp_static_map.get(dhcp_msg.mac.upper(), None)
-        if not static_ip:
-            return False
 
-        # Check if requested IP matches static reservation
-        if dhcp_msg.requested_ip != static_ip:
-            cls.logger.debug(
-                "Static client %s requested wrong IP %s, expected %s",
-                dhcp_msg.mac,
-                dhcp_msg.requested_ip,
-                static_ip,
+        with cls._lock:
+
+            static_ip = dhcp_static_map.get(dhcp_msg.mac.upper(), None)
+            if not static_ip:
+                return False
+
+            # Check if requested IP matches static reservation
+            if dhcp_msg.requested_ip != static_ip:
+                cls.logger.debug(
+                    "Static client %s requested wrong IP %s, expected %s",
+                    dhcp_msg.mac,
+                    dhcp_msg.requested_ip,
+                    static_ip,
+                )
+                cls._send_response(
+                    DHCPResponseFactory.build(
+                        dhcp_type=DHCPType.NAK,
+                        your_ip=NO_IP_ASSIGNED,
+                        request_packet=dhcp_msg.packet,
+                    )
+                )
+                return True
+
+            DHCPStorage.add_lease(
+                mac=dhcp_msg.mac,
+                ip=static_ip,
+                hostname=dhcp_msg.hostname,
+                lease_time=LEASE_TIME,
+                lease_type=DHCPLeaseType.STATIC,
             )
+            LeaseReservationCache.cancel_booking(static_ip, dhcp_msg.mac)
             cls._send_response(
                 DHCPResponseFactory.build(
-                    dhcp_type=DHCPType.NAK,
-                    your_ip=NO_IP_ASSIGNED,
+                    dhcp_type=DHCPType.ACK,
+                    your_ip=static_ip,
                     request_packet=dhcp_msg.packet,
                 )
             )
-            return True
-
-        DHCPStorage.add_lease(
-            mac=dhcp_msg.mac,
-            ip=static_ip,
-            hostname=dhcp_msg.hostname,
-            lease_time=LEASE_TIME,
-            lease_type=DHCPLeaseType.STATIC,
-        )
-        LeaseReservationCache.cancel_booking(static_ip, dhcp_msg.mac)
-        cls._send_response(
-            DHCPResponseFactory.build(
-                dhcp_type=DHCPType.ACK,
-                your_ip=static_ip,
-                request_packet=dhcp_msg.packet,
+            cls.logger.debug(
+                "ACK sent for static client %s IP %s", dhcp_msg.mac, static_ip
             )
-        )
-        cls.logger.debug("ACK sent for static client %s IP %s", dhcp_msg.mac, static_ip)
-        return True
+            return True
 
     @classmethod
     def _handle_request_after_offer(cls, dhcp_msg: DHCPMessage) -> bool:
