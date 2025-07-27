@@ -1,5 +1,8 @@
-PYTHONPATH=.
-VENV_BINARY=./venv/bin/python
+#!/bin/bash
+
+SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+PYTHONPATH=$SCRIPT_DIR
+VENV_BINARY=$SCRIPT_DIR/venv/bin/python
 SCRIPT=main.py
 
 # -u: Unbuffered stdout/stderr for real-time logs.
