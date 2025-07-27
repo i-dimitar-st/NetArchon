@@ -18,7 +18,7 @@ from services.dhcp.utils import (
 
 @unique
 class DHCPMessageType(IntEnum):
-    """DHCP Lease Type"""
+    """DHCP message types"""
 
     DISCOVER = 1
     OFFER = 2

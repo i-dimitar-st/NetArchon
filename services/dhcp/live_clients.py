@@ -15,6 +15,7 @@ INCREMENT = 1
 
 @dataclass
 class LiveClients:
+    # We want fields here to make it per object property
     _lock: RLock = field(default_factory=RLock, init=False, repr=False)
     live_clients: Counter[DHCPArpClient] = field(default_factory=Counter)
     max_ctr: int = MAX_CTR
@@ -72,13 +73,12 @@ class LiveClients:
     def get_tracked_clients(self) -> set[DHCPArpClient]:
         """
         Get copy of live clients.
-
-        Returns:
-            Set of DHCPArpClient currently tracked (count >= min_count).
-
         Purpose:
         - Provide external callers with the current active clients.
         - Return a new set to prevent external mutation of internal state.
+
+        Returns:
+            Set of DHCPArpClient currently tracked (count >= min_count).
         """
         with self._lock:
             return {
@@ -106,7 +106,6 @@ class LiveClients:
 
         Args:
             ip (str): IP address to look up.
-
         """
         with self._lock:
             for client, count in self.live_clients.items():
@@ -125,7 +124,9 @@ class LiveClients:
         return None
 
     def _clean(self):
-        """Internal prune to remove clients with counts below min_count."""
+        """
+        Internal prune to remove clients with counts below min_count.
+        """
         with self._lock:
             _expired_clients: set[DHCPArpClient] = {
                 client
@@ -133,5 +134,4 @@ class LiveClients:
                 if count < self.min_ctr
             }
             for client in _expired_clients:
-                print("dropping:", client)
                 self.live_clients.pop(client, None)

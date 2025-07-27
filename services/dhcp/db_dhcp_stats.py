@@ -76,8 +76,6 @@ class DHCPStats:
 
         Args:
             logger (Logger): Logger instance for debug/warning output.
-        Raises:
-            RuntimeError if already initialized.
         """
 
         if (
@@ -111,8 +109,6 @@ class DHCPStats:
         Args:
             key (str): Stat column to increment.
             count (int): Amount to increment by (default 1).
-        Raises:
-            ValueError if key is not a valid column.
         """
 
         with cls._lock:

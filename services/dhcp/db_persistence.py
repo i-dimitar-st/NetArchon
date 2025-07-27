@@ -6,11 +6,49 @@ from config.config import config
 from services.dhcp.client_discovery import ClientDiscoveryService
 from services.dhcp.db_dhcp_leases import DHCPStorage
 from services.dhcp.db_dhcp_stats import DHCPStats
-from services.dhcp.models import DHCPLeaseType
+from services.dhcp.models import DHCPArpClient, DHCPLeaseType
 
 DB_CONFIG = config.get("database")
 PERSISTANCE_INTERVAL = float(DB_CONFIG.get("persistence_interval"))
 WORKER_JOIN_TIMEOUT = float(DB_CONFIG.get("persistance_worker_join_timeout"))
+
+
+def _get_stale_leases_by_type(
+    live_macs: set[str], lease_type=DHCPLeaseType.MANUAL.value
+) -> set:
+    """
+    Checks current leased macs agaisn the current db leases.
+
+    Args:
+        live_macs (set[str]): Set of currently live MAC addresses.
+    """
+    return {
+        _lease[0]
+        for _lease in DHCPStorage.get_all_leases()
+        if _lease[5] == lease_type and _lease[0] not in live_macs
+    }
+
+
+def get_active_macs() -> set:
+    """Retrieve all MAC addresses currently stored in DHCP leases."""
+    return {_lease[0] for _lease in DHCPStorage.get_all_leases()}
+
+
+def _add_manual_leases(active_macs: set[str], live_clients: set[DHCPArpClient]):
+    """
+    Add manual DHCP leases for live clients not already in active leases.
+
+    Args:
+        active_macs (set[str]): Set of MAC addresses currently leased.
+        live_clients (set[DHCPArpClient]): Set of live DHCP clients to potentially add.
+    """
+    for client in live_clients:
+        if client.mac not in active_macs:
+            DHCPStorage.add_lease(
+                mac=client.mac,
+                ip=client.ip,
+                lease_type=DHCPLeaseType.MANUAL,
+            )
 
 
 def is_init(func):
@@ -58,9 +96,6 @@ class DbPersistanceService:
         1. Call `DbPersistanceService.init(logger)` to configure the service.
         2. Call `DbPersistanceService.start()` to begin periodic sync.
         3. Call `DbPersistanceService.stop()` to cleanly shut down the background worker.
-
-    Raises:
-        RuntimeError if `start` or `stop` is called without initialization, or if misuse occurs.
     """
 
     _lock = RLock()
@@ -119,10 +154,7 @@ class DbPersistanceService:
             cls._stop_event.set()
             if cls._worker is not None:
                 cls._worker.join(timeout=WORKER_JOIN_TIMEOUT)
-                if cls._worker.is_alive():
-                    cls.logger.warning("%s didnt respect timeout.", cls.__name__)
-                else:
-                    cls.logger.debug("%s stopped.", cls.__name__)
+                cls.logger.debug("%s stopped.", cls.__name__)
             cls._worker = None
             cls.running = False
 
@@ -138,17 +170,22 @@ class DbPersistanceService:
             try:
                 with cls._lock:
 
+                    # Clean expired
                     DHCPStorage.remove_expired_leases()
 
-                    _active_macs = {lease[0] for lease in DHCPStorage.get_all_leases()}
+                    _live_clients: set[DHCPArpClient] = (
+                        ClientDiscoveryService.get_live_clients()
+                    )
+                    _live_macs: set[str] = {client.mac for client in _live_clients}
 
-                    for _live_client in ClientDiscoveryService.get_live_clients():
-                        if _live_client.mac not in _active_macs:
-                            DHCPStorage.add_lease(
-                                mac=_live_client.mac,
-                                ip=_live_client.ip,
-                                lease_type=DHCPLeaseType.MANUAL,
-                            )
+                    # Clean stale manual assigments
+                    DHCPStorage.remove_leases_by_macs(
+                        macs=_get_stale_leases_by_type(live_macs=_live_macs)
+                    )
+
+                    _add_manual_leases(
+                        active_macs=get_active_macs(), live_clients=_live_clients
+                    )
 
                     DHCPStorage.save_to_disk()
                     DHCPStats.save_to_disk()

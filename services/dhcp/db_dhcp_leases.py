@@ -5,7 +5,7 @@ from sqlite3 import Connection, Cursor, connect
 from threading import RLock
 from time import time
 
-from config.config import config, dhcp_static_map
+from config.config import config, dhcp_static_config
 from services.dhcp.models import DHCPLeasesSchema, DHCPLeaseType
 
 PATHS = config.get("paths")
@@ -86,11 +86,9 @@ class DHCPStorage:
     def init(cls, logger: Logger):
         """
         Initialize in-memory SQLite DB and prepare schema.
-        Crete table.
+        Create table.
         Args:
             logger (Logger): Logger instance for debug/warning output.
-        Raises:
-            RuntimeError if already initialized.
         """
         if (
             getattr(cls, "_conn", None) is not None
@@ -99,11 +97,13 @@ class DHCPStorage:
             raise RuntimeError("Already init")
 
         with cls._lock:
-            cls.logger: Logger = logger
+
             _conn: Connection = connect(":memory:", check_same_thread=False)
             _cursor: Cursor = _conn.cursor()
             _cursor.execute(DHCPLeasesSchema.schema)
             _conn.commit()
+
+            cls.logger: Logger = logger
             cls._conn: Connection = _conn
             cls._cursor: Cursor = _cursor
             cls.logger.debug("%s initialized.", cls.__name__)
@@ -152,7 +152,7 @@ class DHCPStorage:
         with cls._lock:
             try:
 
-                if dhcp_static_map.get(mac.upper()):
+                if dhcp_static_config.get(mac.upper()):
                     lease_type = DHCPLeaseType.STATIC
 
                 _current_time = int(time())
@@ -178,6 +178,65 @@ class DHCPStorage:
 
             except Exception as err:
                 cls.logger.error("Error adding lease %s.", err)
+
+    @classmethod
+    @is_init
+    def remove_lease_by_mac(cls, mac: str):
+        """Remove a lease from the database."""
+
+        with cls._lock:
+            try:
+                _result: Cursor = cls._cursor.execute(
+                    """
+                    DELETE
+                    FROM leases
+                    WHERE mac = ?
+                    """,
+                    (mac,),
+                )
+                cls._conn.commit()
+                cls.logger.info(f"Lease DB removed {_result.rowcount} MAC:{mac}")
+
+            except Exception as err:
+                cls.logger.error(f"DB -> failed to remove lease: {str(err)}")
+
+    @classmethod
+    @is_init
+    def remove_leases_by_macs(cls, macs: set):
+        """Remove multiple leases from the database based on a set of MAC addresses."""
+        if not macs:
+            return
+        with cls._lock:
+            try:
+                _value = tuple(macs)
+                _statement = f"""
+                    DELETE
+                    FROM leases
+                    WHERE mac IN ({",".join(["?"] * len(_value))})
+                    """
+                _result: Cursor = cls._cursor.execute(_statement, _value)
+                cls._conn.commit()
+                if _result.rowcount:
+                    cls.logger.info(
+                        f"DB -> Deleted {_result.rowcount} lease(s). Removed MACs: {set(macs)}."
+                    )
+            except Exception as err:
+                cls.logger.error(f"DB -> failed to remove leases: {str(err)}")
+
+    @classmethod
+    @is_init
+    def remove_expired_leases(cls):
+        """Remove expired leases."""
+        with cls._lock:
+            try:
+                cls._cursor.execute(
+                    "DELETE FROM leases WHERE expiry_time < ?", (int(time()),)
+                )
+                cls._conn.commit()
+                if cls._cursor.rowcount:
+                    cls.logger.info("Deleted %s expired leases.", cls._cursor.rowcount)
+            except Exception as err:
+                cls.logger.error("Error during lease cleanup: %s", err)
 
     @classmethod
     @is_init
@@ -243,65 +302,6 @@ class DHCPStorage:
             except Exception as err:
                 cls.logger.error(f"Failed to get active leases: {str(err)}")
                 return []
-
-    @classmethod
-    @is_init
-    def remove_lease_by_mac(cls, mac: str):
-        """Remove a lease from the database."""
-
-        with cls._lock:
-            try:
-                _result: Cursor = cls._cursor.execute(
-                    """
-                    DELETE
-                    FROM leases
-                    WHERE mac = ?
-                    """,
-                    (mac,),
-                )
-                cls._conn.commit()
-                cls.logger.info(f"Lease DB removed {_result.rowcount} MAC:{mac}")
-
-            except Exception as err:
-                cls.logger.error(f"DB -> failed to remove lease: {str(err)}")
-
-    @classmethod
-    @is_init
-    def remove_leases_by_macs(cls, macs: set):
-        """Remove multiple leases from the database based on a set of MAC addresses."""
-        if not macs:
-            return
-        with cls._lock:
-            try:
-                _value = tuple(macs)
-                _statement = f"""
-                    DELETE
-                    FROM leases
-                    WHERE mac IN ({",".join(["?"] * len(_value))})
-                    """
-                _result: Cursor = cls._cursor.execute(_statement, _value)
-                cls._conn.commit()
-                if _result.rowcount:
-                    cls.logger.info(
-                        f"DB -> Deleted {_result.rowcount} lease(s). Removed MACs: {set(macs)}."
-                    )
-            except Exception as err:
-                cls.logger.error(f"DB -> failed to remove leases: {str(err)}")
-
-    @classmethod
-    @is_init
-    def remove_expired_leases(cls):
-        """Remove expired leases."""
-        with cls._lock:
-            try:
-                cls._cursor.execute(
-                    "DELETE FROM leases WHERE expiry_time < ?", (int(time()),)
-                )
-                cls._conn.commit()
-                if cls._cursor.rowcount:
-                    cls.logger.info("Deleted %s expired leases.", cls._cursor.rowcount)
-            except Exception as err:
-                cls.logger.error("Error during lease cleanup: %s", err)
 
     @classmethod
     @is_init

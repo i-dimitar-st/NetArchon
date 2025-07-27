@@ -6,7 +6,7 @@ from threading import Event, RLock, Thread
 from scapy.layers.l2 import ARP, Ether
 from scapy.sendrecv import srp
 
-from config.config import config, dhcp_static_map
+from config.config import config, dhcp_static_config
 from services.dhcp.db_dhcp_leases import DHCPStorage
 from services.dhcp.live_clients import LiveClients
 from services.dhcp.models import DHCPArpClient
@@ -189,15 +189,13 @@ class ClientDiscoveryService:
     - Call get_available_ip() to fetch a usable IP.
     """
 
-    _config = {}
-
     _lock = RLock()
     _stop_event = Event()
     _worker: Thread | None = None
+    _config = {}
 
     initialized = False
     running = False
-
     live_clients: LiveClients
 
     network: IPv4Network | None = None
@@ -273,15 +271,14 @@ class ClientDiscoveryService:
                 )
                 with cls._lock:
 
+                    # We found a new device add it immedaitely
                     for _arp_client_live in _live_scan_clients:
                         cls.live_clients.increase(_arp_client_live)
 
-                    # We need list here to make a copy as we mutate cls.live_clients_tracker
+                    # If live clients not in live clients, it went offline reduce it
                     for client in cls.live_clients.get_tracked_clients():
                         if client not in _live_scan_clients:
                             cls.live_clients.decrease(client)
-
-                    cls.logger.debug("%s clients.", len(cls.live_clients.live_clients))
 
             except RuntimeError as err:
                 cls.logger.warning("Error discovering clients: %s", err)
@@ -336,7 +333,7 @@ class ClientDiscoveryService:
 
         with cls._lock:
 
-            static_ip = dhcp_static_map.get(mac.upper(), None)
+            static_ip = dhcp_static_config.get(mac.upper(), None)
             if static_ip:
                 return IPv4Address(static_ip)
 

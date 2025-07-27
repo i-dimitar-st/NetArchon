@@ -66,8 +66,8 @@ class SimpleHandler(FileSystemEventHandler):
         src = event.src_path
         if src == str(DHCP_STATIC_MAP):
             try:
-                global dhcp_static_map
-                dhcp_static_map = _load_static_dhcp_mapping()
+                global dhcp_static_config
+                dhcp_static_config = _load_static_dhcp_mapping()
                 print(f"Reloaded {DHCP_STATIC_MAP}")
             except:
                 print(f"Failed reloading {DHCP_STATIC_MAP}")
@@ -107,6 +107,6 @@ signal(SIGTERM, _shutdown)
 
 
 config = Config()
-dhcp_static_map = _load_static_dhcp_mapping()
+dhcp_static_config = _load_static_dhcp_mapping()
 dns_control_list = _load_dns_control_list()
 observer: BaseObserver = _start_observer_watchdog()

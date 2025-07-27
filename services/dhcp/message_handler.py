@@ -6,7 +6,7 @@ from scapy.layers.dhcp import BOOTP
 from scapy.packet import Packet
 from scapy.sendrecv import sendp
 
-from config.config import config, dhcp_static_map
+from config.config import config, dhcp_static_config
 from services.dhcp.client_discovery import ClientDiscoveryService
 from services.dhcp.db_dhcp_leases import DHCPStorage
 from services.dhcp.db_dhcp_stats import DHCPStats
@@ -189,7 +189,7 @@ class DHCPMessageHandler:
 
         with cls._lock:
 
-            static_ip = dhcp_static_map.get(dhcp_msg.mac.upper(), None)
+            static_ip = dhcp_static_config.get(dhcp_msg.mac.upper(), None)
             if not static_ip:
                 return False
 

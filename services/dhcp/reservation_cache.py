@@ -1,4 +1,5 @@
 from functools import wraps
+from threading import RLock
 
 from cachetools import TTLCache
 
@@ -20,6 +21,8 @@ def is_init(func):
     def wrapper(cls, *args, **kwargs):
         if not getattr(cls, "initialized", False):
             raise RuntimeError("Init first")
+        if getattr(cls, "cache", None) is None:
+            raise RuntimeError("Wrong init Cache cant be none")
         return func(cls, *args, **kwargs)
 
     return wrapper
@@ -33,8 +36,8 @@ class LeaseReservationCache:
     Entries expire automatically after a configured TTL, managed internally by TTLCache.
     """
 
-    _cache: TTLCache | None = None
-    initialized: bool = False
+    initialized = False
+    _lock = RLock()
 
     @classmethod
     def init(cls, max_size: int = CACHE_SIZE, ttl: int = CACHE_TTL):
@@ -45,58 +48,56 @@ class LeaseReservationCache:
             max_size: Maximum number of entries.
             ttl: Time-to-live for each entry in seconds.
         """
-        if cls._cache is not None:
-            raise RuntimeError("Cache is not none")
-        cls._cache = TTLCache(maxsize=max_size, ttl=ttl)
-        cls.initialized = True
+        with cls._lock:
+            if cls.initialized:
+                raise RuntimeError("Wrong init already initialized")
+            cls.cache: TTLCache = TTLCache(maxsize=max_size, ttl=ttl)
+            cls.initialized = True
 
     @classmethod
     @is_init
     def book(cls, ip: str, mac: str) -> bool:
         """Reserve IP for MAC if not reserved by different MAC."""
-        if cls._cache is not None:
-            existing_mac = cls._cache.get(ip)
+        with cls._lock:
+            existing_mac = cls.cache.get(ip)
             if existing_mac and existing_mac != mac:
                 return False
-            cls._cache[ip] = mac
-        return True
+            cls.cache[ip] = mac
+            return True
 
     @classmethod
     @is_init
-    def cancel_booking(cls, ip: str, mac: str):
+    def cancel_booking(cls, ip: str, mac: str) -> bool:
         """Remove reservation if matches."""
-        if cls._cache is not None:
-            if cls._cache.get(ip) == mac:
-                try:
-                    del cls._cache[ip]
-                except KeyError:
-                    pass  # Already removed
+        with cls._lock:
+            if cls.cache.get(ip) == mac:
+                del cls.cache[ip]
+                return True
+            return False
 
     @classmethod
     @is_init
     def get_mac_from_ip(cls, ip: str) -> str | None:
-        if cls._cache is not None:
-            return cls._cache.get(ip)
-        return None
+        with cls._lock:
+            return cls.cache.get(ip)
 
     @classmethod
     @is_init
     def get_ip_from_mac(cls, mac: str) -> str | None:
-        if cls._cache is not None:
-            for ip, cached_mac in cls._cache.items():
+        with cls._lock:
+            for ip, cached_mac in cls.cache.items():
                 if cached_mac == mac:
                     return ip
-        return None
+            return None
 
     @classmethod
     @is_init
-    def get_all_ips(cls) -> list[str]:
-        if cls._cache is not None:
-            return list(cls._cache.keys())
-        return []
+    def get_all_ips(cls) -> list[str] | list:
+        with cls._lock:
+            return list(cls.cache.keys())
 
     @classmethod
     @is_init
     def clear(cls):
-        if cls._cache is not None:
-            cls._cache.clear()
+        with cls._lock:
+            cls.cache.clear()

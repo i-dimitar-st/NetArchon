@@ -69,6 +69,7 @@ class DHCPServer:
         cls._received_queue = Queue(maxsize=received_queue_size)
         cls._dedup_queue = deque(maxlen=inbound_requests_deque_size)
 
+        LeaseReservationCache.init()
         DHCPResponseFactory.init(
             server_ip=SERVER_IP,
             server_mac=SERVER_MAC,
@@ -87,7 +88,6 @@ class DHCPServer:
         DHCPStorage.init(logger=dhcp_logger)
         DHCPStats.init(logger=dhcp_logger)
         DHCPMessageHandler.init(logger=dhcp_logger)
-        LeaseReservationCache.init()
         ClientDiscoveryService.init(logger=dhcp_logger)
         DbPersistanceService.init(logger=dhcp_logger)
 
@@ -190,8 +190,8 @@ class DHCPServer:
                 )
 
                 if (
-                    dhcp_message.mac.lower() == server_mac.lower() or
-                    dhcp_message.src_ip.lower() == server_ip.lower()
+                    dhcp_message.mac.lower() == server_mac.lower()
+                    or dhcp_message.src_ip.lower() == server_ip.lower()
                 ):
                     continue
 
