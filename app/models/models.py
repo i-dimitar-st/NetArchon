@@ -1,11 +1,76 @@
 from dataclasses import dataclass
 from enum import Enum, IntEnum, unique
+from json import load
+from pathlib import Path
+from threading import RLock
 from time import time
+from types import MappingProxyType
+from typing import Any
 
 from dnslib import DNSRecord
+from yaml import safe_load
 
-from app.utils.dhcp_utils import DHCPUtilities
 from app.utils.dns_utils import DNSUtils
+
+
+class Config:
+    """Defines application level Config"""
+
+    def __init__(self, path: Path):
+        self._lock = RLock()
+        self._path: Path = path
+        self._config = {}
+        self._load()
+
+    @classmethod
+    def _is_json(cls, path: Path) -> bool:
+        return path.suffix.lower() == ".json"
+
+    @classmethod
+    def _is_yaml(cls, path: Path) -> bool:
+        return path.suffix.lower() == ".yaml"
+
+    def _load(self):
+        """
+        Load file from fs.
+        Only loads known file types.
+        """
+        with self._lock:
+            with open(self._path, mode="r", encoding="utf-8") as _file_handle:
+                if self._is_json(self._path):
+                    self._config = load(_file_handle).get("payload")
+                    return
+                if self._is_yaml(self._path):
+                    self._config = safe_load(_file_handle)
+                    return
+                raise TypeError("Unsupported file type JSON+YAML")
+
+    def reload(self):
+        """Reload"""
+        self._load()
+
+    def get(self, key: str) -> Any:
+        """
+        Get parameter from config.
+        Args:
+            key(str): Name for which config is required.
+        """
+
+        if not isinstance(key, str) or not key:
+            raise ValueError("Key must be a non-empty str.")
+
+        if key not in self._config:
+            raise RuntimeError("Unknown key.")
+
+        with self._lock:
+            return MappingProxyType(self._config[key])
+
+    def get_config(self) -> MappingProxyType:
+        """
+        Get config dict as Proxy.
+        """
+        with self._lock:
+            return MappingProxyType(self._config)
 
 
 @unique

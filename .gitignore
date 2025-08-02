@@ -1,14 +1,13 @@
 # Root only
-/.vscode/
-/venv/
-/certificates/
-/logs/
-/db/
+.vscode/
+venv/
+certificates/
+logs/
+db/
+config/
+models/
 
-# Project
-/services/neural_net/models/
-/config/dns_control_list.json
-/config/dhcp_static_map.json
+app/services/neural_net/models/
 
 # Anywhere
 __pycache__/
