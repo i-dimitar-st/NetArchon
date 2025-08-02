@@ -1,4 +1,4 @@
-pytest
-black
+debugpy==1.8.14
+pytest == 8.4.1
 isort
 flake8
