@@ -4,7 +4,7 @@ from threading import Event
 
 from app.services.dhcp.server import DHCPServer
 from app.services.dns.dns import DNSServer
-from app.services.gui.gui import App
+from app.services.gui.gui import App as GuiApp
 from app.services.logger.logger import MainLogger
 from app.services.memory.memory import MemoryManager
 
@@ -12,8 +12,12 @@ logger: Logger = MainLogger.get_logger(service_name="MAIN")
 shutdown_event = Event()
 
 
-def shutdown_handler(signum, frame):
-    """Handles app shutdown calls"""
+def shutdown_handler(signum: int, frame):
+    """Handles app shutdown calls
+    Args:
+        signum (int): The signal number received.
+        frame (frame object): Current stack frame.
+    """
     logger.info("Received %s.", signum)
     shutdown_event.set()
 
@@ -31,7 +35,7 @@ if __name__ == "__main__":
     logger.info("Starting services")
     register_shutdowns()
 
-    App.init()
+    GuiApp.init()
     MemoryManager.init()
     DNSServer.init()
     DHCPServer.init()
@@ -39,7 +43,7 @@ if __name__ == "__main__":
     DHCPServer.start()
     DNSServer.start()
     MemoryManager.start()
-    App.start()
+    GuiApp.start()
 
     shutdown_event.wait()
     logger.info("Stopping services")
@@ -47,6 +51,6 @@ if __name__ == "__main__":
     DHCPServer.stop()
     DNSServer.stop()
     MemoryManager.stop()
-    App.stop()
+    GuiApp.stop()
 
     logger.info("Shutdown complete")

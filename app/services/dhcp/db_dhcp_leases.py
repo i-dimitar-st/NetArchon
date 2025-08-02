@@ -152,7 +152,7 @@ class DHCPStorage:
         with cls._lock:
             try:
 
-                if dhcp_static_config.get(mac.upper()):
+                if dhcp_static_config.get_config().get(mac.upper()):
                     lease_type = DHCPLeaseType.STATIC
 
                 _current_time = int(time())

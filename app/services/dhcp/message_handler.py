@@ -190,7 +190,7 @@ class DHCPMessageHandler:
 
         with cls._lock:
 
-            static_ip = dhcp_static_config.get(dhcp_msg.mac.upper(), None)
+            static_ip = dhcp_static_config.get_config().get(dhcp_msg.mac.upper(), None)
             if not static_ip:
                 return False
 

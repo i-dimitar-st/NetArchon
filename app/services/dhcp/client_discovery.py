@@ -333,7 +333,7 @@ class ClientDiscoveryService:
 
         with cls._lock:
 
-            static_ip = dhcp_static_config.get(mac.upper(), None)
+            static_ip = dhcp_static_config.get_config().get(mac.upper(), None)
             if static_ip:
                 return IPv4Address(static_ip)
 

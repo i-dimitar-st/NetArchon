@@ -8,14 +8,19 @@ logging.config.dictConfig(LOGGER_CONFIG)
 
 
 class MainLogger:
-    """Aplication wide logging def"""
+    """Aplication wide logging."""
 
     @classmethod
     def get_logger(
         cls, service_name: str = "MAIN", log_level: str = "DEBUG"
     ) -> logging.Logger:
-        """Logging instance getter, configurable by service name and level"""
+        """Logging instance getter, configurable by service name and level
+        Args:
+            service_name(str): Logger instance
+            log_level(str): Log level desired for your instance
+        Returns:
+            logging.Logger: Configured logger instance.
+        """
         logger = logging.getLogger(service_name)
-        if log_level:
-            logger.setLevel(LogLevel(log_level).value)
+        logger.setLevel(LogLevel(log_level).value)
         return logger

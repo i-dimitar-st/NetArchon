@@ -31,7 +31,7 @@ from psutil import (
 )
 from uvicorn import run as runUvicorn
 
-from app.config.config import config, dns_control_list
+from app.config.config import config
 from app.services.logger.logger import MainLogger
 from app.utils.dns_utils import DNSUtils
 
@@ -55,7 +55,7 @@ DNS_HISTORY_DB = DB_PATH / "dns_history.sqlite3"
 DNS_STATS_DB = DB_PATH / "dns_stats.sqlite3"
 DHCP_LEASES_DB = DB_PATH / "dhcp_leases.sqlite3"
 DHCP_STATS_DB = DB_PATH / "dhcp_stats.sqlite3"
-DNS_CONTROL_LIST = ROOT_PATH / "config" / "dns_control_list.json"
+DNS_CONTROL_LIST = ROOT_PATH / "config" / "blacklists.json"
 LOG_FILE_PATH = ROOT_PATH / "logs" / "main.log"
 
 DB_TIMEOUT = 10
@@ -307,7 +307,9 @@ def get_dhcp_statistics() -> dict:
 def get_control_list() -> list:
     try:
         blacklist_rules = []
-        for _key, _value in dns_control_list.items():
+        with open(DNS_CONTROL_LIST, mode="r", encoding="utf-8") as file_handle:
+            _blacklists = load(file_handle).get("payload")
+        for _key, _value in _blacklists.items():
             blacklist_rules.extend(_value)
         return sorted(blacklist_rules)
     except Exception as e:
@@ -352,28 +354,28 @@ def add_to_blacklist(url: str) -> bool:
     try:
         with _lock:
             with open(DNS_CONTROL_LIST, mode="r", encoding="utf-8") as file_handle:
-                config = load(file_handle)
+                _blacklists = load(file_handle)
 
-            blacklist = config.get("blacklist", {})
-            rules_list = blacklist.get("rules", [])
-            url_list = blacklist.get("urls", [])
+            payload = _blacklists.get("payload", {})
+            rules_list = payload.get("rules", [])
+            url_list = payload.get("urls", [])
 
             if "*" in url:
                 if url in rules_list:
                     return True
                 rules_list.append(url)
-                blacklist["rules"] = rules_list
+                payload["rules"] = rules_list
             else:
                 if url in url_list:
                     return True
                 url_list.append(url)
-                blacklist["urls"] = url_list
+                payload["urls"] = url_list
 
-            config["blacklist"] = blacklist
-            config["timestamp"] = datetime.now(timezone.utc).isoformat()
+            _blacklists["payload"] = payload
+            _blacklists["timestamp"] = datetime.now(timezone.utc).isoformat()
 
             with open(DNS_CONTROL_LIST, mode="w", encoding="utf-8") as file_handle:
-                dump(config, file_handle, indent=2)
+                dump(_blacklists, file_handle, indent=2)
 
         return True
     except Exception as e:
@@ -391,29 +393,27 @@ def delete_from_blacklist(url: str) -> bool:
     try:
         with _lock:
             with open(DNS_CONTROL_LIST, mode="r", encoding="utf-8") as file_handle:
-                config = load(file_handle)
+                _blacklists = load(file_handle)
 
-            blacklist = config.get("blacklist", {})
-            rules_list = blacklist.get("rules", [])
-            url_list = blacklist.get("urls", [])
+            payload = _blacklists.get("payload", {})
+            rules_list = payload.get("rules", [])
+            url_list = payload.get("urls", [])
 
             if "*" in url:
                 if url not in rules_list:
                     return True
-                blacklist["rules"] = [rule for rule in rules_list if rule != url]
+                payload["rules"] = [rule for rule in rules_list if rule != url]
             else:
                 if url not in url_list:
                     return True
 
-                blacklist["urls"] = [
-                    url_rule for url_rule in url_list if url_rule != url
-                ]
+                payload["urls"] = [url_rule for url_rule in url_list if url_rule != url]
 
-            config["timestamp"] = datetime.now(timezone.utc).isoformat()
-            config["blacklist"] = blacklist
+            _blacklists["timestamp"] = datetime.now(timezone.utc).isoformat()
+            _blacklists["payload"] = payload
 
             with open(DNS_CONTROL_LIST, mode="w", encoding="utf-8") as file_handle:
-                dump(config, file_handle, indent=2)
+                dump(_blacklists, file_handle, indent=2)
 
         return True
     except Exception as e:

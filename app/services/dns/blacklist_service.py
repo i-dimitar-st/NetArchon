@@ -5,12 +5,13 @@ from json import load
 from pathlib import Path
 from threading import Event, RLock, Thread
 
-from app.config.config import config, dns_control_list
+from app.config.config import config
 
 PATHS = config.get("paths")
 ROOT_PATH = Path(PATHS.get("root"))
 
 BLACKLISTS_CONFIG = config.get("dns").get("blacklists_config")
+BLACKLIST_PATH = ROOT_PATH / BLACKLISTS_CONFIG.get("path")
 CACHE_SIZE = int(BLACKLISTS_CONFIG.get("cache_size", 100))
 LOAD_INTERVAL = int(BLACKLISTS_CONFIG.get("loading_interval", 30))
 
@@ -79,17 +80,16 @@ class BlacklistService:
         """
         Load blacklist data from JSON file.
         """
-
-        return {
-            "blacklist": set(
-                url.strip().lower()
-                for url in dns_control_list.get("blacklist", {}).get("urls", [])
-            ),
-            "blacklist_rules": set(
-                rule.strip().lower()
-                for rule in dns_control_list.get("blacklist", {}).get("rules", [])
-            ),
-        }
+        with open(BLACKLIST_PATH, mode="r", encoding="utf-8") as file_handle:
+            _blacklist = load(file_handle).get("payload")
+            return {
+                "blacklist": set(
+                    url.strip().lower() for url in _blacklist.get("urls", [])
+                ),
+                "blacklist_rules": set(
+                    rule.strip().lower() for rule in _blacklist.get("rules", [])
+                ),
+            }
 
     @classmethod
     def _work(cls):

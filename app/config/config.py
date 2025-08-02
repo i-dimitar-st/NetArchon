@@ -1,4 +1,3 @@
-from copy import deepcopy
 from json import load
 from os import getenv
 from pathlib import Path
@@ -13,11 +12,11 @@ from watchdog.observers import Observer
 from watchdog.observers.api import BaseObserver
 from yaml import safe_load
 
+
 ROOT_PATH = Path(getenv("ROOT_PATH", "."))
 CONFIG_FOLDER = ROOT_PATH / "config"
 CONFIG_FILEPATH = CONFIG_FOLDER / "config.yaml"
 DHCP_STATIC_MAP = CONFIG_FOLDER / "dhcp_static_map.json"
-DNS_CONTROL_LIST = CONFIG_FOLDER / "dns_control_list.json"
 
 
 class Config:
@@ -29,18 +28,28 @@ class Config:
         self._config = {}
         self._load()
 
+    @classmethod
+    def _is_json(cls, path: Path) -> bool:
+        return path.suffix.lower() == ".json"
+
     def _load(self):
         with self._lock:
             with open(self._path, mode="r", encoding="utf-8") as _file_handle:
-                # ConfigSchema.model_validate(raw)
-                self._config = safe_load(_file_handle)
+                if self._is_json(self._path):
+                    self._config = load(_file_handle).get("payload")
+                else:
+                    self._config = safe_load(_file_handle)
 
     def reload(self):
-        """Reload config"""
+        """Reload"""
         self._load()
 
     def get(self, key: str) -> Any:
-        """Get parameter from config obj"""
+        """
+        Get parameter from config obj
+        Args:
+            key(str): Name for which config is required.
+        """
 
         if not isinstance(key, str) or not key:
             raise ValueError("Key must be a non-empty str.")
@@ -49,58 +58,34 @@ class Config:
             raise RuntimeError("Unknown key.")
 
         with self._lock:
-            return deepcopy(self._config[key])
+            return MappingProxyType(self._config[key])
+
+    def get_config(self) -> MappingProxyType:
+        """
+        Get config dict as Proxy.
+        """
+        with self._lock:
+            return MappingProxyType(self._config)
 
 
-def _load_static_dhcp_mapping(path: Path = DHCP_STATIC_MAP) -> MappingProxyType:
-    """Loads DHCP mac to ip static mapping table."""
-    with open(path, encoding="utf-8", mode="r") as file_handle:
-        return MappingProxyType(load(file_handle).get("payload", {}))
+class OnFileChangeConfigHandler(FileSystemEventHandler):
+    """
+    Handles file modification events for config-related files.
+    It has to be instance of FileSystemEventHandler and it has to implement on_modified.
+    """
 
-
-def _load_dns_control_list(path: Path = DNS_CONTROL_LIST) -> MappingProxyType:
-    with open(path, encoding="utf-8", mode="r") as file_handle:
-        return MappingProxyType(load(file_handle).get("blacklist", {}))
-
-
-class SimpleHandler(FileSystemEventHandler):
     def on_modified(self, event):
-        src = event.src_path
-        if src == str(DHCP_STATIC_MAP):
-            try:
-                global dhcp_static_config
-                dhcp_static_config = _load_static_dhcp_mapping()
-                print(f"Reloaded {DHCP_STATIC_MAP}")
-            except:
-                print(f"Failed reloading {DHCP_STATIC_MAP}")
-
-        elif src == str(DNS_CONTROL_LIST):
-            try:
-                global dns_control_list
-                dns_control_list = _load_dns_control_list()
-                print(f"Reloaded {DNS_CONTROL_LIST}")
-            except:
-                print(f"Failed reloaded {DNS_CONTROL_LIST}")
-        elif src == str(CONFIG_FILEPATH):
-            try:
-                global config
-                config.reload()
-                print("Reloaded config")
-            except:
-                print("Failed reloaded config")
-
-
-def _start_observer_watchdog() -> BaseObserver:
-    observer: BaseObserver = Observer()
-    observer.schedule(SimpleHandler(), path=str(CONFIG_FOLDER), recursive=False)
-    observer.start()
-    return observer
+        if event.src_path == str(CONFIG_FILEPATH):
+            config.reload()
+            print("Reloaded config")
+        if event.src_path == str(DHCP_STATIC_MAP):
+            dhcp_static_config.reload()
 
 
 def _shutdown(signum, frame):
     print("Stopping observer")
-    observer.stop()
-    observer.join()
+    _observer.stop()
+    _observer.join()
     exit(0)
 
 
@@ -109,6 +94,16 @@ signal(SIGTERM, _shutdown)
 
 
 config = Config()
-dhcp_static_config = _load_static_dhcp_mapping()
-dns_control_list = _load_dns_control_list()
-observer: BaseObserver = _start_observer_watchdog()
+dhcp_static_config = Config(path=DHCP_STATIC_MAP)
+
+
+def _start_observer_watchdog() -> BaseObserver:
+    observer: BaseObserver = Observer()
+    observer.schedule(
+        OnFileChangeConfigHandler(), path=str(CONFIG_FOLDER), recursive=False
+    )
+    observer.start()
+    return observer
+
+
+_observer: BaseObserver = _start_observer_watchdog()
