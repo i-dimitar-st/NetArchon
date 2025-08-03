@@ -37,13 +37,16 @@ class Config:
         """
         with self._lock:
             with open(self._path, mode="r", encoding="utf-8") as _file_handle:
-                if self._is_json(self._path):
-                    self._config = load(_file_handle).get("payload")
-                    return
-                if self._is_yaml(self._path):
-                    self._config = safe_load(_file_handle)
-                    return
-                raise TypeError("Unsupported file type JSON+YAML")
+                try:
+                    if self._is_json(self._path):
+                        self._config = load(_file_handle).get("payload")
+                        return
+                    if self._is_yaml(self._path):
+                        self._config = safe_load(_file_handle)
+                        return
+                    raise TypeError("Unsupported file type JSON+YAML")
+                except Exception as err:
+                    print(f"Error loading file {str(err)}.")
 
     def reload(self):
         """Reload"""

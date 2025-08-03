@@ -1,17 +1,17 @@
-from copy import deepcopy
 from fnmatch import fnmatch
 from functools import lru_cache
-from json import load
+
+# from json import load
 from pathlib import Path
 from threading import Event, RLock, Thread
 
-from app.config.config import config
+from app.config.config import config, dns_blacklists
 
 PATHS = config.get("paths")
 ROOT_PATH = Path(PATHS.get("root"))
 
 BLACKLISTS_CONFIG = config.get("dns").get("blacklists_config")
-BLACKLIST_PATH = ROOT_PATH / BLACKLISTS_CONFIG.get("path")
+# BLACKLIST_PATH = ROOT_PATH / BLACKLISTS_CONFIG.get("path")
 CACHE_SIZE = int(BLACKLISTS_CONFIG.get("cache_size", 100))
 LOAD_INTERVAL = int(BLACKLISTS_CONFIG.get("loading_interval", 30))
 
@@ -76,20 +76,33 @@ class BlacklistService:
         cls.logger.info("%s restarted.", cls.__name__)
 
     @classmethod
-    def _load_blacklists(cls) -> dict:
+    def _load_blacklists_from_mem(cls):
         """
         Load blacklist data from JSON file.
         """
-        with open(BLACKLIST_PATH, mode="r", encoding="utf-8") as file_handle:
-            _blacklist = load(file_handle).get("payload")
-            return {
-                "blacklist": set(
-                    url.strip().lower() for url in _blacklist.get("urls", [])
-                ),
-                "blacklist_rules": set(
-                    rule.strip().lower() for rule in _blacklist.get("rules", [])
-                ),
-            }
+        _blacklist = dns_blacklists.get_config()
+        return {
+            "blacklist": set(url.strip().lower() for url in _blacklist.get("urls", [])),
+            "blacklist_rules": set(
+                rule.strip().lower() for rule in _blacklist.get("rules", [])
+            ),
+        }
+
+    # @classmethod
+    # def _load_blacklists_from_fs(cls) -> dict:
+    #     """
+    #     Load blacklist data from JSON file.
+    #     """
+    #     with open(BLACKLIST_PATH, mode="r", encoding="utf-8") as file_handle:
+    #         _blacklist = load(file_handle).get("payload")
+    #         return {
+    #             "blacklist": set(
+    #                 url.strip().lower() for url in _blacklist.get("urls", [])
+    #             ),
+    #             "blacklist_rules": set(
+    #                 rule.strip().lower() for rule in _blacklist.get("rules", [])
+    #             ),
+    #         }
 
     @classmethod
     def _work(cls):
@@ -98,14 +111,15 @@ class BlacklistService:
         """
         while not cls._stop_event.is_set():
             try:
-                new_lists = cls._load_blacklists()
+                _new_blacklists = cls._load_blacklists_from_mem()
+                # new_lists = cls._load_blacklists_from_fs()
                 with cls._lock:
-                    if new_lists != cls._blacklists:
-                        cls._blacklists = new_lists
+                    if _new_blacklists != cls._blacklists:
+                        cls._blacklists = _new_blacklists
                         cls.logger.info(
                             "blacklist:%d, blacklist_rules:%d.",
-                            len(new_lists["blacklist"]),
-                            len(new_lists["blacklist_rules"]),
+                            len(_new_blacklists["blacklist"]),
+                            len(_new_blacklists["blacklist_rules"]),
                         )
                         cls.is_blacklisted.cache_clear()
             except Exception as err:

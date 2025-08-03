@@ -1,3 +1,4 @@
+import sys
 from logging import Logger
 from signal import SIGABRT, SIGINT, SIGQUIT, SIGTERM, signal
 from threading import Event
@@ -10,6 +11,8 @@ from app.services.memory.memory import MemoryManager
 
 logger: Logger = MainLogger.get_logger(service_name="MAIN")
 shutdown_event = Event()
+
+sys.dont_write_bytecode = True
 
 
 def shutdown_handler(signum: int, frame):

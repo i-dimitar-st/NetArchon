@@ -5,6 +5,7 @@ psutil==7.0.0
 PyYAML==6.0.2
 pydantic==2.11.7
 torch==2.7.1
+dotenv==0.9.9
 # app support to make async
 uvicorn==0.23.3
 asgiref==3.9.1
