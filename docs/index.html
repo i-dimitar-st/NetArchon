@@ -4,169 +4,326 @@
         <meta charset="UTF-8" />
         <meta name="viewport" content="width=device-width, initial-scale=1" />
         <title>NetArchon</title>
+        <link
+            href="https://fonts.googleapis.com/css2?family=Exo+2:wght@400;600;800&display=swap"
+            rel="stylesheet"
+        />
         <style>
-            @import url("https://fonts.googleapis.com/css2?family=Exo+2:wght@700&display=swap");
+            * {
+                margin: 0;
+                padding: 0;
+                box-sizing: border-box;
+            }
 
             body {
-                margin: 0;
                 height: 100vh;
-                background: radial-gradient(circle at center, #001a33, #000814);
+                background: radial-gradient(
+                    ellipse at center,
+                    #0a1a2e 0%,
+                    #051220 50%,
+                    #000000 100%
+                );
+                font-family: "Exo 2", sans-serif;
+                color: #b8d4ff;
                 display: flex;
                 flex-direction: column;
                 justify-content: center;
                 align-items: center;
-                font-family: "Exo 2", sans-serif;
-                color: #cceeff;
                 text-align: center;
+                overflow: hidden;
+                position: relative;
+            }
+
+            /* Animated background particles */
+            .particles {
+                position: absolute;
+                top: 0;
+                left: 0;
+                width: 100%;
+                height: 100%;
+                pointer-events: none;
                 overflow: hidden;
             }
 
-            /* The Archon energy orb container */
-            .archon-orb {
-                position: relative;
-                width: 180px;
-                height: 180px;
-                margin-bottom: 2rem;
-            }
-
-            /* Two overlapping glowing circles representing the merging energies */
-            .archon-orb::before,
-            .archon-orb::after {
-                content: "";
+            .particle {
                 position: absolute;
+                width: 2px;
+                height: 2px;
+                background: #0099ff;
                 border-radius: 50%;
-                top: 50%;
-                left: 50%;
-                transform: translate(-50%, -50%);
-                filter: drop-shadow(0 0 12px #4af);
-                animation: pulse 3s infinite ease-in-out;
+                animation: float 8s infinite linear;
+                opacity: 0.6;
             }
 
-            .archon-orb::before {
-                width: 130px;
-                height: 130px;
-                background: radial-gradient(circle, #66ccff 0%, transparent 70%);
-                animation-delay: 0s;
+            @keyframes float {
+                0% {
+                    transform: translateY(100vh) rotate(0deg);
+                    opacity: 0;
+                }
+                10% {
+                    opacity: 0.6;
+                }
+                90% {
+                    opacity: 0.6;
+                }
+                100% {
+                    transform: translateY(-10px) rotate(360deg);
+                    opacity: 0;
+                }
             }
 
-            .archon-orb::after {
-                width: 110px;
-                height: 110px;
-                background: radial-gradient(circle, #99ddff 0%, transparent 70%);
-                filter: drop-shadow(0 0 18px #88e);
-                animation-delay: 1.5s;
+            /* Main archon core */
+            .archon-core {
+                position: relative;
+                width: 200px;
+                height: 200px;
+                margin-bottom: 3rem;
+                display: flex;
+                align-items: center;
+                justify-content: center;
             }
 
-            /* Shimmer effect overlay */
-            .archon-orb .shimmer {
-                position: absolute;
-                top: 50%;
-                left: 50%;
-                width: 150px;
-                height: 150px;
+            .core-orb {
+                width: 80px;
+                height: 80px;
                 border-radius: 50%;
                 background: radial-gradient(
-                        circle at 30% 30%,
-                        rgba(255, 255, 255, 0.6),
-                        transparent 60%
-                    ),
-                    radial-gradient(circle at 70% 70%, rgba(100, 200, 255, 0.5), transparent 70%);
-                filter: blur(12px);
-                transform: translate(-50%, -50%);
-                animation: shimmerMove 5s linear infinite;
-                pointer-events: none;
+                    circle at 30% 30%,
+                    #00aaff,
+                    #0077cc,
+                    #004499
+                );
+                position: relative;
+                z-index: 3;
+                animation: pulseBlue 3s ease-in-out infinite;
+                box-shadow: 0 0 30px #0099ff, 0 0 60px #0077ccaa,
+                    0 0 90px #00559955, inset 0 0 20px #00ccff40;
             }
 
-            @keyframes pulse {
+            @keyframes pulseBlue {
                 0%,
                 100% {
-                    transform: translate(-50%, -50%) scale(1);
-                    opacity: 0.7;
+                    background: radial-gradient(
+                        circle at 30% 30%,
+                        #00aaff,
+                        #0077cc,
+                        #004499
+                    );
+                    box-shadow: 0 0 30px #0099ff, 0 0 60px #0077ccaa,
+                        0 0 90px #00559955, inset 0 0 20px #00ccff40;
                 }
                 50% {
-                    transform: translate(-50%, -50%) scale(1.1);
-                    opacity: 1;
+                    background: radial-gradient(
+                        circle at 30% 30%,
+                        #0099ff,
+                        #006bb8,
+                        #003d85
+                    );
+                    box-shadow: 0 0 40px #0099ff, 0 0 80px #0077ccbb,
+                        0 0 120px #00559977, inset 0 0 30px #00ccff60;
                 }
             }
 
-            @keyframes shimmerMove {
-                0% {
-                    background-position: 0% 0%, 100% 100%;
+            /* Energy rings */
+            .energy-ring {
+                position: absolute;
+                border: 2px solid #0099ff60;
+                border-radius: 50%;
+                animation: rotate 4s linear infinite;
+                box-shadow: 0 0 15px #0099ff40;
+            }
+
+            .ring-1 {
+                width: 140px;
+                height: 140px;
+                animation-duration: 8s;
+            }
+
+            @keyframes rotate {
+                from {
+                    transform: rotate(0deg);
                 }
-                50% {
-                    background-position: 100% 100%, 0% 0%;
-                }
-                100% {
-                    background-position: 0% 0%, 100% 100%;
+                to {
+                    transform: rotate(360deg);
                 }
             }
 
+            /* Typography */
             h1 {
                 font-size: 4.5rem;
+                font-weight: 800;
                 margin: 0;
-                letter-spacing: 0.3em;
-                text-shadow: 0 0 8px #66ccff, 0 0 16px #99ddff;
+                letter-spacing: 0.15em;
+                background: linear-gradient(45deg, #0099ff, #00ccff, #0077cc);
+                -webkit-background-clip: text;
+                -webkit-text-fill-color: transparent;
+                background-clip: text;
+                text-shadow: 0 0 30px #0099ff60;
+                animation: titleGlow 4s ease-in-out infinite;
+            }
+
+            @keyframes titleGlow {
+                0%,
+                100% {
+                    filter: drop-shadow(0 0 10px #0099ff80);
+                }
+                50% {
+                    filter: drop-shadow(0 0 20px #00ccffcc);
+                }
             }
 
             h2 {
+                font-size: 1.8rem;
+                color: #7db8e8;
                 font-weight: 400;
-                font-size: 1.7rem;
-                margin-top: 0.4em;
-                color: #aaddffcc;
-                text-shadow: 0 0 4px #99ccff88;
+                margin-top: 0.5em;
+                margin-bottom: 1.5em;
+                letter-spacing: 0.1em;
+                text-shadow: 0 0 10px #4499cc40;
             }
 
             p {
-                max-width: 540px;
-                font-size: 1.2rem;
-                color: #bbe0ffdd;
+                max-width: 600px;
+                font-size: 1.1rem;
+                color: #9bc7f0;
                 line-height: 1.6;
-                margin: 1.8em auto 2.5em;
+                margin: 1em auto;
+                text-shadow: 0 0 5px #4499cc40;
             }
 
-            a.button {
+            .wip-text {
+                font-style: italic;
+                color: #6699cc;
+                font-size: 1rem;
+                margin-top: 0.5em !important;
+                margin-bottom: 2.5em !important;
+            }
+
+            /* Enhanced button */
+            .archon-button {
                 display: inline-block;
-                padding: 0.8em 2.5em;
-                border: 2px solid #66bbff;
+                padding: 1rem 2.5rem;
+                background: linear-gradient(45deg, #0a1a2e, #1b2a4e);
+                border: 2px solid #0099ff;
                 border-radius: 12px;
-                color: #cceeff;
-                font-weight: 700;
+                color: #b8d4ff;
                 text-decoration: none;
-                transition: background-color 0.3s ease, box-shadow 0.3s ease;
-                box-shadow: 0 0 10px #66bbff88;
+                font-weight: 600;
+                font-size: 1.1rem;
+                letter-spacing: 0.05em;
+                position: relative;
+                overflow: hidden;
+                transition: all 0.3s ease;
+                box-shadow: 0 0 20px #0099ff40, inset 0 0 20px #336688aa;
             }
 
-            a.button:hover {
-                background-color: #66bbff33;
-                box-shadow: 0 0 20px #66bbffcc;
+            .archon-button::before {
+                content: "";
+                position: absolute;
+                top: 0;
+                left: -100%;
+                width: 100%;
+                height: 100%;
+                background: linear-gradient(
+                    90deg,
+                    transparent,
+                    #0099ff20,
+                    transparent
+                );
+                transition: left 0.5s ease;
             }
 
+            .archon-button:hover {
+                background: linear-gradient(45deg, #1b2a4e, #2a4a7a);
+                box-shadow: 0 0 30px #0099ff60, inset 0 0 30px #4499cc30;
+                transform: translateY(-2px);
+                border-color: #00ccff;
+            }
+
+            .archon-button:hover::before {
+                left: 100%;
+            }
+
+            .archon-button:active {
+                transform: translateY(0);
+            }
+
+            /* Footer */
             footer {
                 position: absolute;
-                bottom: 10px;
+                bottom: 20px;
                 font-size: 0.9rem;
-                color: #4488bbcc;
-                font-family: monospace;
+                color: #5588aa;
+                font-family: "Exo 2", monospace;
+                font-weight: 400;
+                letter-spacing: 0.05em;
+                z-index: -1;
+            }
+
+            /* Responsive design */
+            @media (max-width: 768px) {
+                h1 {
+                    font-size: 3rem;
+                }
+
+                h2 {
+                    font-size: 1.4rem;
+                }
+
+                .archon-core {
+                    width: 150px;
+                    height: 150px;
+                    margin-bottom: 2rem;
+                }
+
+                .core-orb {
+                    width: 60px;
+                    height: 60px;
+                }
+
+                p {
+                    font-size: 1rem;
+                    max-width: 90%;
+                    padding: 0 1rem;
+                }
             }
         </style>
     </head>
     <body>
-        <div class="archon-orb" aria-hidden="true">
-            <div class="shimmer"></div>
+        <!-- Animated particles -->
+        <div class="particles"></div>
+
+        <!-- Main archon core -->
+        <div class="archon-core" aria-hidden="true">
+            <div class="energy-ring ring-1"></div>
+            <div class="core-orb"></div>
         </div>
 
         <h1>NetArchon</h1>
         <h2>Network Control Platform</h2>
+
+        <p
+            style="
+                font-style: italic;
+                color: #7db8e8;
+                margin-bottom: 1.5em;
+                font-size: 1.2rem;
+            "
+        >
+            "Knowledge is power." - Francis Bacon
+        </p>
+
         <p>
-            Self-hosted DNS and DHCP server featuring TTL caching, ARP conflict detection, recursive
-            resolution, LSTM-based blacklist filtering, and real-time monitoring.
+            Self-hosted DNS and DHCP server featuring TTL caching, ARP conflict
+            detection, recursive resolution, LSTM-based blacklist filtering, and
+            real-time monitoring.
         </p>
-        <p style="font-style: italic; color: #99ccffaa; margin-top: -1em; margin-bottom: 2em">
-            (WIP)
-        </p>
+
+        <p class="wip-text">(Work in Progress)</p>
+
         <a
             href="https://github.com/i-dimitar-st/NetArchon"
-            class="button"
+            class="archon-button"
             target="_blank"
             rel="noopener noreferrer"
         >
@@ -174,5 +331,36 @@
         </a>
 
         <footer>© 2025 i-dimitar-st</footer>
+
+        <script>
+            // Create floating particles
+            function createParticle() {
+                const particle = document.createElement("div");
+                particle.className = "particle";
+                particle.style.left = Math.random() * 100 + "%";
+                particle.style.animationDuration = Math.random() * 10 + 8 + "s";
+                particle.style.animationDelay = Math.random() * 2 + "s";
+
+                // Random colors for particles (blue theme)
+                const colors = ["#0099ff", "#00ccff", "#0077cc", "#0066aa"];
+                particle.style.background =
+                    colors[Math.floor(Math.random() * colors.length)];
+
+                document.querySelector(".particles").appendChild(particle);
+
+                // Remove particle after animation
+                setTimeout(() => {
+                    particle.remove();
+                }, 12000);
+            }
+
+            // Create particles periodically
+            setInterval(createParticle, 200);
+
+            // Create initial burst of particles
+            for (let i = 0; i < 20; i++) {
+                setTimeout(createParticle, i * 100);
+            }
+        </script>
     </body>
 </html>
