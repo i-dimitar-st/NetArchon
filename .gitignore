@@ -6,6 +6,7 @@ logs/
 db/
 config/
 models/
+.env
 
 app/services/neural_net/models/
 

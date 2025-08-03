@@ -14,11 +14,15 @@ from app.models.models import Config
 load_dotenv()
 
 ROOT_PATH = Path(getenv("ROOT_PATH", "."))
-CONFIG_PATH = ROOT_PATH / getenv("CONFIG_DIR", "config")
+CONFIG_PATH: Path = ROOT_PATH / getenv("CONFIG_DIR", "config")
 RELOAD_DEBOUNCE_DELAY = float(getenv("RELOAD_DEBOUNCE_DELAY", 5.0))
-CONFIG_FILEPATH = CONFIG_PATH / getenv("CONFIG_FILE", "config.yaml")
-DNS_BLACKLIST_FILEPATH = CONFIG_PATH / getenv("DNS_BLACKLIST_FILE", "blacklist.json")
-DHCP_STATIC_MAP = CONFIG_PATH / getenv("DHCP_STATIC_MAP_FILE", "dhcp_static_map.json")
+CONFIG_FILEPATH: Path = CONFIG_PATH / getenv("CONFIG_FILE", "config.yaml")
+DNS_BLACKLIST_FILEPATH: Path = CONFIG_PATH / getenv(
+    "DNS_BLACKLIST_FILE", "blacklist.json"
+)
+DHCP_STATIC_MAP: Path = CONFIG_PATH / getenv(
+    "DHCP_STATIC_MAP_FILE", "dhcp_static_map.json"
+)
 
 
 _timer_lock = RLock()

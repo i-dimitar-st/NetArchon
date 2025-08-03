@@ -5,8 +5,9 @@ SCRIPTS := scripts
 SRC := src
 
 .PHONY: set_net_buffers \
-		install_venv install_requirements \
-		install_requirements \
+		install_venv \
+		install_req \
+        install_req_dev \
 		generate_ssl \
 		generate_config \
 		create_systemd \
@@ -18,10 +19,10 @@ set_net_buffers:
 install_venv:
 	$(PYTHON) -m venv $(VENV)
 
-install_requirements:
+install_req:
 	$(VENV)/bin/pip install -r requirements.txt
 
-install_requirements-dev:
+install_req_dev:
 	$(VENV)/bin/pip install -r requirements-dev.txt
 
 generate_ssl:
