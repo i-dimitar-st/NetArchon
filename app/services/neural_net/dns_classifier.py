@@ -7,13 +7,12 @@ import torch
 import torch.nn as nn
 import torch.nn.functional as F
 import torch.optim as optim
+from dotenv import load_dotenv
 from torch.utils.data import DataLoader, Dataset
 
-"/projects/gitlab/netarchon/"
+load_dotenv()
 
-# PATHS = config.get("paths")
-# ROOT_PATH = PATHS.get("root")
-ROOT_PATH = Path("/projects/gitlab/netarchon/")
+ROOT_PATH = Path(os.getenv("ROOT_PATH", "."))
 DNS_CONTROL_LISTS_PATH = ROOT_PATH / 'config' / 'dns_control_list.json'
 DB_FULLPATH = ROOT_PATH / 'db' / 'dns_history.sqlite3'
 ALLOWED_CHARS = "abcdefghijklmnopqrstuvwxyz0123456789-._~:/?#[]@!$&'()*+,;=%."
@@ -281,7 +280,7 @@ if __name__ == "__main__":
 
     # Step 7: Save model
     os.makedirs("models", exist_ok=True)
-    save_model(dnsClassifier, "models/domain_classifier_model.pt")
+    save_model(dnsClassifier, ROOT_PATH / "models" / "domain_classifier_model.pt")
 
     # Step 8: Test and print results on new domains
     print("Testing model on new domains:")

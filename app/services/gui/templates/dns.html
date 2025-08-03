@@ -1,478 +1,400 @@
 <!DOCTYPE html>
 <html lang="en">
-  <head>
-    <meta charset="UTF-8" />
-    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-    <title>DNS</title>
-    <link rel="icon" href="{{ url_for('static', filename='favicon.svg') }}" type="image/svg+xml" />
-    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/bootstrap/5.3.0/css/bootstrap.min.css" />
-    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css" />
-    <style>
-      :root {
-        --primary-color: #4361ee;
-        --secondary-color: #3f37c9;
-        --accent-color: #4895ef;
-        --light-bg: #f8f9fa;
-        --card-shadow: 0 4px 6px rgba(0, 0, 0, 0.05);
-        --hover-bg: rgba(67, 97, 238, 0.05);
-      }
-
-      body {
-        background-color: #f0f2f5;
-        font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Oxygen, Ubuntu, Cantarell, sans-serif;
-      }
-
-      .navbar {
-        box-shadow: 0 2px 4px rgba(0, 0, 0, 0.08);
-        background: linear-gradient(135deg, var(--primary-color), var(--secondary-color));
-      }
-
-      .navbar-brand i {
-        font-size: 1.2rem;
-      }
-
-      .card {
-        border: none;
-        border-radius: 10px;
-        box-shadow: var(--card-shadow);
-        transition: all 0.3s ease;
-        overflow: hidden;
-      }
-
-      .card:hover {
-        box-shadow: 0 10px 20px rgba(0, 0, 0, 0.08);
-      }
-
-      .card-header {
-        border-bottom: 1px solid rgba(0, 0, 0, 0.05);
-        padding: 1rem 1.5rem;
-      }
-
-      .card-header i {
-        font-size: 1.2rem;
-        opacity: 0.8;
-      }
-
-      .stats-item {
-        transition: all 0.2s ease;
-        border-radius: 8px;
-        margin-bottom: 4px;
-      }
-
-      .stats-item:hover {
-        background-color: var(--hover-bg);
-      }
-
-      .stats-label {
-        font-size: 0.85rem;
-        font-weight: 500;
-        color: #6c757d;
-        text-transform: uppercase;
-        text-align: center;
-      }
-
-      .stats-value {
-        font-weight: 600;
-        color: #495057;
-        text-align: center;
-      }
-
-      .search-container {
-        position: relative;
-      }
-
-      .input-group {
-        border-radius: 8px;
-        overflow: hidden;
-      }
-
-      .input-group-text {
-        background: var(--primary-color);
-        color: white;
-        border: none;
-      }
-
-      #urlFilter {
-        border-left: none;
-        padding-left: 0.5rem;
-        box-shadow: none;
-      }
-
-      #urlFilter:focus {
-        border-color: #ced4da;
-        box-shadow: none;
-      }
-
-      #clearFilter {
-        border-color: #ced4da;
-        color: #6c757d;
-      }
-
-      .table-container {
-        border-radius: 8px;
-        overflow: hidden;
-        border: 1px solid rgba(0, 0, 0, 0.05);
-      }
-
-      .dns-table {
-        margin-bottom: 0;
-      }
-
-      .dns-table thead th {
-        background-color: var(--light-bg);
-        font-weight: 600;
-        color: var(--primary-color);
-        border-bottom: 2px solid rgba(67, 97, 238, 0.2);
-        position: sticky;
-        top: 0;
-        z-index: 10;
-        padding: 12px 15px;
-      }
-
-      .dns-table th i {
-        margin-left: 5px;
-        font-size: 0.8rem;
-      }
-
-      .dns-table tbody tr {
-        transition: background-color 0.15s ease;
-      }
-
-      .dns-table tbody tr:hover {
-        background-color: var(--hover-bg);
-      }
-
-      .dns-table td {
-        vertical-align: middle;
-        padding: 12px 15px;
-        border-color: rgba(0, 0, 0, 0.03);
-      }
-
-      .badge-count {
-        background-color: var(--accent-color);
-        color: white;
-        font-weight: 500;
-        padding: 0.35em 0.65em;
-        border-radius: 6px;
-        min-width: 35px;
-        display: inline-block;
-      }
-
-      .timestamp {
-        color: #6c757d;
-        font-size: 0.85rem;
-        white-space: nowrap;
-      }
-
-      .query-text {
-        font-family: "Roboto Mono", monospace, sans-serif;
-        font-size: 0.95rem;
-        color: #212529;
-      }
-
-      /* Responsive adjustments */
-      @media (max-width: 992px) {
-        .dns-table td,
-        .dns-table th {
-          padding: 8px 10px;
-        }
-
-        .timestamp {
-          font-size: 0.8rem;
-        }
-      }
-
-      @media (max-width: 576px) {
-        .card-header {
-          padding: 0.75rem 1rem;
-        }
-
-        .card-body {
-          padding: 1rem;
-        }
-
-        .query-text {
-          font-size: 0.85rem;
-        }
-      }
-    </style>
-  </head>
-  <body>
-    <!-- Navigation -->
-    <nav class="navbar navbar-expand-lg navbar-dark">
-      <div class="container">
-        <a class="navbar-brand d-flex align-items-center" href="/">
-          <i class="fas fa-network-wired me-2"></i>
-          <span>DNS Service</span>
-        </a>
-        <button class="navbar-toggler" type="button" data-bs-toggle="collapse" data-bs-target="#navbarNav">
-          <span class="navbar-toggler-icon"></span>
-        </button>
-        <div class="collapse navbar-collapse" id="navbarNav">
-          <ul class="navbar-nav ms-auto">
-            <li class="nav-item">
-              <a class="nav-link" href="/">Dashboard</a>
-            </li>
-            <li class="nav-item">
-              <a class="nav-link" href="/info">Info</a>
-            </li>
-            <li class="nav-item">
-              <a class="nav-link" href="/dhcp">DHCP</a>
-            </li>
-            <li class="nav-item">
-              <a class="nav-link active" href="/dns">DNS</a>
-            </li>
-            <li class="nav-item">
-              <a class="nav-link" href="/config">Config</a>
-            </li>
-            <li class="nav-item">
-              <a class="nav-link" href="/logs">Logs</a>
-            </li>
-          </ul>
-        </div>
-      </div>
-    </nav>
-
-    <!-- Main -->
-    <div class="container py-4">
-      <div class="row g-4">
-        <!-- DNS Statistics -->
-        <div class="col-md-4">
-          <div class="card h-100">
-            <div class="card-header bg-white">
-              <div class="d-flex justify-content-between align-items-center">
-                <h5 class="mb-0">DNS Statistics</h5>
-                <i class="fas fa-chart-pie text-primary"></i>
-              </div>
-            </div>
-            <div class="card-body">
-              {% for key, value in dns_statistics.items() %} {% if value %}
-              <div class="stats-item d-flex justify-content-between p-2">
-                <span class="stats-label">{{ key | replace('_', ' ') }}</span>
-                <span class="stats-value">{{ value }}</span>
-              </div>
-              {% endif %} {% endfor %}
-            </div>
-          </div>
-        </div>
-
-        <!-- DNS History -->
-        <div class="col-md-8">
-          <div class="card">
-            <div class="card-header bg-white">
-              <div class="d-flex justify-content-between align-items-center">
-                <h5 class="mb-0">
-                  DNS History
-                  <span class="badge bg-primary ms-2">{{ dns_history | length }}</span>
-                </h5>
-                <i class="fas fa-history text-primary"></i>
-              </div>
-            </div>
-            <div class="card-body">
-              <!-- Filter Input -->
-              <div class="search-container mb-3">
-                <div class="input-group">
-                  <span class="input-group-text">
-                    <i class="fas fa-search"></i>
-                  </span>
-                  <input
-                    type="text"
-                    id="urlFilter"
-                    class="form-control"
-                    placeholder="Filter domain requests..."
-                    autocomplete="off"
-                  />
-                  <button id="clearFilter" class="btn btn-outline-secondary" type="button">
-                    <i class="fas fa-times"></i>
-                  </button>
+    <head>
+        <meta charset="UTF-8" />
+        <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+        <title>DNS</title>
+        <link
+            rel="icon"
+            href="{{ url_for('static', filename='favicon.svg') }}"
+            type="image/svg+xml"
+        />
+        <link
+            rel="stylesheet"
+            href="https://cdnjs.cloudflare.com/ajax/libs/bootstrap/5.3.0/css/bootstrap.min.css"
+        />
+        <link
+            rel="stylesheet"
+            href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css"
+        />
+        <link
+            rel="stylesheet"
+            href="{{ url_for('static', filename='styles.css') }}"
+        />
+    </head>
+    <body>
+        <!-- Nav -->
+        <nav class="navbar navbar-expand-lg navbar-dark">
+            <div class="container">
+                <a class="navbar-brand d-flex align-items-center" href="/">
+                    <i class="fas fa-network-wired me-2"></i>
+                    <span>DNS Service</span>
+                </a>
+                <button
+                    class="navbar-toggler"
+                    type="button"
+                    data-bs-toggle="collapse"
+                    data-bs-target="#navbarNav"
+                >
+                    <span class="navbar-toggler-icon"></span>
+                </button>
+                <div class="collapse navbar-collapse" id="navbarNav">
+                    <ul class="navbar-nav ms-auto">
+                        <li class="nav-item">
+                            <a class="nav-link" href="/">Dashboard</a>
+                        </li>
+                        <li class="nav-item">
+                            <a class="nav-link" href="/info">Info</a>
+                        </li>
+                        <li class="nav-item">
+                            <a class="nav-link" href="/dhcp">DHCP</a>
+                        </li>
+                        <li class="nav-item">
+                            <a class="nav-link active" href="/dns">DNS</a>
+                        </li>
+                        <li class="nav-item">
+                            <a class="nav-link" href="/config">Config</a>
+                        </li>
+                        <li class="nav-item">
+                            <a class="nav-link" href="/logs">Logs</a>
+                        </li>
+                    </ul>
                 </div>
-              </div>
-
-              <!-- DNS Domain Requests Table -->
-              <div class="table-container">
-                <div style="max-height: 500px; overflow-y: auto">
-                  <table id="dnsTable" class="table dns-table table-hover">
-                    <thead>
-                      <tr>
-                        <th id="queryHeader" style="cursor: pointer">Domain <i class="fas fa-sort-down"></i></th>
-                        <th id="countHeader" class="text-center" style="cursor: pointer; width: 100px">
-                          Count <i class="fas fa-sort"></i>
-                        </th>
-                        <th id="activeHeader" style="cursor: pointer; width: 160px">
-                          Created <i class="fas fa-sort"></i>
-                        </th>
-                      </tr>
-                    </thead>
-                    <tbody>
-                      {% for item in dns_history %}
-                      <tr>
-                        <td class="query-text">{{ item.query | lower }}</td>
-                        <td class="text-center">
-                          <span class="badge-count">{{ item.query_counter }}</span>
-                        </td>
-                        <td class="timestamp" data-timestamp="{{ item.created }}"></td>
-                      </tr>
-                      {% endfor %}
-                    </tbody>
-                  </table>
-                </div>
-              </div>
             </div>
-          </div>
+        </nav>
+
+        <!-- Main -->
+        <div class="container py-4">
+            <div class="row g-4">
+                <!-- DNS Statistics -->
+                <div class="col-md-4">
+                    <div class="card h-100">
+                        <div class="card-header bg-white">
+                            <div
+                                class="d-flex justify-content-between align-items-center"
+                            >
+                                <h5 class="mb-0">DNS Statistics</h5>
+                                <i class="fas fa-chart-pie text-primary"></i>
+                            </div>
+                        </div>
+                        <div class="card-body">
+                            {% for key, value in dns_statistics.items() %} {% if
+                            value %}
+                            <div
+                                class="stats-item d-flex justify-content-between p-2"
+                            >
+                                <span class="stats-label"
+                                    >{{ key | replace('_', ' ') }}</span
+                                >
+                                <span class="stats-value">{{ value }}</span>
+                            </div>
+                            {% endif %} {% endfor %}
+                        </div>
+                    </div>
+                </div>
+
+                <!-- DNS History -->
+                <div class="col-md-8">
+                    <div class="card">
+                        <div class="card-header bg-white">
+                            <div
+                                class="d-flex justify-content-between align-items-center"
+                            >
+                                <h5 class="mb-0">
+                                    DNS History
+                                    <span class="badge bg-primary ms-2"
+                                        >{{ dns_history | length }}</span
+                                    >
+                                </h5>
+                                <i class="fas fa-history text-primary"></i>
+                            </div>
+                        </div>
+                        <div class="card-body">
+                            <!-- Filter Input -->
+                            <div class="search-container mb-3">
+                                <div class="input-group">
+                                    <span class="input-group-text">
+                                        <i class="fas fa-search"></i>
+                                    </span>
+                                    <input
+                                        type="text"
+                                        id="urlFilter"
+                                        class="form-control"
+                                        placeholder="Filter domain requests..."
+                                        autocomplete="off"
+                                    />
+                                    <button
+                                        id="clearFilter"
+                                        class="btn btn-outline-secondary"
+                                        type="button"
+                                    >
+                                        <i class="fas fa-times"></i>
+                                    </button>
+                                </div>
+                            </div>
+
+                            <!-- DNS Domain Requests Table -->
+                            <div class="table-container">
+                                <div
+                                    style="max-height: 500px; overflow-y: auto"
+                                >
+                                    <table
+                                        id="dnsTable"
+                                        class="table dns-table table-hover"
+                                    >
+                                        <thead>
+                                            <tr>
+                                                <th
+                                                    id="queryHeader"
+                                                    style="cursor: pointer"
+                                                >
+                                                    Domain
+                                                    <i
+                                                        class="fas fa-sort-down"
+                                                    ></i>
+                                                </th>
+                                                <th
+                                                    id="countHeader"
+                                                    class="text-center"
+                                                    style="
+                                                        cursor: pointer;
+                                                        width: 100px;
+                                                    "
+                                                >
+                                                    Count
+                                                    <i class="fas fa-sort"></i>
+                                                </th>
+                                                <th
+                                                    id="activeHeader"
+                                                    style="
+                                                        cursor: pointer;
+                                                        width: 160px;
+                                                    "
+                                                >
+                                                    Created
+                                                    <i class="fas fa-sort"></i>
+                                                </th>
+                                            </tr>
+                                        </thead>
+                                        <tbody>
+                                            {% for item in dns_history %}
+                                            <tr>
+                                                <td class="query-text">
+                                                    {{ item.query | lower }}
+                                                </td>
+                                                <td class="text-center">
+                                                    <span class="badge-count"
+                                                        >{{ item.query_counter
+                                                        }}</span
+                                                    >
+                                                </td>
+                                                <td
+                                                    class="timestamp"
+                                                    data-timestamp="{{ item.created }}"
+                                                ></td>
+                                            </tr>
+                                            {% endfor %}
+                                        </tbody>
+                                    </table>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
         </div>
-      </div>
-    </div>
 
-    <!-- Scripts -->
-    <script src="https://cdnjs.cloudflare.com/ajax/libs/bootstrap/5.3.0/js/bootstrap.bundle.min.js"></script>
-    <script>
-      document.addEventListener("DOMContentLoaded", function () {
-        const table = document.getElementById("dnsTable");
-        const tbody = table.querySelector("tbody");
-        const rows = Array.from(tbody.querySelectorAll("tr"));
-        const filterInput = document.getElementById("urlFilter");
-        const clearFilterBtn = document.getElementById("clearFilter");
+        <!-- Scripts -->
+        <script src="https://cdnjs.cloudflare.com/ajax/libs/bootstrap/5.3.0/js/bootstrap.bundle.min.js"></script>
+        <script>
+            document.addEventListener("DOMContentLoaded", function () {
+                const table = document.getElementById("dnsTable");
+                const tbody = table.querySelector("tbody");
+                const rows = Array.from(tbody.querySelectorAll("tr"));
+                const filterInput = document.getElementById("urlFilter");
+                const clearFilterBtn = document.getElementById("clearFilter");
 
-        // Initialize tooltips
-        const tooltipTriggerList = [].slice.call(document.querySelectorAll('[data-bs-toggle="tooltip"]'));
-        tooltipTriggerList.map(function (tooltipTriggerEl) {
-          return new bootstrap.Tooltip(tooltipTriggerEl);
-        });
+                // Initialize tooltips
+                const tooltipTriggerList = [].slice.call(
+                    document.querySelectorAll('[data-bs-toggle="tooltip"]')
+                );
+                tooltipTriggerList.map(function (tooltipTriggerEl) {
+                    return new bootstrap.Tooltip(tooltipTriggerEl);
+                });
 
-        // Table sorting state
-        let tableSortState = {
-          column: "query",
-          direction: "desc",
-        };
+                // Table sorting state
+                let tableSortState = {
+                    column: "query",
+                    direction: "desc",
+                };
 
-        // Sort table function
-        function sortTable(column, type = "text") {
-          const direction = tableSortState.column === column && tableSortState.direction === "asc" ? "desc" : "asc";
-          tableSortState = { column, direction };
+                // Sort table function
+                function sortTable(column, type = "text") {
+                    const direction =
+                        tableSortState.column === column &&
+                        tableSortState.direction === "asc"
+                            ? "desc"
+                            : "asc";
+                    tableSortState = { column, direction };
 
-          // Reset all sort icons
-          document.querySelectorAll("th i.fas").forEach((icon) => {
-            icon.className = "fas fa-sort";
-          });
+                    // Reset all sort icons
+                    document.querySelectorAll("th i.fas").forEach((icon) => {
+                        icon.className = "fas fa-sort";
+                    });
 
-          // Set the appropriate sort icon
-          const headerElement = document.getElementById(`${column}Header`);
-          if (headerElement) {
-            const sortIcon = headerElement.querySelector("i");
-            sortIcon.className = `fas fa-sort-${direction === "asc" ? "up" : "down"}`;
-          }
+                    // Set the appropriate sort icon
+                    const headerElement = document.getElementById(
+                        `${column}Header`
+                    );
+                    if (headerElement) {
+                        const sortIcon = headerElement.querySelector("i");
+                        sortIcon.className = `fas fa-sort-${
+                            direction === "asc" ? "up" : "down"
+                        }`;
+                    }
 
-          // Sort the rows
-          rows.sort((a, b) => {
-            let valA, valB;
+                    // Sort the rows
+                    rows.sort((a, b) => {
+                        let valA, valB;
 
-            switch (column) {
-              case "query":
-                valA = a.cells[0].innerText.trim().toLowerCase();
-                valB = b.cells[0].innerText.trim().toLowerCase();
-                break;
-              case "count":
-                valA = parseInt(a.cells[1].innerText.trim());
-                valB = parseInt(b.cells[1].innerText.trim());
-                break;
-              case "active":
-                valA = a.cells[2].getAttribute("data-timestamp");
-                valB = b.cells[2].getAttribute("data-timestamp");
-                break;
-            }
+                        switch (column) {
+                            case "query":
+                                valA = a.cells[0].innerText
+                                    .trim()
+                                    .toLowerCase();
+                                valB = b.cells[0].innerText
+                                    .trim()
+                                    .toLowerCase();
+                                break;
+                            case "count":
+                                valA = parseInt(a.cells[1].innerText.trim());
+                                valB = parseInt(b.cells[1].innerText.trim());
+                                break;
+                            case "active":
+                                valA =
+                                    a.cells[2].getAttribute("data-timestamp");
+                                valB =
+                                    b.cells[2].getAttribute("data-timestamp");
+                                break;
+                        }
 
-            if (valA < valB) return direction === "asc" ? -1 : 1;
-            if (valA > valB) return direction === "asc" ? 1 : -1;
-            return 0;
-          });
+                        if (valA < valB) return direction === "asc" ? -1 : 1;
+                        if (valA > valB) return direction === "asc" ? 1 : -1;
+                        return 0;
+                    });
 
-          // Reorder the visible rows
-          const visibleRows = rows.filter((row) => !row.classList.contains("d-none"));
-          visibleRows.forEach((row) => tbody.appendChild(row));
-        }
+                    // Reorder the visible rows
+                    const visibleRows = rows.filter(
+                        (row) => !row.classList.contains("d-none")
+                    );
+                    visibleRows.forEach((row) => tbody.appendChild(row));
+                }
 
-        // Filter table function
-        function filterTable() {
-          const filterValue = filterInput.value.toLowerCase();
+                // Filter table function
+                function filterTable() {
+                    const filterValue = filterInput.value.toLowerCase();
 
-          rows.forEach((row) => {
-            const url = row.cells[0].textContent.toLowerCase();
-            const shouldShow = url.includes(filterValue);
+                    rows.forEach((row) => {
+                        const url = row.cells[0].textContent.toLowerCase();
+                        const shouldShow = url.includes(filterValue);
 
-            if (shouldShow) {
-              row.classList.remove("d-none");
-            } else {
-              row.classList.add("d-none");
-            }
-          });
+                        if (shouldShow) {
+                            row.classList.remove("d-none");
+                        } else {
+                            row.classList.add("d-none");
+                        }
+                    });
 
-          // Re-apply current sort after filtering
-          applyCurrentSort();
-        }
+                    // Re-apply current sort after filtering
+                    applyCurrentSort();
+                }
 
-        // Apply current sort function
-        function applyCurrentSort() {
-          const { column, direction } = tableSortState;
-          sortTable(column, column === "count" ? "number" : "text");
-        }
+                // Apply current sort function
+                function applyCurrentSort() {
+                    const { column, direction } = tableSortState;
+                    sortTable(column, column === "count" ? "number" : "text");
+                }
 
-        // Format timestamps function
-        function formatTimestamps() {
-          const timestampCells = document.querySelectorAll(".timestamp[data-timestamp]");
-          timestampCells.forEach((cell) => {
-            const timestamp = cell.getAttribute("data-timestamp") * 1000;
-            if (!isNaN(timestamp)) {
-              const localDate = new Date(timestamp);
-              const options = {
-                month: "short",
-                day: "numeric",
-                hour: "2-digit",
-                minute: "2-digit",
-              };
-              cell.textContent = localDate.toLocaleString("en-GB", options);
+                // Format timestamps function
+                function formatTimestamps() {
+                    const timestampCells = document.querySelectorAll(
+                        ".timestamp[data-timestamp]"
+                    );
+                    timestampCells.forEach((cell) => {
+                        const timestamp =
+                            cell.getAttribute("data-timestamp") * 1000;
+                        if (!isNaN(timestamp)) {
+                            const localDate = new Date(timestamp);
+                            const options = {
+                                month: "short",
+                                day: "numeric",
+                                hour: "2-digit",
+                                minute: "2-digit",
+                            };
+                            cell.textContent = localDate.toLocaleString(
+                                "en-GB",
+                                options
+                            );
 
-              // Add full timestamp as tooltip
-              cell.setAttribute("data-bs-toggle", "tooltip");
-              cell.setAttribute("data-bs-placement", "top");
+                            // Add full timestamp as tooltip
+                            cell.setAttribute("data-bs-toggle", "tooltip");
+                            cell.setAttribute("data-bs-placement", "top");
 
-              const fullOptions = {
-                year: "numeric",
-                month: "2-digit",
-                day: "2-digit",
-                hour: "2-digit",
-                minute: "2-digit",
-                second: "2-digit",
-                timeZoneName: "short",
-              };
+                            const fullOptions = {
+                                year: "numeric",
+                                month: "2-digit",
+                                day: "2-digit",
+                                hour: "2-digit",
+                                minute: "2-digit",
+                                second: "2-digit",
+                                timeZoneName: "short",
+                            };
 
-              cell.setAttribute("title", localDate.toLocaleString("en-GB", fullOptions));
-            }
-          });
+                            cell.setAttribute(
+                                "title",
+                                localDate.toLocaleString("en-GB", fullOptions)
+                            );
+                        }
+                    });
 
-          // Reinitialize tooltips
-          const tooltips = [].slice.call(document.querySelectorAll('[data-bs-toggle="tooltip"]'));
-          tooltips.map(function (tooltipTriggerEl) {
-            return new bootstrap.Tooltip(tooltipTriggerEl);
-          });
-        }
+                    // Reinitialize tooltips
+                    const tooltips = [].slice.call(
+                        document.querySelectorAll('[data-bs-toggle="tooltip"]')
+                    );
+                    tooltips.map(function (tooltipTriggerEl) {
+                        return new bootstrap.Tooltip(tooltipTriggerEl);
+                    });
+                }
 
-        // Event listeners
-        filterInput.addEventListener("input", filterTable);
+                // Event listeners
+                filterInput.addEventListener("input", filterTable);
 
-        clearFilterBtn.addEventListener("click", () => {
-          filterInput.value = "";
-          filterTable();
-          filterInput.focus();
-        });
+                clearFilterBtn.addEventListener("click", () => {
+                    filterInput.value = "";
+                    filterTable();
+                    filterInput.focus();
+                });
 
-        document.getElementById("queryHeader").addEventListener("click", () => sortTable("query", "text"));
-        document.getElementById("countHeader").addEventListener("click", () => sortTable("count", "number"));
-        document.getElementById("activeHeader").addEventListener("click", () => sortTable("active", "text"));
+                document
+                    .getElementById("queryHeader")
+                    .addEventListener("click", () =>
+                        sortTable("query", "text")
+                    );
+                document
+                    .getElementById("countHeader")
+                    .addEventListener("click", () =>
+                        sortTable("count", "number")
+                    );
+                document
+                    .getElementById("activeHeader")
+                    .addEventListener("click", () =>
+                        sortTable("active", "text")
+                    );
 
-        // Initialize
-        formatTimestamps();
-        sortTable("query", "text");
-      });
-    </script>
-  </body>
+                // Initialize
+                formatTimestamps();
+                sortTable("query", "text");
+            });
+        </script>
+    </body>
 </html>
