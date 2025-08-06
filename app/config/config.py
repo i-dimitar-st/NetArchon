@@ -35,7 +35,7 @@ def _start_file_watcher(
 ) -> BaseObserver:
     observer: BaseObserver = Observer()
     observer.schedule(
-        OnFileChangeConfigHandler(
+        event_handler=OnFileChangeConfigHandler(
             file_path=file_path,
             reload_delay=reload_delay,
             reload_function=reload_function,

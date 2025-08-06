@@ -24,12 +24,11 @@ class OnFileChangeConfigHandler(FileSystemEventHandler):
         self.timer = None
 
     def on_modified(self, event: FileSystemEvent):
-        if event.src_path != self.file_path:
-            return
         with self._lock:
+            if event.src_path != self.file_path:
+                return
             if self.timer and self.timer.is_alive():
                 self.timer.cancel()
-            print(f"Reloading file at: {self.file_path}.")
             self.timer = Timer(self.reload_delay, self.reload_function)
             self.timer.start()
 
@@ -76,6 +75,7 @@ class Config:
 
     def reload(self):
         """Reload"""
+        print(f"Reloading {self._path}.")
         self._load()
 
     def get(self, key: str) -> Any:
