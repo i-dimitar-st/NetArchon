@@ -12,16 +12,20 @@ from app.models.models import Config, OnFileChangeConfigHandler
 
 load_dotenv()
 
-ROOT_PATH = Path(getenv("ROOT_PATH", "."))
-CONFIG_DIR: Path = ROOT_PATH / getenv("CONFIG_DIR", "config")
 RELOAD_DEBOUNCE_DELAY = float(getenv("RELOAD_DEBOUNCE_DELAY", 3.0))
-CONFIG_FILEPATH: Path = CONFIG_DIR / getenv("CONFIG_FILE", "config.yaml")
-DNS_BLACKLIST_FILEPATH: Path = CONFIG_DIR / getenv(
-    "DNS_BLACKLIST_FILE", "blacklist.json"
-)
-DHCP_STATIC_CONFIG: Path = CONFIG_DIR / getenv(
-    "DHCP_STATIC_MAP_FILE", "dhcp_static_map.json"
-)
+
+ROOT_PATH = Path(getenv("ROOT_PATH", "."))
+CONFIG_DIR = getenv("CONFIG_DIR", "config")
+CONFIG_PATH: Path = ROOT_PATH / CONFIG_DIR
+
+CONFIG_FILE = getenv("CONFIG_FILE", "config.yaml")
+CONFIG_FILEPATH: Path = CONFIG_PATH / CONFIG_FILE
+
+DNS_BLACKLIST_FILE = getenv("DNS_BLACKLIST_FILE", "blacklist.json")
+DNS_BLACKLIST_FILEPATH: Path = CONFIG_PATH / DNS_BLACKLIST_FILE
+
+DHCP_STATIC_MAP_FILE = getenv("DHCP_STATIC_MAP_FILE", "dhcp_static_map.json")
+DHCP_STATIC_CONFIG: Path = CONFIG_PATH / DHCP_STATIC_MAP_FILE
 
 
 _global_timer_lock = RLock()
