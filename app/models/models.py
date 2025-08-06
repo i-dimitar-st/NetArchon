@@ -15,25 +15,21 @@ from app.utils.dns_utils import DNSUtils
 
 
 class OnFileChangeConfigHandler(FileSystemEventHandler):
-    """
-    Handles file modification events for config-related files.
-    It has to be instance of FileSystemEventHandler and it has to implement on_modified.
-    """
 
     def __init__(self, file_path: Path, reload_delay: float, reload_function: Callable):
         self._lock = RLock()
-        self.target = str(file_path)
+        self.file_path = str(file_path)
         self.reload_delay = reload_delay
         self.reload_function = reload_function
         self.timer = None
 
     def on_modified(self, event: FileSystemEvent):
-        if event.src_path != self.target:
+        if event.src_path != self.file_path:
             return
         with self._lock:
             if self.timer and self.timer.is_alive():
                 self.timer.cancel()
-            print(f"Reloading file at: {self.target}.")
+            print(f"Reloading file at: {self.file_path}.")
             self.timer = Timer(self.reload_delay, self.reload_function)
             self.timer.start()
 

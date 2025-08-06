@@ -13,13 +13,13 @@ from app.models.models import Config, OnFileChangeConfigHandler
 load_dotenv()
 
 ROOT_PATH = Path(getenv("ROOT_PATH", "."))
-CONFIG_PATH: Path = ROOT_PATH / getenv("CONFIG_DIR", "config")
-RELOAD_DEBOUNCE_DELAY = float(getenv("RELOAD_DEBOUNCE_DELAY", 5.0))
-CONFIG_FILEPATH: Path = CONFIG_PATH / getenv("CONFIG_FILE", "config.yaml")
-DNS_BLACKLIST_FILEPATH: Path = CONFIG_PATH / getenv(
+CONFIG_DIR: Path = ROOT_PATH / getenv("CONFIG_DIR", "config")
+RELOAD_DEBOUNCE_DELAY = float(getenv("RELOAD_DEBOUNCE_DELAY", 3.0))
+CONFIG_FILEPATH: Path = CONFIG_DIR / getenv("CONFIG_FILE", "config.yaml")
+DNS_BLACKLIST_FILEPATH: Path = CONFIG_DIR / getenv(
     "DNS_BLACKLIST_FILE", "blacklist.json"
 )
-DHCP_STATIC_CONFIG: Path = CONFIG_PATH / getenv(
+DHCP_STATIC_CONFIG: Path = CONFIG_DIR / getenv(
     "DHCP_STATIC_MAP_FILE", "dhcp_static_map.json"
 )
 
