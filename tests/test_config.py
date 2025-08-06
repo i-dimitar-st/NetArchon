@@ -1,57 +1,84 @@
-import copy
-import os
+from json import dumps as jsonDumps
 from pathlib import Path
+from shutil import rmtree
+from time import sleep
 
 import pytest
-import yaml
+from watchdog.observers.api import BaseObserver
 
-from config.config import Config
+from app.config.config import _start_file_watcher
+from app.models.models import Config
 
-APP_ROOT_PATH = Path(os.environ.get("APP_ROOT_PATH", "."))
-CONFIG_PATH: Path = APP_ROOT_PATH / "config" / "config.yaml"
-
-
-@pytest.fixture
-def real_config():
-    try:
-        config = Config(path=CONFIG_PATH)
-    except yaml.YAMLError as e:
-        pytest.fail(f"Error parsin YAML {e}.")
-    except Exception as e:
-        pytest.fail(f"Failed loading config {e}.")
-    return config
+TEST_DIR = Path("./tests/config/")
+YAML_FILE = TEST_DIR / "config.yaml"
+JSON_FILE = TEST_DIR / "blacklist.json"
 
 
-def test_config_path(real_config):
-    # Negative
-    assert real_config._path is not None, "config path None."
-    assert isinstance(
-        real_config._path, Path
-    ), f"Invalid type: {type(real_config._path).__name__}."
+def setup_temp():
+    if TEST_DIR.exists():
+        rmtree(TEST_DIR)
+    TEST_DIR.mkdir(parents=True)
 
-    # Positive
-    assert real_config._path.exists(), f"Path does not exist: {real_config._path}."
-    assert real_config._path.is_file(), f"Not a filepath: {real_config._path}."
+    YAML_FILE.write_text("TEST_KEY: TEST_VALUE")
+    JSON_FILE.write_text(jsonDumps({"test": "test"}))
 
 
-def test_config_is_valid(real_config):
-    # Negative
-    assert real_config._config is not None, "Config dictionary is None"
-    assert isinstance(
-        real_config._config, dict
-    ), f"Wrong type {type(real_config._config).__name__}."
-
-    # Positive
-    assert real_config._config != {}, "Config dictionary is empty"
+def destroy_temp():
+    rmtree(TEST_DIR)
 
 
-def test_config_reload(real_config):
-    _previous_config = copy.deepcopy(real_config._config)
-    real_config.reload()
+def test_file_reload_yaml():
+    setup_temp()
+    _reload_delay = 3.0
 
-    test_config_is_valid(real_config)
-    if real_config._config == _previous_config:
-        message = "Reload => same config."
-    else:
-        message = "Reload => config changed."
-    print(message)
+    test_config = Config(path=YAML_FILE)
+    temp_observer: BaseObserver = _start_file_watcher(
+        file_path=YAML_FILE,
+        reload_delay=_reload_delay,
+        reload_function=test_config.reload,
+    )
+    YAML_FILE.write_text("TEST_KEY_2: NEW_VALUE_2")
+
+    assert "NEW_VALUE_2" in YAML_FILE.read_text()
+    with pytest.raises(RuntimeError):
+        assert test_config.get("TEST_KEY_2") is None
+
+    sleep(_reload_delay + 1)
+
+    assert test_config.get("TEST_KEY_2") == "NEW_VALUE_2"
+    temp_observer.stop()
+    temp_observer.join()
+    destroy_temp()
+
+
+def test_burst_file_reload_yaml():
+    setup_temp()
+    _reload_delay = 3.0
+
+    test_config = Config(path=YAML_FILE)
+    temp_observer: BaseObserver = _start_file_watcher(
+        file_path=YAML_FILE,
+        reload_delay=_reload_delay,
+        reload_function=test_config.reload,
+    )
+    YAML_FILE.write_text("TEST_KEY_2: NEW_VALUE_2")
+    sleep(0.1)
+    YAML_FILE.write_text("TEST_KEY_3: NEW_VALUE_3")
+    sleep(0.1)
+    YAML_FILE.write_text("TEST_KEY_4: NEW_VALUE_4")
+    sleep(0.1)
+
+    assert "NEW_VALUE_4" in YAML_FILE.read_text()
+    with pytest.raises(RuntimeError):
+        assert test_config.get("TEST_KEY_4")
+    with pytest.raises(RuntimeError):
+        assert test_config.get("TEST_KEY_3")
+    with pytest.raises(RuntimeError):
+        assert test_config.get("TEST_KEY_2")
+
+    sleep(_reload_delay + 1)
+
+    assert test_config.get("TEST_KEY_4") == "NEW_VALUE_4"
+    temp_observer.stop()
+    temp_observer.join()
+    destroy_temp()

@@ -35,4 +35,4 @@ create_systemd:
 	$(SCRIPTS)/make_systemd_service.sh
 
 run_tests:
-	@APP_ROOT_PATH=$(shell pwd) $(VENV)/bin/python -m pytest -s --tb=line
+	@APP_ROOT_PATH=$(shell pwd) $(VENV)/bin/python -m pytest

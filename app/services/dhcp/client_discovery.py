@@ -27,8 +27,7 @@ DISCOVERY_TIMEOUTS = CLIENT_DISCOVERY.get("timeouts")
 DISCOVERY_WORKERS = int(CLIENT_DISCOVERY.get("workers"))
 DISCOVERY_INTERVAL = int(CLIENT_DISCOVERY.get("interval"))
 
-ARP_TIMEOUT_SUBNET = float(DISCOVERY_TIMEOUTS.get("subnet"))
-ARP_TIMEOUT_SINGLE = float(DISCOVERY_TIMEOUTS.get("single"))
+ARP_TIMEOUT = float(DISCOVERY_TIMEOUTS.get("arp_discovery"))
 ARP_INTER_DELAY = float(DISCOVERY_TIMEOUTS.get("inter_delay"))
 WORKER_JOIN_TIMEOUT = float(DISCOVERY_TIMEOUTS.get("worker_join"))
 
@@ -45,8 +44,7 @@ def _get_default_config() -> dict:
         "interface": INTERFACE,
         "server_mac": SERVER_MAC,
         "broadcast_mac": BROADCAST_MAC,
-        "arp_timeout_subnet": ARP_TIMEOUT_SUBNET,
-        "arp_timeout_single": ARP_TIMEOUT_SINGLE,
+        "arp_timeout": ARP_TIMEOUT,
         "discovery_interval": DISCOVERY_INTERVAL,
         "min_ctr": MIN_CTR,
         "max_ctr": MAX_CTR,
@@ -54,11 +52,11 @@ def _get_default_config() -> dict:
     }.copy()
 
 
-def discover_live_clients_arp(
+def discover_live_clients(
     network: IPv4Network,
     cidr: int = CIDR,
     broadcast_mac: str = BROADCAST_MAC,
-    timeout: float = ARP_TIMEOUT_SUBNET,
+    timeout: float = ARP_TIMEOUT,
     inter_delay: float = ARP_INTER_DELAY,
     iface: str = INTERFACE,
     verbose: bool = False,
@@ -97,10 +95,10 @@ def discover_live_clients_arp(
     return clients
 
 
-def discover_live_client_arp(
+def discover_live_client(
     ip: IPv4Address,
     iface: str = INTERFACE,
-    timeout: float = ARP_TIMEOUT_SINGLE,
+    timeout: float = ARP_TIMEOUT,
     broadcast_mac: str = BROADCAST_MAC,
 ) -> DHCPArpClient | None:
     """
@@ -108,7 +106,7 @@ def discover_live_client_arp(
     Args:
         ip (IPv4Address): The target IP address to query.
         iface (str, optional): Network interface to send the request on. Defaults to INTERFACE.
-        timeout (float, optional): Timeout in seconds. Defaults to ARP_TIMEOUT_SINGLE.
+        timeout (float, optional): Timeout in seconds. Defaults to ARP_TIMEOUT.
     """
     _answered, _ = srp(
         Ether(dst=broadcast_mac) / ARP(pdst=str(ip)),
@@ -266,18 +264,18 @@ class ClientDiscoveryService:
         while not cls._stop_event.is_set():
             try:
 
-                _live_scan_clients: set[DHCPArpClient] = discover_live_clients_arp(
+                _scan_clients: set[DHCPArpClient] = discover_live_clients(
                     network=cls.network
                 )
                 with cls._lock:
 
                     # We found a new device add it immedaitely
-                    for _arp_client_live in _live_scan_clients:
+                    for _arp_client_live in _scan_clients:
                         cls.live_clients.increase(_arp_client_live)
 
                     # If live clients not in live clients, it went offline reduce it
                     for client in cls.live_clients.get_tracked_clients():
-                        if client not in _live_scan_clients:
+                        if client not in _scan_clients:
                             cls.live_clients.decrease(client)
 
             except RuntimeError as err:
@@ -348,7 +346,7 @@ class ClientDiscoveryService:
 
         # This is a bit expensive but ensures the client is free ie no ARP response comes
         for ip in _candidates:
-            if not discover_live_client_arp(ip=ip):
+            if not discover_live_client(ip=ip):
                 cls.logger.debug("Proposing IP: %s", ip)
                 return ip
 

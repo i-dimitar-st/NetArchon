@@ -2,15 +2,45 @@ from dataclasses import dataclass
 from enum import Enum, IntEnum, unique
 from json import load
 from pathlib import Path
-from threading import RLock
+from threading import RLock, Timer
 from time import time
 from types import MappingProxyType
-from typing import Any
+from typing import Any, Callable
 
 from dnslib import DNSRecord
+from watchdog.events import FileSystemEvent, FileSystemEventHandler
 from yaml import safe_load
 
 from app.utils.dns_utils import DNSUtils
+
+
+class OnFileChangeConfigHandler(FileSystemEventHandler):
+    """
+    Handles file modification events for config-related files.
+    It has to be instance of FileSystemEventHandler and it has to implement on_modified.
+    """
+
+    def __init__(self, file_path: Path, reload_delay: float, reload_function: Callable):
+        self._lock = RLock()
+        self.target = str(file_path)
+        self.reload_delay = reload_delay
+        self.reload_function = reload_function
+        self.timer = None
+
+    def on_modified(self, event: FileSystemEvent):
+        if event.src_path != self.target:
+            return
+        with self._lock:
+            if self.timer and self.timer.is_alive():
+                self.timer.cancel()
+            print(f"Reloading file at: {self.target}.")
+            self.timer = Timer(self.reload_delay, self.reload_function)
+            self.timer.start()
+
+    def stop(self):
+        with self._lock:
+            if self.timer and self.timer.is_alive():
+                self.timer.cancel()
 
 
 class Config:
@@ -74,6 +104,23 @@ class Config:
         """
         with self._lock:
             return MappingProxyType(self._config)
+
+
+@dataclass(frozen=True)
+class DiscoveryConfig:
+    server_ip: str
+    cidr: int
+    ip_range_start: str
+    ip_range_end: str
+    interface: str
+    server_mac: str
+    broadcast_mac: str
+    arp_timeout: float
+    inter_delay: float
+    discovery_interval: int
+    min_ctr: int
+    max_ctr: int
+    worker_join_timeout: float
 
 
 @unique
