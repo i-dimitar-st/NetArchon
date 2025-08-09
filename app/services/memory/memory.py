@@ -126,15 +126,15 @@ def explore_live_functions():
             ):
                 continue
 
-            name = fn.__name__
-            lineno = code.co_firstlineno
-            closure = fn.__closure__
-
+            # name = fn.__name__
+            # lineno = code.co_firstlineno
+            # closure = fn.__closure__
             # print(f"[FUNC] {name} — {filename}:{lineno}")
-
-            if closure:
-                print(
-                    f"  └─ Closure: {[c.cell_contents for c in closure if hasattr(c, 'cell_contents')]}"
-                )
+            # if closure:
+            #     print(
+            #         f"Closure: {[c.cell_contents
+        # 					for c in closure
+        # 					if hasattr(c, 'cell_contents')]}"
+        #     )
         except Exception as e:
             print(f"[ERROR accessing function info] {e}")

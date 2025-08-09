@@ -61,8 +61,8 @@ class DHCPMessageHandler:
         Process an incoming DHCP message based on its DHCP type.
 
         Dependencies:
-            - DhcpMessage: a structured representation of a DHCP packet, must have `dhcp_type`.
-            - DHCPType: Enum defining valid DHCP message types (DISCOVER, REQUEST, etc.).
+            - DhcpMessage: DHCP packet extention, must have `dhcp_type`.
+            - DHCPType: Enum for valid DHCP message types.
             - Threading lock (`cls._lock`) for concurrency control.
             - Logger (`cls.logger`) for logging warnings and exceptions.
 
@@ -71,14 +71,13 @@ class DHCPMessageHandler:
 
         Behavior:
             - Acquires thread lock for safe concurrent access.
-            - Uses a match-case statement to dispatch the message to the appropriate handler method:
+            - Matches type to appropriate handler method:
                 * DISCOVER -> _handle_discover
                 * REQUEST  -> _handle_request
                 * DECLINE  -> _handle_decline
                 * RELEASE  -> _handle_release
                 * INFORM   -> _handle_inform
             - Logs a warning for unknown DHCP message types.
-            - Catches and logs any exceptions with full traceback to avoid crashing the handler.
 
         Usage:
             Called whenever a DHCP message is received and parsed.
@@ -241,7 +240,8 @@ class DHCPMessageHandler:
         ):
             return False  # Not a request-after-offer case
 
-        # Client is formally requesting an IP from a server after receiving an OFFER, and it hasn't yet configured any IP locally.
+        # Client requests an IP after receiving an OFFER
+        # it hasn't yet configured any IP locally.
         if dhcp_msg.server_id != SERVER_IP:
             cls.logger.debug("REQUEST after OFFER: Server ID mismatch")
             cls._send_response(
@@ -424,7 +424,10 @@ class DHCPMessageHandler:
 
     @classmethod
     def _handle_release(cls, dhcp_message: DHCPMessage):
-        """DHCP Release (Section 4.4 of RFC 2131) sent by client to release from IP address"""
+        """
+        DHCP Release (Section 4.4 of RFC 2131)
+        Sent by client to release from IP address
+        """
 
         cls.logger.debug(
             "Received DHCPRELEASE XID=%s, IP=%s, MAC=%s.",
@@ -465,7 +468,7 @@ class DHCPMessageHandler:
             packet (Packet): The DHCP packet to send (Scapy Packet).
 
         Behavior:
-            - Increments global DHCP stats counters: total sent and by DHCP message type.
+            - Increments global DHCP stats counters.
             - Logs details DHCP type, transaction ID (XID), client mac, and your IP.
             - Sends the packet on the pre-configured interface using `sendp`.
             - Catches and logs any exceptions without raising.
@@ -473,9 +476,8 @@ class DHCPMessageHandler:
         try:
 
             DHCPStats.increment(key="sent_total")
-
-            _stats_key = f"sent_{DHCPMessageType(extract_dhcp_type_from_packet(packet)).name.lower()}"
-
+            _dhcp_type = DHCPMessageType(extract_dhcp_type_from_packet(packet))
+            _stats_key = f"sent_{_dhcp_type.name.lower()}"
             DHCPStats.increment(key=_stats_key)
             cls.logger.debug(
                 "Send TYPE:%s, XID:%s, CHADDR:%s, YIADDR:%s.",

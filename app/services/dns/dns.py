@@ -11,7 +11,6 @@ from socket import (
     socket,
 )
 from threading import Event, RLock, Thread
-from time import monotonic
 from typing import Any, Optional
 
 # 3rd party
@@ -69,7 +68,8 @@ class LocalResolverService:
     Responsibilities:
     - Initialize and manage UDP socket for DNS queries.
     - Listen for incoming DNS requests asynchronously.
-    - Process requests with worker threads (cache, blacklist, local zones, external resolution).
+    - Process requests
+    - Uses workers (cache, blacklist ...).
     - Cache responses with TTL.
     - Track metrics and query history.
     - Clean shutdown with thread and socket management.
@@ -78,8 +78,6 @@ class LocalResolverService:
     1. Call init() once to configure and bind socket.
     2. Call start() to begin listening and processing.
     3. Call stop() to gracefully shutdown.
-
-    Designed for concurrent processing with thread safety via locks and sentinel queue values.
     """
 
     _is_init = False
@@ -102,7 +100,7 @@ class LocalResolverService:
         """
         Initialize the local DNS resolver service.
 
-        Sets up UDP socket bound to the specified host and port for receiving DNS requests.
+        Binds UDP socket specified host+port to receiving DNS requests.
         Configures socket options like packet size, timeouts, and worker count.
         Initializes the request queue for incoming DNS packets.
         """
@@ -182,7 +180,9 @@ class LocalResolverService:
 
     @classmethod
     def _handle_cache_hit(cls, dns_req_message: DNSReqMessage) -> bool:
-        """Check if the DNS query result is cached and send the cached reply if found."""
+        """
+        Is DNS query result cached and send the cached reply if found.
+        """
 
         _cached_reply: Optional[DNSRecord] = cls._dns_cache.get(
             dns_req_message.cache_key
@@ -199,7 +199,10 @@ class LocalResolverService:
     def _handle_external(cls, dns_req_message: DNSReqMessage) -> bool:
         """
         Forward DNS query externally and send the reply if successful.
-        Returns: bool: True if the external resolution and reply sending succeeded; False otherwise.
+        Args:
+            dns_req_message(DNSReqMessage): DNS request.
+        Returns:
+            bool: True if the external resolution and reply sending succeeded.
         """
 
         try:
@@ -259,7 +262,7 @@ class LocalResolverService:
         """Receive UDP packets and enqueue requests."""
         while not cls._stop_event.is_set():
             try:
-                # Wait for the socket to be readable (i.e. data ready to recv), with timeout
+                # Wait socket to be readable (data ready to recv) + w  timeout
                 # OS level select()
                 if cls._dns_socket:
                     _rlist, _wlist, _xlist = select([cls._dns_socket], [], [], timeout)
@@ -275,7 +278,6 @@ class LocalResolverService:
     def _process_dns_req_packets(cls):
         """Worker: dequeue and process DNS requests until sentinel or stop event."""
         while not cls._stop_event.is_set():
-            _start = monotonic()
             try:
                 _dns_req_message: DNSReqMessage | None = cls._recv_queue.get(
                     timeout=cls._queue_get_timeout

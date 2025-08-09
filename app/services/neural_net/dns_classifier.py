@@ -182,7 +182,8 @@ def train(model, train_loader, criterion, optimizer, num_epochs=EPOCHS):
             _running_loss += loss.item()
 
         print(
-            f"Epoch {_epoch+1}/{num_epochs}, Loss: {_running_loss/len(train_loader):.4f}"
+            f"Epoch {_epoch + 1} / {num_epochs}, "
+            f"Loss: {_running_loss / len(train_loader):.4f}."
         )
 
 
@@ -214,7 +215,7 @@ def test_and_print_results(domains, model):
         ]  # Map characters to indices based on ALLOWED_CHARS
         indices = torch.tensor([indices])
         output = model(indices)
-        print(f"{domain:>50} => {output.item()*100:8.3f} %")
+        print(f"{domain:>50} => {output.item() * 100:8.3f} %")
 
 
 def get_dns_history() -> list:

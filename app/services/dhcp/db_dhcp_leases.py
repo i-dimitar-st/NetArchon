@@ -46,10 +46,10 @@ class DHCPStorage:
         Ensures thread-safe operations with a class-level lock.
 
     Dependencies:
-        - sqlite3 (Python standard library): for in-memory and file-based database operations.
+        - sqlite3 (Python standard library): in-memory + file-based database ops.
         - threading.RLock: to guarantee thread-safe access to the database.
         - logging.Logger: for logging events, errors, and debugging info.
-        - config.config: for configuration constants like default lease time and hostname.
+        - config.config: configurations like default lease time and hostname.
         - models.models.DBSchemas: provides the SQL schema for the leases table.
         - LeaseType (enum): defines lease types as 'static' or 'dynamic'.
 
@@ -137,9 +137,9 @@ class DHCPStorage:
         Args:
             mac (str): MAC address of the client device.
             ip (str): IP address assigned to the client.
-            hostname (str, optional): Hostname of the client device. Defaults to DEFAULT_HOSTNAME.
-            lease_time (int, optional): Lease duration in seconds. Defaults to LEASE_TIME.
-            lease_type (LeaseType, optional): Lease type, static or dynamic. def static.
+            hostname (str, optional): Client hostname, def to DEFAULT_HOSTNAME.
+            lease_time (int, optional): Lease duration (sec), def to LEASE_TIME.
+            lease_type (LeaseType, optional): Lease type, static or dynamicm def static.
 
         Behavior:
             - Inserts a new lease or replaces existing entry matching MAC/IP.
@@ -218,7 +218,7 @@ class DHCPStorage:
                 cls._conn.commit()
                 if _result.rowcount:
                     cls.logger.info(
-                        f"DB -> Deleted {_result.rowcount} lease(s). Removed MACs: {set(macs)}."
+                        f"DB: Deleted {_result.rowcount} leases, del MACs: {set(macs)}."
                     )
             except Exception as err:
                 cls.logger.error(f"DB -> failed to remove leases: {str(err)}")

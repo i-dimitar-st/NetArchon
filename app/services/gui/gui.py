@@ -1,4 +1,3 @@
-from copy import deepcopy
 from datetime import datetime, timezone
 from hashlib import sha256
 from json import dump, load
@@ -293,9 +292,7 @@ def get_dhcp_statistics() -> dict:
 
             if row and columns:
                 if len(columns) != len(row):
-                    logger.warning(
-                        f"[get_dns_statistics] Column count ({len(columns)}) != Row length ({len(row)})"
-                    )
+                    logger.warning("[get_dns_statistics] Invalid db clumns")
                 return dict(zip(columns, row))
 
     except Exception as e:
@@ -325,7 +322,6 @@ def get_system_logs() -> list:
             for line in file_handle:
                 if not line:
                     continue
-                # line_array = line.encode("unicode_escape").decode("utf-8").strip().split("|")
                 line_array: list[str] = line.strip().split("|")
                 if len(line_array) != 4:
                     continue

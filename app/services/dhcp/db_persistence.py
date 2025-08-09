@@ -77,25 +77,25 @@ def is_running(func):
 
 class DbPersistanceService:
     """
-    Background worker persists DHCP lease and statistics data to disk at defined intervals.
+    Background worker saves DHCP lease + stats data to disk at intervals.
 
     Responsibilities:
-        - Periodically save in-memory DHCP lease data and client discovery results to db.
-        - Removes expired leases and adds static entries for live clients not already recorded.
-        - Runs a background thread to perform the above operations at configured intervals.
+        - Periodically save in-memory DHCP lease + client discovery results to db.
+        - Removes expired leases
+        - Adds static entries for live clients not already recorded.
         - Supports lifecycle control via `init`, `start`, and `stop` classmethods.
 
     Dependencies:
         - config.config: Provides DHCP configuration values (intervals, timeouts).
-        - services.dhcp.db_core.DHCPStorage: Interface to in-memory and persistent lease storage.
-        - services.dhcp.db_core.DHCPStats: Interface to persistent statistics storage.
-        - services.dhcp.client_discovery.ClientDiscoveryService: list of live DHCP clients.
+        - services.dhcp.db_core.DHCPStorage: In-memory and persistent lease storage.
+        - services.dhcp.db_core.DHCPStats: Persistent statistics storage.
+        - services.dhcp.client_discovery.ClientDiscoveryService: Live DHCP clients.
         - Python stdlib: threading (RLock, Event, Thread), logging, functools (wraps)
 
     Usage:
-        1. Call `DbPersistanceService.init(logger)` to configure the service.
-        2. Call `DbPersistanceService.start()` to begin periodic sync.
-        3. Call `DbPersistanceService.stop()` to cleanly shut down the background worker.
+        1. Call `DbPersistanceService.init(logger)` Configure service.
+        2. Call `DbPersistanceService.start()` Periodic sync.
+        3. Call `DbPersistanceService.stop()` Shutdown background worker.
     """
 
     _lock = RLock()

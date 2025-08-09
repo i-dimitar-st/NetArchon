@@ -105,7 +105,7 @@ def discover_live_client(
     Send an ARP request to a single IP address on a given interface.
     Args:
         ip (IPv4Address): The target IP address to query.
-        iface (str, optional): Network interface to send the request on. Defaults to INTERFACE.
+        iface (str, optional): Network interface to use, def to INTERFACE.
         timeout (float, optional): Timeout in seconds. Defaults to ARP_TIMEOUT.
     """
     _answered, _ = srp(
@@ -344,7 +344,7 @@ class ClientDiscoveryService:
                 and not cls.live_clients.get_client_by_ip(str(_ip))
             ]
 
-        # This is a bit expensive but ensures the client is free ie no ARP response comes
+        # Expensive but ensures client is free (no ARP responses)
         for ip in _candidates:
             if not discover_live_client(ip=ip):
                 cls.logger.debug("Proposing IP: %s", ip)

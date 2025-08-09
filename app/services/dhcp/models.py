@@ -68,9 +68,9 @@ class BOOTPOptions:
             - 2 = BOOTREPLY (server reply)
         xid (int): Transaction ID, random number chosen by client.
         flags (int): Flags field (e.g., 0x8000 for broadcast reply).
-        chaddr (str): Client hardware address (MAC address), usually in bytes or hex string format.
+        chaddr (str): Client hardware address (MAC address), bytes or hex string.
         yiaddr (str): 'Your' IP address — the IP address assigned to the client.
-        siaddr (str): Server IP address — address of the DHCP server sending the reply.
+        siaddr (str): Server IP address — DHCP server IP sending the reply.
         ciaddr (str): Client IP address (current IP address, if any).
         giaddr (str): Relay agent IP address (usually 0.0.0.0 if none).
     """
@@ -94,8 +94,8 @@ class DHCPResponseFactory:
         2. Call build() with DHCP message type, IP, and request to get response packets.
 
     Dependencies:
-        - Requires Scapy for packet construction (`Ether`, `IP`, `UDP`, `BOOTP`, `DHCP`).
-        - Expects a `DHCPType` enum or constants to define DHCP message types (NAK, ACK, OFFER).
+        - Scapy for packet construction.
+        - Expects a `DHCPType` enum/int as DHCP message types (NAK, ACK, OFFER).
         - `request_packet` must contain valid BOOTP and UDP layers.
         - IP addresses must be valid IPv4 strings.
 

@@ -239,7 +239,7 @@ class LogLevel(Enum):
 
     @classmethod
     def _missing_(cls, value):
-        """Handle cases where a value passed to the Enum is not found among its members"""
+        """Handle edges if value passed Enum is not found inside"""
         if isinstance(value, str):
             value = value.strip().upper()
             for member in cls:

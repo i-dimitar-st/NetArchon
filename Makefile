@@ -1,17 +1,17 @@
 PYTHON := python
 VENV := venv
-ACTIVATE := source $(VENV)/bin/activate
 SCRIPTS := scripts
-SRC := src
+APP := app
 
 .PHONY: set_net_buffers \
-		install_venv \
+        install_venv \
 		install_req \
         install_req_dev \
 		generate_ssl \
 		generate_config \
 		create_systemd \
-		run_tests
+		format \
+		lint
 
 set_net_buffers:
 	$(SCRIPTS)/set_buffers.sh
@@ -36,3 +36,10 @@ create_systemd:
 
 run_tests:
 	@APP_ROOT_PATH=$(shell pwd) $(VENV)/bin/python -m pytest
+
+format:
+	$(VENV)/bin/black $(APP)
+	$(VENV)/bin/isort $(APP)
+
+lint:
+	$(VENV)/bin/flake8 $(APP)

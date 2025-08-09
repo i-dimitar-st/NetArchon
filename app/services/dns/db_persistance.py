@@ -14,8 +14,8 @@ WORKER_JOIN_TIMEOUT = float(TIMEOUTS.get("worker_join", 1))
 class DbPersistanceService:
     """
     Background service that periodically flushes in-memory DNS databases to disk.
-    This service runs a dedicated thread which triggers saving of DnsStatsDb and DnsQueryHistoryDb
-    at a configured interval to persist current state safely to disk.
+    Runs as dedicated thread saving of DnsStatsDb and DnsQueryHistoryDb
+        at a configured interval.
     """
 
     _lock = Lock()

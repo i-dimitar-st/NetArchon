@@ -113,7 +113,10 @@ class ExternalResolverService:
 
     @classmethod
     def resolve_external(cls, dns_request: DNSRecord) -> DNSRecord | None:
-        """Send DNS query to external servers in parallel; return first successful reply."""
+        """
+        Sends DNS query to external servers in parallel
+        Return first successful reply.
+        """
         with cls._lock:
             if not cls._executor:
                 raise RuntimeError("Not started")
