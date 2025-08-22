@@ -1,0 +1,13 @@
+{% macro render_config(data, prefix='', level=0) %}
+    {% for key, value in data.items() %}
+        {% if value is mapping %}
+            <div class="card-body-item card-body-subtitle-label">{{ key | replace('_', ' ') | upper }}</div>
+            {{ render_config(value, prefix='', level=level+1) }}
+        {% elif value %}
+            <div class="card-body-item">
+                <span class="card-body-item-label">{{ key | replace('_', ' ') | title }}</span>
+                <span class="card-body-item-value">{{ value | upper }}</span>
+            </div>
+        {% endif %}
+    {% endfor %}
+{% endmacro %}

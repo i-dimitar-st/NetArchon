@@ -20,7 +20,6 @@ def setup_temp():
     TEST_DIR.mkdir(parents=True)
 
     YAML_FILE.write_text("TEST_KEY: TEST_VALUE")
-    JSON_FILE.write_text(jsonDumps({"test": "test"}))
 
 
 def destroy_temp():
@@ -37,17 +36,18 @@ def test_file_reload_yaml():
         reload_delay=_reload_delay,
         reload_function=test_config.reload,
     )
-    YAML_FILE.write_text("TEST_KEY_2: NEW_VALUE_2")
 
+    YAML_FILE.write_text("TEST_KEY_2: NEW_VALUE_2")
     assert "NEW_VALUE_2" in YAML_FILE.read_text()
     with pytest.raises(RuntimeError):
         assert test_config.get("TEST_KEY_2") is None
 
     sleep(_reload_delay + 1)
-
     assert test_config.get("TEST_KEY_2") == "NEW_VALUE_2"
+
     temp_observer.stop()
     temp_observer.join()
+
     destroy_temp()
 
 
@@ -77,8 +77,9 @@ def test_burst_file_reload_yaml():
         assert test_config.get("TEST_KEY_2")
 
     sleep(_reload_delay + 1)
-
     assert test_config.get("TEST_KEY_4") == "NEW_VALUE_4"
+
     temp_observer.stop()
     temp_observer.join()
+
     destroy_temp()

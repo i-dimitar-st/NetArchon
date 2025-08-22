@@ -64,7 +64,7 @@ class Config:
             with open(self._path, mode="r", encoding="utf-8") as _file_handle:
                 try:
                     if self._is_json(self._path):
-                        self._config = load(_file_handle).get("payload")
+                        self._config = load(_file_handle).get("payload", {})
                         return
                     if self._is_yaml(self._path):
                         self._config = safe_load(_file_handle)
@@ -88,10 +88,9 @@ class Config:
         if not isinstance(key, str) or not key:
             raise ValueError("Key must be a non-empty str.")
 
-        if key not in self._config:
-            raise RuntimeError("Unknown key.")
-
         with self._lock:
+            if key not in self._config:
+                raise RuntimeError("Unknown key.")
             return MappingProxyType(self._config[key])
 
     def get_config(self) -> MappingProxyType:

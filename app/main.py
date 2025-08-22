@@ -12,6 +12,7 @@ from app.services.memory.memory import MemoryManager
 logger: Logger = MainLogger.get_logger(service_name="MAIN")
 shutdown_event = Event()
 
+
 sys.dont_write_bytecode = True
 
 

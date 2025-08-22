@@ -1,45 +1,60 @@
-PYTHON := python
-VENV := venv
-SCRIPTS := scripts
-APP := app
+ROOT_PATH := $(abspath $(CURDIR))
+VENV_DIR := venv
+VENV := $(ROOT_PATH)/$(VENV_DIR)
+VENV_PIP := $(VENV)/bin/pip
+VENV_BLACK := $(VENV)/bin/black
+VENV_ISORT := $(VENV)/bin/isort
+VENV_FLAKE8 := $(VENV)/bin/flake8
+VENV_PYTHON := $(VENV)/bin/python
+SCRIPTS := $(ROOT_PATH)/scripts
+APP := $(ROOT_PATH)/app
+APP_MAIN := app.main
 
-.PHONY: set_net_buffers \
-        install_venv \
-		install_req \
-        install_req_dev \
-		generate_ssl \
-		generate_config \
-		create_systemd \
-		format \
-		lint
+.PHONY: set_net \
+        install \
+        generate_ssl \
+        create_systemd \
+        make_config \
+        test \
+        format \
+        lint \
+        del_cache \
+        run \
+		setup
 
-set_net_buffers:
-	$(SCRIPTS)/set_buffers.sh
+setup: set_net install generate_files make_config run
 
-install_venv:
-	$(PYTHON) -m venv $(VENV)
+set_net:
+	$(SCRIPTS)/set_net_buffers.sh
 
-install_req:
-	$(VENV)/bin/pip install -r requirements.txt
-
-install_req_dev:
-	$(VENV)/bin/pip install -r requirements-dev.txt
+install:
+	python3 -m venv $(VENV)
+	$(VENV_PIP) install -r requirements.txt
+	$(VENV_PIP) install -r requirements-dev.txt
 
 generate_ssl:
-	$(SCRIPTS)/generate_ssl.sh
-
-generate_config:
-	$(PYTHON) $(SCRIPTS)/make_config.py
+	ROOT_PATH=$(ROOT_PATH) $(SCRIPTS)/generate_ssl.sh
 
 create_systemd:
-	$(SCRIPTS)/make_systemd_service.sh
+	ROOT_PATH=$(ROOT_PATH) $(SCRIPTS)/make_systemd_service.sh
 
-run_tests:
-	@APP_ROOT_PATH=$(shell pwd) $(VENV)/bin/python -m pytest
+make_config:
+	ROOT_PATH=$(ROOT_PATH) $(VENV_PYTHON) $(SCRIPTS)/make_blacklists.py
+	ROOT_PATH=$(ROOT_PATH) $(VENV_PYTHON) $(SCRIPTS)/make_config.py
+	ROOT_PATH=$(ROOT_PATH) $(VENV_PYTHON) $(SCRIPTS)/make_dhcp_static_map.py
+
+test:
+	ROOT_PATH=$(ROOT_PATH) $(VENV_PYTHON) -m pytest
 
 format:
-	$(VENV)/bin/black $(APP)
-	$(VENV)/bin/isort $(APP)
+	$(VENV_BLACK) $(APP)
+	$(VENV_ISORT) $(APP)
 
 lint:
-	$(VENV)/bin/flake8 $(APP)
+	$(VENV_FLAKE8) $(APP)
+
+del_cache:
+	find $(APP) -type d -name "__pycache__" -exec rm -rf {} +
+
+run:
+	@echo "Not configured yet"

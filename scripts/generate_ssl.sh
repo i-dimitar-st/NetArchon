@@ -1,6 +1,13 @@
 #!/bin/bash
 
-CERT_DIR="certificates"
+set -euo pipefail
+
+if [ -z "${ROOT_PATH:-}" ]; then
+  echo "Missing ROOT_PATH."
+  exit 1
+fi
+
+CERT_DIR="$ROOT_PATH/certificates"
 CERT_FILE="$CERT_DIR/cert.pem"
 KEY_FILE="$CERT_DIR/key.pem"
 
@@ -13,5 +20,4 @@ openssl req \
   -nodes \
   -keyout "$KEY_FILE" -out "$CERT_FILE" \
   -days 3650 -subj "/C=XX/ST=State/L=City/O=Organization/CN=localhost" && \
-echo "Certificate and key created in: $CERT_DIR"
 

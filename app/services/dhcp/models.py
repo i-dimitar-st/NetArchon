@@ -1,5 +1,6 @@
 from dataclasses import dataclass
 from enum import Enum, IntEnum, unique
+from ipaddress import IPv4Address, IPv4Network
 from time import time
 
 from scapy.layers.dhcp import BOOTP, DHCP
@@ -36,7 +37,25 @@ class DHCPMessageType(IntEnum):
     LEASE_ACTIVE = 13
 
 
-@dataclass
+@dataclass(frozen=True)
+class ClientDiscoveryConfig:
+    """
+    DHCP Configuratin options
+    """
+
+    interface: str
+    broadcast_mac: str
+    network: IPv4Network
+    ip_range_start: IPv4Address
+    ip_range_end: IPv4Address
+    timeout: float
+    inter_timeout: float
+    min_counter: int
+    max_counter: int
+    discovery_interval: int
+
+
+@dataclass(frozen=True)
 class DHCPConfig:
     """
     DHCP Configuratin options

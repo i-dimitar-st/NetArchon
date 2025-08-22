@@ -1,617 +1,339 @@
 <!DOCTYPE html>
 <html lang="en">
-    <head>
-        <meta charset="UTF-8" />
-        <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-        <title>Configuration</title>
-        <link
-            rel="icon"
-            href="{{ url_for('static', filename='favicon.svg') }}"
-            type="image/svg+xml"
-        />
-        <link
-            rel="stylesheet"
-            href="https://cdnjs.cloudflare.com/ajax/libs/bootstrap/5.3.0/css/bootstrap.min.css"
-        />
-        <link
-            rel="stylesheet"
-            href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css"
-        />
-        <style>
-            :root {
-                --primary-color: #4361ee;
-                --secondary-color: #3f37c9;
-                --accent-color: #4895ef;
-                --light-bg: #f8f9fa;
-                --danger-color: #e63946;
-                --success-color: #2a9d8f;
-                --warning-color: #f9c74f;
-                --card-shadow: 0 4px 6px rgba(0, 0, 0, 0.05);
-                --hover-bg: rgba(67, 97, 238, 0.05);
-            }
 
-            body {
-                background-color: #f0f2f5;
-                font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Oxygen, Ubuntu,
-                    Cantarell, sans-serif;
-            }
+<head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>Configuration</title>
+    <link rel="icon" href="{{ url_for('static', filename='favicon.svg') }}" type="image/svg+xml" />
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/bootstrap/5.3.0/css/bootstrap.min.css" />
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css" />
+    <link rel="stylesheet" href="{{ url_for('static', filename='styles.css') }}" />
+</head>
 
-            .navbar {
-                box-shadow: 0 2px 4px rgba(0, 0, 0, 0.08);
-                background: linear-gradient(135deg, var(--primary-color), var(--secondary-color));
-            }
-
-            .navbar-brand i {
-                font-size: 1.2rem;
-            }
-
-            .card {
-                border: none;
-                border-radius: 10px;
-                box-shadow: var(--card-shadow);
-                transition: all 0.3s ease;
-                overflow: hidden;
-                margin-bottom: 1.5rem;
-            }
-
-            .card:hover {
-                box-shadow: 0 10px 20px rgba(0, 0, 0, 0.08);
-            }
-
-            .card-header {
-                border-bottom: 1px solid rgba(0, 0, 0, 0.05);
-                padding: 1rem 1.5rem;
-            }
-
-            .card-header i {
-                font-size: 1.2rem;
-                opacity: 0.8;
-            }
-
-            .config-item {
-                transition: all 0.2s ease;
-                border-radius: 8px;
-                padding: 0.5rem 1rem;
-                margin-bottom: 4px;
-                display: flex;
-                justify-content: space-between;
-                align-items: center;
-            }
-
-            .config-item:hover {
-                background-color: var(--hover-bg);
-            }
-
-            .config-label {
-                font-weight: 500;
-                font-size: 0.875rem;
-                color: #6c757d;
-                letter-spacing: 0.5px;
-            }
-
-            .config-value {
-                font-weight: 600;
-                color: #495057;
-                font-family: "SFMono-Regular", Consolas, "Liberation Mono", Menlo, monospace;
-                font-size: 0.875rem;
-            }
-
-            .badge-rule {
-                font-size: 0.8rem;
-                padding: 0.4em 0.8em;
-                border-radius: 6px;
-                font-weight: 500;
-                background-color: var(--danger-color);
-                color: white;
-                letter-spacing: 0.03em;
-            }
-
-            .badge-index {
-                background-color: #e9ecef;
-                color: #495057;
-                font-size: 0.75rem;
-                padding: 0.35em 0.65em;
-                border-radius: 6px;
-                font-weight: 600;
-            }
-
-            .network-table {
-                margin-bottom: 0;
-                border-collapse: separate;
-                border-spacing: 0;
-            }
-
-            .network-table thead th {
-                background-color: var(--light-bg);
-                font-weight: 600;
-                color: var(--primary-color);
-                border-bottom: 2px solid rgba(67, 97, 238, 0.2);
-                padding: 12px 15px;
-                font-size: 0.85rem;
-                text-transform: uppercase;
-                letter-spacing: 0.5px;
-            }
-
-            .network-table tbody tr {
-                transition: background-color 0.15s ease;
-            }
-
-            .network-table tbody tr:hover {
-                background-color: var(--hover-bg);
-            }
-
-            .network-table td {
-                vertical-align: middle;
-                padding: 12px 15px;
-                border-color: rgba(0, 0, 0, 0.03);
-            }
-
-            .badge-interface {
-                background-color: #e9ecef;
-                color: #495057;
-                font-weight: 600;
-                padding: 0.4em 0.8em;
-                border-radius: 6px;
-                font-size: 0.85rem;
-            }
-
-            .badge-type {
-                background-color: var(--accent-color);
-                color: white;
-                font-weight: 500;
-                padding: 0.35em 0.65em;
-                border-radius: 6px;
-                font-size: 0.85rem;
-            }
-
-            .table-container {
-                width: 100%;
-                overflow-x: auto;
-                border-radius: 8px;
-                box-shadow: var(--card-shadow);
-                background-color: white;
-            }
-
-            .tech-value {
-                font-family: "SFMono-Regular", Consolas, "Liberation Mono", Menlo, monospace;
-                font-size: 0.9rem;
-            }
-
-            .icon-container {
-                margin-right: 10px;
-                width: 40px;
-                height: 40px;
-                display: flex;
-                align-items: center;
-                justify-content: center;
-                border-radius: 8px;
-                background-color: rgba(67, 97, 238, 0.1);
-            }
-
-            .icon-container i {
-                color: var(--primary-color);
-                font-size: 1.2rem;
-            }
-
-            .card-title-wrapper {
-                display: flex;
-                align-items: center;
-            }
-
-            /* Specific icons */
-            .dhcp-icon {
-                color: #4361ee;
-            }
-            .dns-icon {
-                color: #3a0ca3;
-            }
-            .block-icon {
-                color: var(--danger-color);
-            }
-            .network-icon {
-                color: #4cc9f0;
-            }
-
-            .config-grid {
-                display: grid;
-                grid-template-columns: repeat(auto-fit, minmax(300px, 1fr));
-                gap: 1.5rem;
-            }
-
-            /* Responsive adjustments */
-            @media (max-width: 768px) {
-                .config-item {
-                    padding: 0.4rem 0.8rem;
-                }
-
-                .network-table td,
-                .network-table th {
-                    padding: 8px 10px;
-                    font-size: 0.9rem;
-                }
-            }
-        </style>
-    </head>
-    <body>
-        <!-- Navigation -->
-        <nav class="navbar navbar-expand-lg navbar-dark">
-            <div class="container">
-                <a class="navbar-brand d-flex align-items-center" href="/">
-                    <i class="fas fa-cog me-2"></i>
-                    <span>Configuration</span>
-                </a>
-                <button
-                    class="navbar-toggler"
-                    type="button"
-                    data-bs-toggle="collapse"
-                    data-bs-target="#navbarNav"
-                >
-                    <span class="navbar-toggler-icon"></span>
-                </button>
-                <div class="collapse navbar-collapse" id="navbarNav">
-                    <ul class="navbar-nav ms-auto">
-                        <li class="nav-item">
-                            <a class="nav-link" href="/">Dashboard</a>
-                        </li>
-                        <li class="nav-item">
-                            <a class="nav-link" href="/info">Info</a>
-                        </li>
-                        <li class="nav-item">
-                            <a class="nav-link" href="/dhcp">DHCP</a>
-                        </li>
-                        <li class="nav-item">
-                            <a class="nav-link" href="/dns">DNS</a>
-                        </li>
-                        <li class="nav-item">
-                            <a class="nav-link active" href="/config">Config</a>
-                        </li>
-                        <li class="nav-item">
-                            <a class="nav-link" href="/logs">Logs</a>
-                        </li>
-                    </ul>
-                </div>
+<body>
+    {% import 'macros.jinja2' as macros %}
+    <!-- Navigation -->
+    <nav class="navbar navbar-expand-lg navbar-dark">
+        <div class="container">
+            <a class="navbar-brand d-flex align-items-center" href="/">
+                <i class="fas fa-cog me-2"></i>
+                <span>Configuration</span>
+            </a>
+            <button class="navbar-toggler" type="button" data-bs-toggle="collapse" data-bs-target="#navbarNav">
+                <span class="navbar-toggler-icon"></span>
+            </button>
+            <div class="collapse navbar-collapse" id="navbarNav">
+                <ul class="navbar-nav ms-auto">
+                    <li class="nav-item">
+                        <a class="nav-link" href="/">Dashboard</a>
+                    </li>
+                    <li class="nav-item">
+                        <a class="nav-link" href="/info">Info</a>
+                    </li>
+                    <li class="nav-item">
+                        <a class="nav-link" href="/dhcp">DHCP</a>
+                    </li>
+                    <li class="nav-item">
+                        <a class="nav-link" href="/dns">DNS</a>
+                    </li>
+                    <li class="nav-item">
+                        <a class="nav-link active" href="/config">Config</a>
+                    </li>
+                    <li class="nav-item">
+                        <a class="nav-link" href="/logs">Logs</a>
+                    </li>
+                </ul>
             </div>
-        </nav>
+        </div>
+    </nav>
 
-        <!-- Main Content -->
-        <div class="container py-4">
-            <!-- Config Cards Grid -->
-            <div class="config-grid">
-                <!-- Server Config -->
-                <div class="card h-100">
-                    <div class="card-header bg-white">
-                        <div class="d-flex justify-content-between align-items-center">
-                            <div class="card-title-wrapper">
-                                <div class="icon-container">
-                                    <i class="fas fa-network-wired dhcp-icon"></i>
-                                </div>
-                                <h5 class="mb-0">Server</h5>
-                            </div>
-                            <button id="editBtn" class="btn btn-sm btn-outline-primary">
-                                <i class="fas fa-edit me-1"></i> Edit
-                            </button>
-                        </div>
-                    </div>
-                    <div class="card-body">
-                        {% for key, value in config.get("network").items() %} {% if value %}
-                        <div class="config-item">
-                            <span class="config-label">{{ key | replace('_', ' ') | upper }}</span>
-                            <span class="config-value">{{ value | upper }}</span>
-                        </div>
-                        {% endif %} {% endfor %}
-
-                        <!-- Hidden action buttons for editing -->
-                        <div id="actionButtons" class="d-none mt-4">
-                            <div class="d-flex justify-content-end">
-                                <button id="cancelBtn" class="btn btn-outline-secondary me-2">
-                                    Cancel
-                                </button>
-                                <button class="btn btn-primary">Save Changes</button>
-                            </div>
-                        </div>
-                    </div>
-                </div>
-                <!-- DHCP Config -->
-                <div class="card h-100">
-                    <div class="card-header bg-white">
-                        <div class="d-flex justify-content-between align-items-center">
-                            <div class="card-title-wrapper">
-                                <div class="icon-container">
-                                    <i class="fas fa-network-wired dhcp-icon"></i>
-                                </div>
-                                <h5 class="mb-0">DHCP</h5>
-                            </div>
-                            <button id="editBtn" class="btn btn-sm btn-outline-primary">
-                                <i class="fas fa-edit me-1"></i> Edit
-                            </button>
-                        </div>
-                    </div>
-                    <div class="card-body">
-                        {% for key, value in config.get("dhcp").items() %} {% if value %}
-                        <div class="config-item">
-                            <span class="config-label">{{ key | replace('_', ' ') | upper }}</span>
-                            <span class="config-value">{{ value | upper }}</span>
-                        </div>
-                        {% endif %} {% endfor %}
-
-                        <!-- Hidden action buttons for editing -->
-                        <div id="actionButtons" class="d-none mt-4">
-                            <div class="d-flex justify-content-end">
-                                <button id="cancelBtn" class="btn btn-outline-secondary me-2">
-                                    Cancel
-                                </button>
-                                <button class="btn btn-primary">Save Changes</button>
-                            </div>
-                        </div>
-                    </div>
-                </div>
-                <!-- DNS Config -->
-                <div class="card h-100">
-                    <div class="card-header bg-white">
-                        <div class="d-flex justify-content-between align-items-center">
-                            <div class="card-title-wrapper">
-                                <div class="icon-container">
-                                    <i class="fas fa-globe dns-icon"></i>
-                                </div>
-                                <h5 class="mb-0">DNS</h5>
-                            </div>
-                            <button class="btn btn-sm btn-outline-primary">
-                                <i class="fas fa-edit me-1"></i> Edit
-                            </button>
-                        </div>
-                    </div>
-                    <div class="card-body">
-                        {% for key, value in config.get("dns").items() %} {% if value %}
-                        <div class="config-item">
-                            <span class="config-label">{{ key | replace('_', ' ') | upper }}</span>
-                            <span class="config-value">{{ value | upper }}</span>
-                        </div>
-                        {% endif %} {% endfor %}
-                    </div>
-                </div>
-            </div>
-
-            <!-- BLACKLIST -->
-            <div class="card mt-4">
+    <!-- Main Content -->
+    <div class="container py-4">
+        <!-- Config Cards Grid -->
+        <div class="config-grid">
+            <!-- Server Config -->
+            <div class="card">
                 <div class="card-header bg-white">
                     <div class="d-flex justify-content-between align-items-center">
                         <div class="card-title-wrapper">
                             <div class="icon-container">
-                                <i class="fas fa-ban block-icon"></i>
+                                <i class="fas fa-network-wired dhcp-icon"></i>
                             </div>
-                            <h5 class="mb-0">Blacklisted Domains</h5>
+                            <h5 class="mb-0">Server</h5>
                         </div>
-                        <button
-                            class="btn btn-sm btn-outline-danger"
-                            data-bs-toggle="modal"
-                            data-bs-target="#addRuleModal"
-                        >
-                            <i class="fas fa-plus me-1"></i> Add Rule
+                        <button id="editBtn" class="btn btn-sm btn-outline-primary">
+                            <i class="fas fa-edit me-1"></i> Edit
                         </button>
                     </div>
                 </div>
                 <div class="card-body">
-                    <div class="row">
-                        {% for value in dns_control_list %} {% if value %}
-                        <div class="col-md-6 col-lg-4 mb-2">
-                            <div class="config-item">
-                                <span class="badge-index">{{ loop.index }}</span>
-                                <span class="badge-rule text-end">{{ value }}</span>
-                                <button
-                                    class="btn btn-sm btn-outline-danger border-0 ms-2 blacklistRemoveBtn"
-                                    data-domain="{{ value }}"
-                                    title="Remove blacklist rule"
-                                >
-                                    <i class="fas fa-times"></i>
-                                </button>
+                    {{ macros.render_config(config.get("network")) }}
+                </div>
+            </div>
+            <!-- DHCP Config -->
+            <div class="card">
+                <div class="card-header bg-white">
+                    <div class="d-flex justify-content-between align-items-center">
+                        <div class="card-title-wrapper">
+                            <div class="icon-container">
+                                <i class="fas fa-network-wired dhcp-icon"></i>
                             </div>
+                            <h5 class="mb-0">DHCP</h5>
                         </div>
-                        {% endif %} {% endfor %}
+                        <button id="editBtn" class="btn btn-sm btn-outline-primary">
+                            <i class="fas fa-edit me-1"></i> Edit
+                        </button>
                     </div>
                 </div>
-            </div>
-            <div class="modal fade" id="removeRuleModal" tabindex="-1" aria-hidden="true">
-                <div class="modal-dialog">
-                    <div class="modal-content">
-                        <div class="modal-header">
-                            <h5 class="modal-title">Confirm Removal</h5>
-                            <button
-                                type="button"
-                                class="btn-close"
-                                data-bs-dismiss="modal"
-                                aria-label="Close"
-                            ></button>
-                        </div>
-                        <div class="modal-body">
-                            Are you sure you want to remove this blacklist rule?
-                        </div>
-                        <div class="modal-footer">
-                            <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">
-                                Cancel
-                            </button>
-                            <button id="confirmRemoveBtn" type="button" class="btn btn-danger">
-                                Remove
-                            </button>
-                        </div>
-                    </div>
+                <div class="card-body">
+                    {{ macros.render_config(config.get("dhcp")) }}
                 </div>
             </div>
-            <!-- Add Rule Modal -->
-            <div
-                class="modal fade"
-                id="addRuleModal"
-                tabindex="-1"
-                aria-labelledby="addRuleModalLabel"
-                aria-hidden="true"
-            >
-                <div class="modal-dialog">
-                    <form id="addRuleForm" class="modal-content">
-                        <div class="modal-header">
-                            <h5 class="modal-title" id="addRuleModalLabel">Add Blacklist Rule</h5>
-                            <button
-                                type="button"
-                                class="btn-close"
-                                data-bs-dismiss="modal"
-                                aria-label="Close"
-                            ></button>
+            <!-- DNS Config -->
+            <div class="card">
+                <div class="card-header bg-white">
+                    <div class="d-flex justify-content-between align-items-center">
+                        <div class="card-title-wrapper">
+                            <div class="icon-container">
+                                <i class="fas fa-globe dns-icon"></i>
+                            </div>
+                            <h5 class="mb-0">DNS</h5>
                         </div>
-                        <div class="modal-body">
-                            <label for="blacklistUrl" class="form-label"
-                                >Enter URL to blacklist</label
-                            >
-                            <input
-                                type="text"
-                                id="blacklistUrl"
-                                name="blacklistUrl"
-                                class="form-control"
-                                placeholder="example.com or *.example.com"
-                                pattern="^(\*\.)?([a-zA-Z0-9\-]+\.)+[a-zA-Z]{2,}$"
-                                title="Enter a valid domain or wildcard pattern like *.example.com"
-                                required
-                            />
-                        </div>
-                        <div class="modal-footer">
-                            <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">
-                                Cancel
-                            </button>
-                            <button id="blacklistSubmitBtn" type="submit" class="btn btn-danger">
-                                Submit
-                            </button>
-                        </div>
-                    </form>
+                        <button class="btn btn-sm btn-outline-primary">
+                            <i class="fas fa-edit me-1"></i> Edit
+                        </button>
+                    </div>
+                </div>
+                <div class="card-body">
+                    {{ macros.render_config(config.get("dns")) }}
                 </div>
             </div>
         </div>
 
-        <!-- Scripts -->
-        <script src="https://cdnjs.cloudflare.com/ajax/libs/bootstrap/5.3.0/js/bootstrap.bundle.min.js"></script>
-        <script>
-            document.addEventListener("DOMContentLoaded", () => {
-                let domainToRemove = null;
+        <!-- BLACKLIST -->
+        <div class="card mt-4">
+            <div class="card-header bg-white">
+                <div class="d-flex justify-content-between align-items-center">
+                    <div class="card-title-wrapper">
+                        <div class="icon-container">
+                            <i class="fas fa-ban block-icon"></i>
+                        </div>
+                        <h5 class="mb-0">Blacklisted Domains</h5>
+                    </div>
+                    <button class="btn btn-sm btn-outline-danger" data-bs-toggle="modal" data-bs-target="#addRuleModal">
+                        <i class="fas fa-plus me-1"></i> Add Rule
+                    </button>
+                </div>
+            </div>
+            <div class="card-body">
+                <div class="row">
+                    {% for value in dns_control_list %} {% if value %}
+                    <div class="col-md-6 col-lg-4 mb-2">
+                        <div class="config-item">
+                            <span class="badge-index">{{ loop.index }}</span>
+                            <span class="badge-rule text-end">{{ value }}</span>
+                            <button class="btn btn-sm btn-outline-danger border-0 ms-2 blacklistRemoveBtn"
+                                data-domain="{{ value }}" title="Remove blacklist rule">
+                                <i class="fas fa-times"></i>
+                            </button>
+                        </div>
+                    </div>
+                    {% endif %} {% endfor %}
+                </div>
+            </div>
+        </div>
+        <div class="modal fade" id="removeRuleModal" tabindex="-1" aria-hidden="true">
+            <div class="modal-dialog">
+                <div class="modal-content">
+                    <div class="modal-header">
+                        <h5 class="modal-title">Confirm Removal</h5>
+                        <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+                    </div>
+                    <div class="modal-body">
+                        Are you sure you want to remove this blacklist rule?
+                    </div>
+                    <div class="modal-footer">
+                        <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">
+                            Cancel
+                        </button>
+                        <button id="confirmRemoveBtn" type="button" class="btn btn-danger">
+                            Remove
+                        </button>
+                    </div>
+                </div>
+            </div>
+        </div>
+        <!-- Add Rule Modal -->
+        <div class="modal fade" id="addRuleModal" tabindex="-1" aria-labelledby="addRuleModalLabel" aria-hidden="true">
+            <div class="modal-dialog">
+                <form id="addRuleForm" class="modal-content">
+                    <div class="modal-header">
+                        <h5 class="modal-title" id="addRuleModalLabel">
+                            Add Blacklist Rule
+                        </h5>
+                        <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+                    </div>
+                    <div class="modal-body">
+                        <label for="blacklistUrl" class="form-label">Enter URL to blacklist</label>
+                        <input type="text" id="blacklistUrl" name="blacklistUrl" class="form-control"
+                            placeholder="example.com or *.example.com"
+                            pattern="^(\*\.)?([a-zA-Z0-9\-]+\.)+[a-zA-Z]{2,}$"
+                            title="Enter a valid domain or wildcard pattern like *.example.com" required />
+                    </div>
+                    <div class="modal-footer">
+                        <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">
+                            Cancel
+                        </button>
+                        <button id="blacklistSubmitBtn" type="submit" class="btn btn-danger">
+                            Submit
+                        </button>
+                    </div>
+                </form>
+            </div>
+        </div>
+    </div>
 
-                const removeModalEl = document.getElementById("removeRuleModal");
-                const removeModal = new bootstrap.Modal(removeModalEl);
+    <!-- Scripts -->
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/bootstrap/5.3.0/js/bootstrap.bundle.min.js"></script>
+    <script>
+        document.addEventListener("DOMContentLoaded", () => {
+            let domainToRemove = null;
 
-                const removeButtons = document.querySelectorAll(".blacklistRemoveBtn");
-                const confirmRemoveBtn = document.getElementById("confirmRemoveBtn");
+            const removeModalEl =
+                document.getElementById("removeRuleModal");
+            const removeModal = new bootstrap.Modal(removeModalEl);
 
-                removeButtons.forEach((btn) => {
-                    btn.addEventListener("click", () => {
-                        domainToRemove = btn.getAttribute("data-domain");
-                        if (!domainToRemove) return;
+            const removeButtons = document.querySelectorAll(
+                ".blacklistRemoveBtn"
+            );
+            const confirmRemoveBtn =
+                document.getElementById("confirmRemoveBtn");
 
-                        // Optionally, update modal body with domain name for clarity
-                        removeModalEl.querySelector(
-                            ".modal-body"
-                        ).textContent = `Are you sure you want to remove blacklist rule "${domainToRemove}"?`;
-
-                        removeModal.show();
-                    });
-                });
-
-                confirmRemoveBtn.addEventListener("click", () => {
+            removeButtons.forEach((btn) => {
+                btn.addEventListener("click", () => {
+                    domainToRemove = btn.getAttribute("data-domain");
                     if (!domainToRemove) return;
-                    const token = "{{ bearer_token_hash }}";
-                    fetch("/config", {
-                        method: "POST",
-                        headers: {
-                            "Content-Type": "application/json",
-                            Authorization: `Bearer ${token}`,
-                        },
-                        body: JSON.stringify({
-                            category: "blacklist",
-                            type: "delete",
-                            payload: domainToRemove,
-                        }),
+
+                    // Optionally, update modal body with domain name for clarity
+                    removeModalEl.querySelector(
+                        ".modal-body"
+                    ).textContent = `Are you sure you want to remove blacklist rule "${domainToRemove}"?`;
+
+                    removeModal.show();
+                });
+            });
+
+            confirmRemoveBtn.addEventListener("click", () => {
+                if (!domainToRemove) return;
+                const token = "{{ bearer_token_hash }}";
+                fetch("/config", {
+                    method: "POST",
+                    headers: {
+                        "Content-Type": "application/json",
+                        Authorization: `Bearer ${token}`,
+                    },
+                    body: JSON.stringify({
+                        category: "blacklist",
+                        type: "delete",
+                        payload: domainToRemove,
+                    }),
+                })
+                    .then((res) => {
+                        if (!res.ok) throw new Error("Server error");
+                        return res.json();
                     })
-                        .then((res) => {
-                            if (!res.ok) throw new Error("Server error");
-                            return res.json();
-                        })
-                        .then(() => {
-                            alert(`Blacklist rule "${domainToRemove}" removed.`);
-                            // Remove UI element:
-                            const btn = [...removeButtons].find(
-                                (b) => b.getAttribute("data-domain") === domainToRemove
-                            );
-                            if (btn) btn.closest(".col-md-6").remove();
+                    .then(() => {
+                        alert(
+                            `Blacklist rule "${domainToRemove}" removed.`
+                        );
+                        // Remove UI element:
+                        const btn = [...removeButtons].find(
+                            (b) =>
+                                b.getAttribute("data-domain") ===
+                                domainToRemove
+                        );
+                        if (btn) btn.closest(".col-md-6").remove();
 
-                            removeModal.hide();
-                            domainToRemove = null;
-                        })
-                        .catch((err) => {
-                            alert("Failed to remove rule: " + err.message);
-                        });
-                });
-            });
-            document.addEventListener("DOMContentLoaded", function () {
-                const addRuleForm = document.getElementById("addRuleForm");
-                const blacklistUrl = document.getElementById("blacklistUrl");
-                const blacklistSubmitBtn = document.getElementById("blacklistSubmitBtn");
-
-                blacklistUrl.addEventListener("input", function () {
-                    blacklistSubmitBtn.disabled = !blacklistUrl.checkValidity();
-                });
-
-                addRuleForm.addEventListener("submit", function (e) {
-                    e.preventDefault();
-
-                    const blacklistUrlValue = blacklistUrl.value.trim();
-
-                    if (!blacklistUrlValue) {
-                        alert("Please enter a valid URL.");
-                        return;
-                    }
-                    if (!blacklistUrl.checkValidity()) {
-                        blacklistUrl.reportValidity();
-                        return;
-                    }
-                    const token = "{{ bearer_token_hash }}";
-                    fetch("/config", {
-                        method: "POST",
-                        headers: {
-                            "Content-Type": "application/json",
-                            Authorization: `Bearer ${token}`,
-                        },
-                        body: JSON.stringify({
-                            category: "blacklist",
-                            type: "add",
-                            payload: blacklistUrlValue,
-                        }),
+                        removeModal.hide();
+                        domainToRemove = null;
                     })
-                        .then((res) => {
-                            if (!res.ok) throw new Error("Server error");
-                            return res.json();
-                        })
-                        .then((data) => {
-                            const modalEl = document.getElementById("addRuleModal");
-                            const modal = bootstrap.Modal.getInstance(modalEl);
-                            modal.hide();
-
-                            addRuleForm.reset();
-                            blacklistSubmitBtn.disabled = true;
-                            alert("Blacklist rule added successfully.");
-                        })
-                        .catch((err) => {
-                            alert("Failed to add rule: " + err.message);
-                        });
-                });
+                    .catch((err) => {
+                        alert("Failed to remove rule: " + err.message);
+                    });
             });
-            document.addEventListener("DOMContentLoaded", function () {
-                const editBtn = document.getElementById("editBtn");
-                const cancelBtn = document.getElementById("cancelBtn");
-                const actionButtons = document.getElementById("actionButtons");
+        });
+        document.addEventListener("DOMContentLoaded", function () {
+            const addRuleForm = document.getElementById("addRuleForm");
+            const blacklistUrl = document.getElementById("blacklistUrl");
+            const blacklistSubmitBtn =
+                document.getElementById("blacklistSubmitBtn");
 
-                editBtn.addEventListener("click", function () {
-                    actionButtons.classList.remove("d-none");
-                    editBtn.classList.add("d-none");
-                });
-
-                cancelBtn.addEventListener("click", function () {
-                    actionButtons.classList.add("d-none");
-                    editBtn.classList.remove("d-none");
-                });
+            blacklistUrl.addEventListener("input", function () {
+                blacklistSubmitBtn.disabled = !blacklistUrl.checkValidity();
             });
-        </script>
-    </body>
+
+            addRuleForm.addEventListener("submit", function (e) {
+                e.preventDefault();
+
+                const blacklistUrlValue = blacklistUrl.value.trim();
+
+                if (!blacklistUrlValue) {
+                    alert("Please enter a valid URL.");
+                    return;
+                }
+                if (!blacklistUrl.checkValidity()) {
+                    blacklistUrl.reportValidity();
+                    return;
+                }
+                const token = "{{ bearer_token_hash }}";
+                fetch("/config", {
+                    method: "POST",
+                    headers: {
+                        "Content-Type": "application/json",
+                        Authorization: `Bearer ${token}`,
+                    },
+                    body: JSON.stringify({
+                        category: "blacklist",
+                        type: "add",
+                        payload: blacklistUrlValue,
+                    }),
+                })
+                    .then((res) => {
+                        if (!res.ok) throw new Error("Server error");
+                        return res.json();
+                    })
+                    .then((data) => {
+                        const modalEl =
+                            document.getElementById("addRuleModal");
+                        const modal = bootstrap.Modal.getInstance(modalEl);
+                        modal.hide();
+
+                        addRuleForm.reset();
+                        blacklistSubmitBtn.disabled = true;
+                        alert("Blacklist rule added successfully.");
+                    })
+                    .catch((err) => {
+                        alert("Failed to add rule: " + err.message);
+                    });
+            });
+        });
+        document.addEventListener("DOMContentLoaded", function () {
+            const editBtn = document.getElementById("editBtn");
+            const cancelBtn = document.getElementById("cancelBtn");
+            const actionButtons = document.getElementById("actionButtons");
+
+            editBtn.addEventListener("click", function () {
+                actionButtons.classList.remove("d-none");
+                editBtn.classList.add("d-none");
+            });
+
+            cancelBtn.addEventListener("click", function () {
+                actionButtons.classList.add("d-none");
+                editBtn.classList.remove("d-none");
+            });
+        });
+    </script>
+</body>
+
 </html>

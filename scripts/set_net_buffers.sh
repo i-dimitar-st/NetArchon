@@ -3,7 +3,8 @@
 # Description: Increase UDP buffer sizes permanently
 # Usage: sudo ./increase_udp_buffers.sh
 
-set -e
+# -euxo x => print command
+set -euo pipefail
 
 DEFAULT_SIZE=$((1024 * 1024 * 8))   # 8 MB
 MAX_SIZE=$((DEFAULT_SIZE * 2))      # 16 MB

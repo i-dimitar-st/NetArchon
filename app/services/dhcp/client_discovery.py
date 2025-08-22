@@ -9,57 +9,50 @@ from scapy.sendrecv import srp
 from app.config.config import config, dhcp_static_config
 from app.services.dhcp.db_dhcp_leases import DHCPStorage
 from app.services.dhcp.live_clients import LiveClients
-from app.services.dhcp.models import DHCPArpClient
+from app.services.dhcp.models import ClientDiscoveryConfig, DHCPArpClient
 
 DHCP_CONFIG = config.get("dhcp")
 
 INTERFACE = str(DHCP_CONFIG.get("interface"))
-SERVER_IP = str(DHCP_CONFIG.get("ip"))
+SERVER_IP = IPv4Address(DHCP_CONFIG.get("ip"))
 SERVER_MAC = str(DHCP_CONFIG.get("mac"))
 BROADCAST_IP = str(DHCP_CONFIG.get("broadcast_ip"))
 BROADCAST_MAC = str(DHCP_CONFIG.get("broadcast_mac"))
-IP_RANGE_START = str(DHCP_CONFIG.get("ip_pool_start"))
-IP_RANGE_END = str(DHCP_CONFIG.get("ip_pool_end"))
+IP_RANGE_START = IPv4Address(DHCP_CONFIG.get("ip_pool_start"))
+IP_RANGE_END = IPv4Address(DHCP_CONFIG.get("ip_pool_end"))
 CIDR = int(DHCP_CONFIG.get("cidr"))
+MIN_CIDR = 24
+MAX_CIDR = 31
 
 CLIENT_DISCOVERY = DHCP_CONFIG.get("client_discovery")
 DISCOVERY_TIMEOUTS = CLIENT_DISCOVERY.get("timeouts")
 DISCOVERY_WORKERS = int(CLIENT_DISCOVERY.get("workers"))
 DISCOVERY_INTERVAL = int(CLIENT_DISCOVERY.get("interval"))
 
-ARP_TIMEOUT = float(DISCOVERY_TIMEOUTS.get("arp_discovery"))
-ARP_INTER_DELAY = float(DISCOVERY_TIMEOUTS.get("inter_delay"))
+TIMEOUT = float(DISCOVERY_TIMEOUTS.get("arp_discovery"))
+INTERNAL_TIMEOUT = float(DISCOVERY_TIMEOUTS.get("inter_delay"))
 WORKER_JOIN_TIMEOUT = float(DISCOVERY_TIMEOUTS.get("worker_join"))
 
 MIN_CTR = int(CLIENT_DISCOVERY.get("min_ctr"))
 MAX_CTR = int(CLIENT_DISCOVERY.get("max_ctr"))
 
 
-def _get_default_config() -> dict:
-    return {
-        "server_ip": SERVER_IP,
-        "cidr": CIDR,
-        "ip_range_start": IP_RANGE_START,
-        "ip_range_end": IP_RANGE_END,
-        "interface": INTERFACE,
-        "server_mac": SERVER_MAC,
-        "broadcast_mac": BROADCAST_MAC,
-        "arp_timeout": ARP_TIMEOUT,
-        "discovery_interval": DISCOVERY_INTERVAL,
-        "min_ctr": MIN_CTR,
-        "max_ctr": MAX_CTR,
-        "inter_delay": ARP_INTER_DELAY,
-    }.copy()
+def _get_network(
+    ip: IPv4Address, cidr: int, min_cidr: int = MIN_CIDR, max_cidr: int = MAX_CIDR
+) -> IPv4Network:
+    if not (min_cidr <= cidr <= max_cidr):
+        raise ValueError(f"CIDR must be 24 <= AND <= 31, got {cidr}")
+    return IPv4Network((ip, cidr), strict=False)
 
 
 def discover_live_clients(
     network: IPv4Network,
-    cidr: int = CIDR,
-    broadcast_mac: str = BROADCAST_MAC,
-    timeout: float = ARP_TIMEOUT,
-    inter_delay: float = ARP_INTER_DELAY,
-    iface: str = INTERFACE,
+    broadcast_mac: str,
+    timeout: float,
+    inter_timeout: float,
+    iface: str,
     verbose: bool = False,
+    filter: str = "arp",
 ) -> set[DHCPArpClient] | set:
     """
     Perform an ARP scan over the network to discover live clients.
@@ -77,14 +70,11 @@ def discover_live_clients(
     if not network or not isinstance(network, IPv4Network):
         raise RuntimeError("Missing network")
 
-    if network.prefixlen < cidr:
-        raise RuntimeError("Subnet too wide reduce subnet")
-
     _answered, _ = srp(
         [Ether(dst=broadcast_mac) / ARP(pdst=str(ip)) for ip in network.hosts()],
         timeout=timeout,
-        inter=inter_delay,
-        filter="arp",
+        inter=inter_timeout,
+        filter=filter,
         verbose=verbose,
         iface=iface,
     )
@@ -97,9 +87,9 @@ def discover_live_clients(
 
 def discover_live_client(
     ip: IPv4Address,
-    iface: str = INTERFACE,
-    timeout: float = ARP_TIMEOUT,
-    broadcast_mac: str = BROADCAST_MAC,
+    iface: str,
+    timeout: float,
+    broadcast_mac: str,
 ) -> DHCPArpClient | None:
     """
     Send an ARP request to a single IP address on a given interface.
@@ -190,32 +180,31 @@ class ClientDiscoveryService:
     _lock = RLock()
     _stop_event = Event()
     _worker: Thread | None = None
-    _config = {}
+
+    config: ClientDiscoveryConfig
+    live_clients: LiveClients
 
     initialized = False
     running = False
-    live_clients: LiveClients
-
-    network: IPv4Network | None = None
-    ip_range_start: IPv4Address | None = None
-    ip_range_end: IPv4Address | None = None
 
     @classmethod
-    def init(cls, logger, **kwargs):
+    def init(cls, logger):
         with cls._lock:
-
-            cls._config = _get_default_config()
-            cls._config.update(kwargs)
-
-            cls.network = IPv4Network(
-                f"{cls._config.get('server_ip')}/{cls._config.get('cidr')}",
-                strict=False,
+            cls.config = ClientDiscoveryConfig(
+                interface=INTERFACE,
+                broadcast_mac=BROADCAST_MAC,
+                network=_get_network(SERVER_IP, CIDR),
+                ip_range_start=IP_RANGE_START,
+                ip_range_end=IP_RANGE_END,
+                timeout=TIMEOUT,
+                inter_timeout=INTERNAL_TIMEOUT,
+                min_counter=MIN_CTR,
+                max_counter=MAX_CTR,
+                discovery_interval=DISCOVERY_INTERVAL,
             )
-            cls.ip_range_start = IPv4Address(cls._config.get("ip_range_start"))
-            cls.ip_range_end = IPv4Address(cls._config.get("ip_range_end"))
 
             cls.live_clients = LiveClients(
-                max_ctr=cls._config["max_ctr"], min_ctr=cls._config["min_ctr"]
+                max_ctr=cls.config.max_counter, min_ctr=cls.config.min_counter
             )
 
             cls.logger = logger
@@ -237,14 +226,14 @@ class ClientDiscoveryService:
     @classmethod
     @client_disc_is_init
     @client_disc_is_running
-    def stop(cls):
+    def stop(cls, timeout: float = WORKER_JOIN_TIMEOUT):
         """
         Stop the client discovery process and wait for the worker thread to finish.
         """
         with cls._lock:
             cls._stop_event.set()
             if cls._worker:
-                cls._worker.join(timeout=WORKER_JOIN_TIMEOUT)
+                cls._worker.join(timeout=timeout)
                 cls._worker = None
             cls.running = False
             cls._stop_event.clear()
@@ -254,34 +243,30 @@ class ClientDiscoveryService:
     @client_disc_is_init
     @client_disc_is_running
     def _work(cls):
-
-        if cls._stop_event is None:
-            raise AttributeError("missing stop event, wrong init")
-
-        if cls.network is None:
-            raise AttributeError("Network not init")
-
         while not cls._stop_event.is_set():
             try:
-
-                _scan_clients: set[DHCPArpClient] = discover_live_clients(
-                    network=cls.network
+                scan_clients: set[DHCPArpClient] = discover_live_clients(
+                    network=cls.config.network,
+                    broadcast_mac=cls.config.broadcast_mac,
+                    timeout=cls.config.timeout,
+                    inter_timeout=cls.config.inter_timeout,
+                    iface=cls.config.interface,
                 )
                 with cls._lock:
 
                     # We found a new device add it immedaitely
-                    for _arp_client_live in _scan_clients:
-                        cls.live_clients.increase(_arp_client_live)
+                    for arp_client_live in scan_clients:
+                        cls.live_clients.increase(arp_client_live)
 
-                    # If live clients not in live clients, it went offline reduce it
+                    # If live client not in live clients, it went offline reduce it
                     for client in cls.live_clients.get_tracked_clients():
-                        if client not in _scan_clients:
+                        if client not in scan_clients:
                             cls.live_clients.decrease(client)
 
             except RuntimeError as err:
                 cls.logger.warning("Error discovering clients: %s", err)
 
-            cls._stop_event.wait(cls._config["discovery_interval"])
+            cls._stop_event.wait(cls.config.discovery_interval)
 
         with cls._lock:
             cls.running = False
@@ -324,11 +309,6 @@ class ClientDiscoveryService:
             - IPs responding to a fresh ARP probe.
         """
 
-        if cls.ip_range_start is None or cls.ip_range_end is None:
-            raise RuntimeError("Not initialized.")
-        if cls.network is None:
-            raise RuntimeError("Network not init")
-
         with cls._lock:
 
             static_ip = dhcp_static_config.get_config().get(mac.upper(), None)
@@ -336,17 +316,23 @@ class ClientDiscoveryService:
                 return IPv4Address(static_ip)
 
             _leased_ips: set[str] = DHCPStorage.get_all_leased_ips()
-            _candidates: list[IPv4Address] = [
+            candidates: list[IPv4Address] = [
                 _ip
-                for _ip in cls.network.hosts()
-                if cls.ip_range_start <= _ip <= cls.ip_range_end
+                for _ip in cls.config.network.hosts()
+                if cls.config.ip_range_start <= _ip <= cls.config.ip_range_end
                 and str(_ip) not in _leased_ips
                 and not cls.live_clients.get_client_by_ip(str(_ip))
             ]
 
         # Expensive but ensures client is free (no ARP responses)
-        for ip in _candidates:
-            if not discover_live_client(ip=ip):
+        for ip in candidates:
+            _liveClient: DHCPArpClient | None = discover_live_client(
+                ip=ip,
+                iface=cls.config.interface,
+                timeout=cls.config.timeout,
+                broadcast_mac=cls.config.broadcast_mac,
+            )
+            if not _liveClient:
                 cls.logger.debug("Proposing IP: %s", ip)
                 return ip
 
