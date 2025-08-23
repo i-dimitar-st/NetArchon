@@ -1,8 +1,6 @@
+from secrets import token_hex
 from datetime import datetime, timezone
-from hashlib import sha256
 from json import dump, load
-from logging import WARNING, getLogger
-from multiprocessing import Process
 from os import getloadavg
 from pathlib import Path
 from platform import machine, node, processor, release, system, version
@@ -12,8 +10,6 @@ from threading import RLock
 from time import ctime, time
 from typing import Any
 
-from asgiref.wsgi import WsgiToAsgi
-from flask import Flask, abort, jsonify, render_template, request
 from psutil import (
     Process as PsutilProcess,
     boot_time,
@@ -28,27 +24,15 @@ from psutil import (
     swap_memory,
     virtual_memory,
 )
-from uvicorn import run as runUvicorn
 
 from app.config.config import config
+from app.services.dns.metrics import dns_metrics
 from app.services.logger.logger import MainLogger
 from app.utils.dns_utils import DNSUtils
-
-APP_CONFIG = config.get("app")
-PORT = APP_CONFIG.get("port")
-HOST = APP_CONFIG.get("host")
-BEARER_TOKEN = APP_CONFIG.get("bearer_token")
-BEARER_TOKEN_HASH = sha256(BEARER_TOKEN.encode()).hexdigest()
-
 
 PATHS = config.get("paths")
 ROOT_PATH = Path(PATHS.get("root"))
 DB_PATH = ROOT_PATH / PATHS.get("database")
-
-CERTIFICATES = config.get("certificates")
-CERT_PATH = ROOT_PATH / PATHS.get("certificates")
-PEM_PATH = CERT_PATH / CERTIFICATES.get("cert")
-KEY_PATH = CERT_PATH / CERTIFICATES.get("key")
 
 DNS_HISTORY_DB = DB_PATH / "dns_history.sqlite3"
 DNS_STATS_DB = DB_PATH / "dns_stats.sqlite3"
@@ -58,9 +42,6 @@ DNS_CONTROL_LIST = ROOT_PATH / "config" / "blacklists.json"
 LOG_FILE_PATH = ROOT_PATH / "logs" / "main.log"
 
 DB_TIMEOUT = 10
-
-DHCP_STATISTICS = {}
-LEASES = []
 
 logger = MainLogger.get_logger(service_name="GUI", log_level="debug")
 _lock = RLock()
@@ -417,157 +398,9 @@ def delete_from_blacklist(url: str) -> bool:
         return False
 
 
-class App:
-    _worker: Process | None = None
-    _app: Flask | None = None
+def get_metrics() -> list[dict]:
+    return [{"label": "dns", "metrics": dns_metrics.get_stats()}]
 
-    @classmethod
-    def init(cls, host: str = HOST, port: int = PORT):
-        cls._host: str = host
-        cls._port: int = port
 
-    @classmethod
-    def start(cls):
-        if cls._worker and cls._worker.is_alive():
-            raise RuntimeError("Flask App already running")
-        cls._worker = Process(target=cls._work)
-        cls._worker.start()
-        logger.info(f"Starting Flask App at {cls._host}:{cls._port}.")
-
-    @classmethod
-    def stop(cls):
-        logger.info("Shutting Flask App")
-        if cls._worker and cls._worker.is_alive():
-            cls._worker.terminate()
-            cls._worker.join(timeout=1)
-            if cls._worker.is_alive():
-                logger.warning("Flask app process did not stop; killing forcefully.")
-                cls._worker.kill()
-                cls._worker.join(timeout=1)
-            logger.info("App stopped.")
-            cls._app = None
-
-    @classmethod
-    def _work(cls):
-        cls._app = Flask(__name__)
-        cls._app_wsgi = WsgiToAsgi(cls._app)
-
-        cls._bootstrap_loggers()
-        cls._define_routes()
-
-        runUvicorn(
-            cls._app_wsgi,
-            host=cls._host,
-            port=cls._port,
-            ssl_certfile=PEM_PATH,
-            ssl_keyfile=KEY_PATH,
-            log_level="warning",
-        )
-
-    @classmethod
-    def _bootstrap_loggers(cls):
-        # Flask logger
-        if cls._app:
-            cls._app.logger.handlers.clear()
-            cls._app.logger.propagate = True
-            for _handler in logger.handlers:
-                cls._app.logger.addHandler(_handler)
-            cls._app.logger.setLevel(WARNING)
-
-        # Uvicorn loggers
-        if cls._app_wsgi:
-            for _name in ("uvicorn", "uvicorn.error", "uvicorn.access"):
-                _uv_logger = getLogger(_name)
-                _uv_logger.handlers.clear()
-                _uv_logger.propagate = True
-                for _handler in logger.handlers:
-                    _uv_logger.addHandler(_handler)
-                _uv_logger.setLevel(WARNING)
-
-    @classmethod
-    def _define_routes(cls):
-
-        if cls._app:
-
-            @cls._app.route("/")
-            def index():
-                return render_template(
-                    "index.html",
-                    system_stats=generate_system_stats(),
-                    active_leases=len(get_dhcp_leases()),
-                )
-
-            @cls._app.route("/info")
-            def info():
-                return render_template(
-                    "info.html",
-                    system_statistics=generate_system_stats(),
-                    network_interfaces=get_network_interfaces(),
-                )
-
-            @cls._app.route("/dhcp")
-            def dhcp():
-                return render_template(
-                    "dhcp.html",
-                    dhcp_statistics=get_dhcp_statistics(),
-                    dhcp_leases=get_dhcp_leases(),
-                )
-
-            @cls._app.route("/dns")
-            def dns():
-                return render_template(
-                    "dns.html",
-                    dns_history=get_dns_history(),
-                    dns_statistics=get_dns_statistics(),
-                )
-
-            @cls._app.route("/config", methods=["GET", "POST"])
-            def get_config():
-                if request.method == "POST":
-                    _auth: str = request.headers.get("Authorization", "")
-                    if (
-                        not _auth.startswith("Bearer ")
-                        or _auth[7:].strip() != BEARER_TOKEN_HASH
-                    ):
-                        abort(401, description="Unauthorized")
-
-                    if not request.is_json:
-                        abort(415, description="Expected application/json")
-
-                    data: Any | None = request.get_json(silent=True)
-                    if not data:
-                        abort(400, description="Invalid or empty JSON")
-
-                    category = data.get("category")
-                    action = data.get("type")
-                    payload = data.get("payload")
-
-                    if category == "blacklist":
-                        if action == "add" and add_to_blacklist(payload):
-                            logger.info("%s added to blacklists.", payload)
-                            return jsonify(status="received"), 200
-                        if action == "delete" and delete_from_blacklist(payload):
-                            logger.info("%s deleted from blacklists.", payload)
-                            return jsonify(status="received"), 200
-                        abort(400, description=f"Failed to {action} from {category}")
-
-                    abort(400, description="Invalid action or category")
-
-                return render_template(
-                    "config.html",
-                    config={
-                        "network": config.get("network").get("lan", {}),
-                        "dns": config.get("dns"),
-                        "dhcp": config.get("dhcp"),
-                    },
-                    dns_control_list=get_control_list(),
-                    bearer_token_hash=BEARER_TOKEN_HASH,
-                )
-
-            @cls._app.route("/logs")
-            def logs():
-                return render_template("logs.html", system_logs=get_system_logs())
-
-            @cls._app.errorhandler(404)
-            def not_found(error):
-                return render_template("404.html"), 404
+def get_csrf_token():
+    return token_hex(16)

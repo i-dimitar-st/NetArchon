@@ -1,312 +1,133 @@
 <!DOCTYPE html>
 <html lang="en">
-  <head>
-    <meta charset="UTF-8" />
-    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-    <title>Dashboard</title>
-    <link rel="icon" href="{{ url_for('static', filename='favicon.svg') }}" type="image/svg+xml" />
-    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/bootstrap/5.3.0/css/bootstrap.min.css" />
-    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css" />
-    <style>
-      :root {
-        --primary-color: #4361ee;
-        --secondary-color: #3f37c9;
-        --accent-color: #4895ef;
-        --light-bg: #f8f9fa;
-        --card-shadow: 0 4px 6px rgba(0, 0, 0, 0.05);
-        --hover-bg: rgba(67, 97, 238, 0.05);
-      }
 
-      body {
-        background-color: #f0f2f5;
-        font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Oxygen, Ubuntu, Cantarell, sans-serif;
-      }
+<!-- Head -->
+{% include ".head.html" %}
 
-      .navbar {
-        box-shadow: 0 2px 4px rgba(0, 0, 0, 0.08);
-        background: linear-gradient(135deg, var(--primary-color), var(--secondary-color));
-      }
+<body>
 
-      .navbar-brand i {
-        font-size: 1.2rem;
-      }
-
-      .card {
-        border: none;
-        border-radius: 10px;
-        box-shadow: var(--card-shadow);
-        transition: all 0.3s ease;
-        overflow: hidden;
-      }
-
-      .card:hover {
-        box-shadow: 0 10px 20px rgba(0, 0, 0, 0.08);
-      }
-
-      .card-header {
-        border-bottom: 1px solid rgba(0, 0, 0, 0.05);
-        padding: 1rem 1.5rem;
-      }
-
-      .card-header i {
-        font-size: 1.2rem;
-        opacity: 0.8;
-      }
-
-      .stats-item {
-        transition: all 0.2s ease;
-        border-radius: 8px;
-        margin-bottom: 4px;
-      }
-
-      .stats-item:hover {
-        background-color: var(--hover-bg);
-      }
-
-      .stats-label {
-        font-size: 0.85rem;
-        font-weight: 500;
-        color: #6c757d;
-        text-transform: uppercase;
-        text-align: center;
-      }
-
-      .stats-value {
-        font-weight: 600;
-        color: #495057;
-        text-align: center;
-      }
-
-      .system-card {
-        margin-bottom: 1.5rem;
-      }
-
-      .system-stats-container {
-        display: flex;
-        flex-wrap: wrap;
-        gap: 0.5rem;
-      }
-
-      .system-stat-item {
-        flex: 1;
-        min-width: calc(25% - 0.5rem);
-        padding: 1rem;
-        text-align: center;
-        border-radius: 8px;
-        background-color: white;
-        box-shadow: var(--card-shadow);
-        transition: all 0.2s ease;
-      }
-
-      .system-stat-item:hover {
-        background-color: var(--hover-bg);
-        transform: translateY(-2px);
-      }
-
-      .stat-icon {
-        font-size: 1.5rem;
-        margin-bottom: 0.5rem;
-        color: var(--primary-color);
-      }
-
-      .stat-value {
-        font-weight: 600;
-        font-size: 1.25rem;
-        margin-bottom: 0.25rem;
-      }
-
-      .stat-label {
-        font-size: 0.85rem;
-        color: #6c757d;
-        text-transform: uppercase;
-      }
-
-      /* Responsive adjustments */
-      @media (max-width: 992px) {
-        .system-stat-item {
-          min-width: calc(50% - 0.5rem);
-        }
-      }
-
-      @media (max-width: 576px) {
-        .system-stat-item {
-          min-width: 100%;
-        }
-      }
-    </style>
-  </head>
-  <body>
-    <!-- Navigation -->
-    <nav class="navbar navbar-expand-lg navbar-dark">
-      <div class="container">
-        <a class="navbar-brand d-flex align-items-center" href="/">
-          <i class="fas fa-tachometer-alt me-2"></i>
-          <span>Dashboard</span>
-        </a>
-        <button class="navbar-toggler" type="button" data-bs-toggle="collapse" data-bs-target="#navbarNav">
-          <span class="navbar-toggler-icon"></span>
-        </button>
-        <div class="collapse navbar-collapse" id="navbarNav">
-          <ul class="navbar-nav ms-auto">
-            <li class="nav-item">
-              <a class="nav-link active" href="/">Dashboard</a>
-            </li>
-            <li class="nav-item">
-              <a class="nav-link" href="/info">Info</a>
-            </li>
-            <li class="nav-item">
-              <a class="nav-link" href="/dhcp">DHCP</a>
-            </li>
-            <li class="nav-item">
-              <a class="nav-link" href="/dns">DNS</a>
-            </li>
-            <li class="nav-item">
-              <a class="nav-link" href="/config">Config</a>
-            </li>
-            <li class="nav-item">
-              <a class="nav-link" href="/logs">Logs</a>
-            </li>
-          </ul>
-        </div>
-      </div>
-    </nav>
+    <!-- Nav -->
+    {% include ".header.html" %}
 
     <!-- Main -->
     <div class="container py-4">
-      <div class="row g-4">
-        <!-- System Statistics -->
-        <div class="col-md-4">
-          <div class="card h-100">
-            <div class="card-header bg-white">
-              <div class="d-flex justify-content-between align-items-center">
-                <h5 class="mb-0">System Status</h5>
-                <i class="fas fa-server text-primary"></i>
-              </div>
+
+        <!-- Top Stats Cards -->
+        <div class="row g-4">
+            <!-- System Status -->
+            <div class="col-md-4">
+                <div class="card shadow-sm h-100">
+                    <div class="card-header bg-white d-flex justify-content-between align-items-center">
+                        <h5 class="mb-0">System Status</h5>
+                        <i class="fas fa-server text-primary"></i>
+                    </div>
+                    <div class="card-body">
+                        <div class="d-flex justify-content-between mb-2 p-2 rounded">
+                            <span class="text-muted small text-uppercase">System Time</span>
+                            <span class="fw-semibold">{{ system_stats['system']['datetime']['value'] }}</span>
+                        </div>
+                        <div class="d-flex justify-content-between mb-2 p-2 rounded">
+                            <span class="text-muted small text-uppercase">Status</span>
+                            <span class="fw-semibold text-success">Online</span>
+                        </div>
+                        <div class="d-flex justify-content-between mb-2 p-2 rounded">
+                            <span class="text-muted small text-uppercase">Uptime</span>
+                            <span class="fw-semibold">{{ "%.2f"|format(system_stats['system']['uptime']['value']/86400)
+                                }} days</span>
+                        </div>
+                        <div class="d-flex justify-content-between mb-2 p-2 rounded">
+                            <span class="text-muted small text-uppercase">CPU Temperature</span>
+                            <span class="fw-semibold">55 °C</span>
+                        </div>
+                    </div>
+                </div>
             </div>
-            <div class="card-body">
-              <div class="stats-item d-flex justify-content-between p-2">
-                <span class="stats-label">System Time</span>
-                <span class="stats-value">{{ system_stats['system']['datetime']['value'] }}</span>
-              </div>
-              <div class="stats-item d-flex justify-content-between p-2">
-                <span class="stats-label">Status</span>
-                <span class="stats-value">online</span>
-              </div>
-              <div class="stats-item d-flex justify-content-between p-2">
-                <span class="stats-label">Uptime</span>
-                <span class="stats-value"
-                  >{{ "%.2f" | format(system_stats['system']['uptime']['value'] / 86400) }} days</span
-                >
-              </div>
-              <div class="stats-item d-flex justify-content-between p-2">
-                <span class="stats-label">CPU Temperature</span>
-                <span class="stats-value">55 °C</span>
-              </div>
+
+            <!-- Resource Usage -->
+            <div class="col-md-4">
+                <div class="card shadow-sm h-100">
+                    <div class="card-header bg-white d-flex justify-content-between align-items-center">
+                        <h5 class="mb-0">Resource Usage</h5>
+                        <i class="fas fa-microchip text-primary"></i>
+                    </div>
+                    <div class="card-body">
+                        <div class="d-flex justify-content-between mb-2 p-2 rounded stats-item">
+                            <span class="text-muted small text-uppercase">CPU Usage</span>
+                            <span class="fw-semibold">{{ "%.0f"|format(system_stats['cpu']['usage']['value']) }}%</span>
+                        </div>
+                        <div class="d-flex justify-content-between mb-2 p-2 rounded stats-item">
+                            <span class="text-muted small text-uppercase">Memory Usage</span>
+                            <span class="fw-semibold">{{ "%.0f"|format(system_stats['memory']['percent_used']['value'])
+                                }}%</span>
+                        </div>
+                    </div>
+                </div>
             </div>
-          </div>
+
+            <!-- Network Status -->
+            <div class="col-md-4">
+                <div class="card shadow-sm h-100">
+                    <div class="card-header bg-white d-flex justify-content-between align-items-center">
+                        <h5 class="mb-0">Network Status</h5>
+                        <i class="fas fa-network-wired text-primary"></i>
+                    </div>
+                    <div class="card-body">
+                        <div class="d-flex justify-content-between mb-2 p-2 rounded">
+                            <span class="text-muted small text-uppercase">Active Leases</span>
+                            <span class="fw-semibold">{{ active_leases }}</span>
+                        </div>
+                        <div class="d-flex justify-content-between mb-2 p-2 rounded">
+                            <span class="text-muted small text-uppercase">Available IPs</span>
+                            <span class="fw-semibold">{{ 254 - 2 - active_leases }}</span>
+                        </div>
+                    </div>
+                </div>
+            </div>
         </div>
 
-        <!-- Resource Usage -->
-        <div class="col-md-4">
-          <div class="card h-100">
-            <div class="card-header bg-white">
-              <div class="d-flex justify-content-between align-items-center">
-                <h5 class="mb-0">Resource Usage</h5>
-                <i class="fas fa-microchip text-primary"></i>
-              </div>
+        <!-- Quick Actions -->
+        <div class="row mt-4">
+            <div class="col-12">
+                <div class="card shadow-sm">
+                    <div class="card-header bg-white d-flex justify-content-between align-items-center">
+                        <h5 class="mb-0">Quick Actions</h5>
+                        <i class="fas fa-bolt text-primary"></i>
+                    </div>
+                    <div class="card-body">
+                        <div class="row g-3 text-center">
+                            <div class="col-sm-6 col-md-3">
+                                <a href="/dns" class="text-decoration-none d-block p-3 rounded shadow-sm">
+                                    <i class="fas fa-globe mb-2 text-primary fs-4"></i>
+                                    <div class="fw-bold">DNS</div>
+                                    <small class="text-muted">Manage DNS Settings</small>
+                                </a>
+                            </div>
+                            <div class="col-sm-6 col-md-3">
+                                <a href="/dhcp" class="text-decoration-none d-block p-3 rounded shadow-sm">
+                                    <i class="fas fa-network-wired mb-2 text-primary fs-4"></i>
+                                    <div class="fw-bold">DHCP</div>
+                                    <small class="text-muted">Manage DHCP Settings</small>
+                                </a>
+                            </div>
+                            <div class="col-sm-6 col-md-3">
+                                <a href="/config" class="text-decoration-none d-block p-3 rounded shadow-sm">
+                                    <i class="fas fa-cogs mb-2 text-primary fs-4"></i>
+                                    <div class="fw-bold">Config</div>
+                                    <small class="text-muted">System Configuration</small>
+                                </a>
+                            </div>
+                            <div class="col-sm-6 col-md-3">
+                                <a href="/logs" class="text-decoration-none d-block p-3 rounded shadow-sm">
+                                    <i class="fas fa-clipboard-list mb-2 text-primary fs-4"></i>
+                                    <div class="fw-bold">Logs</div>
+                                    <small class="text-muted">View System Logs</small>
+                                </a>
+                            </div>
+                        </div>
+                    </div>
+                </div>
             </div>
-            <div class="card-body">
-              <div class="stats-item d-flex justify-content-between p-2">
-                <span class="stats-label">CPU Usage</span>
-                <span class="stats-value">{{ "%.0f" | format(system_stats['cpu']['usage']['value']) }}%</span>
-              </div>
-              <div class="stats-item d-flex justify-content-between p-2">
-                <span class="stats-label">Memory Usage</span>
-                <span class="stats-value">{{ "%.0f" | format(system_stats['memory']['percent_used']['value']) }}%</span>
-              </div>
-            </div>
-          </div>
         </div>
-
-        <!-- Network Statistics -->
-        <div class="col-md-4">
-          <div class="card h-100">
-            <div class="card-header bg-white">
-              <div class="d-flex justify-content-between align-items-center">
-                <h5 class="mb-0">Network Status</h5>
-                <i class="fas fa-network-wired text-primary"></i>
-              </div>
-            </div>
-            <div class="card-body">
-              <div class="stats-item d-flex justify-content-between p-2">
-                <span class="stats-label">Active Leases</span>
-                <span class="stats-value">{{ active_leases }}</span>
-              </div>
-              <div class="stats-item d-flex justify-content-between p-2">
-                <span class="stats-label">Available IPs</span>
-                <span class="stats-value">{{254 - 2 - active_leases}}</span>
-              </div>
-            </div>
-          </div>
-        </div>
-      </div>
-
-      <!-- Additional Info Cards -->
-      <div class="row mt-4">
-        <div class="col-12">
-          <div class="card">
-            <div class="card-header bg-white">
-              <div class="d-flex justify-content-between align-items-center">
-                <h5 class="mb-0">Quick Actions</h5>
-                <i class="fas fa-bolt text-primary"></i>
-              </div>
-            </div>
-            <div class="card-body">
-              <div class="row g-3">
-                <div class="col-md-3 col-sm-6">
-                  <a href="/dns" class="text-decoration-none">
-                    <div class="stats-item p-3 text-center">
-                      <i class="fas fa-globe mb-2 text-primary" style="font-size: 1.5rem"></i>
-                      <div class="stats-value">DNS</div>
-                      <div class="stats-label">Manage DNS Settings</div>
-                    </div>
-                  </a>
-                </div>
-                <div class="col-md-3 col-sm-6">
-                  <a href="/dhcp" class="text-decoration-none">
-                    <div class="stats-item p-3 text-center">
-                      <i class="fas fa-network-wired mb-2 text-primary" style="font-size: 1.5rem"></i>
-                      <div class="stats-value">DHCP</div>
-                      <div class="stats-label">Manage DHCP Settings</div>
-                    </div>
-                  </a>
-                </div>
-                <div class="col-md-3 col-sm-6">
-                  <a href="/config" class="text-decoration-none">
-                    <div class="stats-item p-3 text-center">
-                      <i class="fas fa-cogs mb-2 text-primary" style="font-size: 1.5rem"></i>
-                      <div class="stats-value">Config</div>
-                      <div class="stats-label">System Configuration</div>
-                    </div>
-                  </a>
-                </div>
-                <div class="col-md-3 col-sm-6">
-                  <a href="/logs" class="text-decoration-none">
-                    <div class="stats-item p-3 text-center">
-                      <i class="fas fa-clipboard-list mb-2 text-primary" style="font-size: 1.5rem"></i>
-                      <div class="stats-value">Logs</div>
-                      <div class="stats-label">View System Logs</div>
-                    </div>
-                  </a>
-                </div>
-              </div>
-            </div>
-          </div>
-        </div>
-      </div>
     </div>
-
-    <!-- Scripts -->
-    <script src="https://cdnjs.cloudflare.com/ajax/libs/bootstrap/5.3.0/js/bootstrap.bundle.min.js"></script>
-  </body>
+</body>
 </html>

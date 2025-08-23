@@ -12,7 +12,7 @@ APP_MAIN=app.main
 # -o => optimisation
 # -m => runs as script
 
-sudo ROOT_PATH=${ROOT_PATH} \
+sudo -E ROOT_PATH=${ROOT_PATH} \
 	PYTHONDONTWRITEBYTECODE=1 \
 	PYTHONPATH=${PYTHONPATH} \
 	${VENV_BINARY} -B -u -O -m ${APP_MAIN}

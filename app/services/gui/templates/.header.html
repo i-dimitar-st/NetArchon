@@ -1,0 +1,35 @@
+<nav class="navbar navbar-expand-lg navbar-dark">
+    <div class="container">
+        <a class="navbar-brand d-flex align-items-center" href="/">
+            <span>{{ active_page | title }}</span>
+        </a>
+        <button class="navbar-toggler" type="button" data-bs-toggle="collapse" data-bs-target="#navbarNav">
+            <span class="navbar-toggler-icon"></span>
+        </button>
+        <div class="collapse navbar-collapse" id="navbarNav">
+            <ul class="navbar-nav ms-auto">
+                <li class="nav-item">
+                    <a class="nav-link {% if active_page == 'dashboard' %}active{% endif %}" href="/">Dashboard</a>
+                </li>
+                <li class="nav-item">
+                    <a class="nav-link {% if active_page == 'info' %}active{% endif %}" href="/info">Info</a>
+                </li>
+                <li class="nav-item">
+                    <a class="nav-link {% if active_page == 'config' %}active{% endif %}" href="/config">Config</a>
+                </li>
+                <li class="nav-item">
+                    <a class="nav-link {% if active_page == 'dhcp' %}active{% endif %}" href="/dhcp">DHCP</a>
+                </li>
+                <li class="nav-item">
+                    <a class="nav-link {% if active_page == 'dns' %}active{% endif %}" href="/dns">DNS</a>
+                </li>
+                <li class="nav-item">
+                    <a class="nav-link {% if active_page == 'metrics' %}active{% endif %}" href="/metrics">Metrics</a>
+                </li>
+                <li class="nav-item">
+                    <a class="nav-link {% if active_page == 'logs' %}active{% endif %}" href="/logs">Logs</a>
+                </li>
+            </ul>
+        </div>
+    </div>
+</nav>

@@ -2,65 +2,81 @@ from collections import OrderedDict, deque
 from functools import wraps
 from threading import RLock
 from time import monotonic, time
-from typing import Any, Optional
+from typing import Any, Callable, Deque, Optional
 
 from app.config.config import config
 
 LIBS_CONF = config.get("libs")
-MRU_MAX_SIZE = LIBS_CONF.get("mru_max_size")
-TTL_MAX_SIZE = LIBS_CONF.get("ttl_max_size")
-TTL_DEFAULT = LIBS_CONF.get("ttl_default")
+MRU_MAX_SIZE = int(LIBS_CONF.get("mru_max_size"))
+TTL_MAX_SIZE = int(LIBS_CONF.get("ttl_max_size"))
+TTL_DEFAULT = int(LIBS_CONF.get("ttl_default"))
+METRICS_MAX_SIZE = int(LIBS_CONF.get("metrics_max_size"))
 
 
 class Metrics:
     """Store timing samples and calculate percentiles."""
 
-    _lock = RLock()
+    def __init__(self, max_size: int = METRICS_MAX_SIZE):
+        """
+        Initialize with max number of metrics.
+        Args:
+            max_size(int): Max metrics size.
+        """
+        self._max_size = max_size
+        self._samples: Deque[float] = deque(maxlen=max_size)
+        self._lock = RLock()
 
-    @classmethod
-    def init(cls, max_size: int = 100):
-        """Set max number of samples stored."""
-        with cls._lock:
-            cls._max_size = max_size
-            cls._samples = deque(maxlen=cls._max_size)
+    def _get_non_zero_vals(self) -> list[float]:
+        """Return list of samples > 0.0."""
+        return [val for val in self._samples if val > 0.0]
 
-    @classmethod
-    def add_sample(cls, duration: float):
-        """Add a timing sample."""
-        with cls._lock:
-            cls._samples.append((monotonic(), duration))
+    def add_sample(self, duration: float):
+        """
+        Add a timing sample.
+        Expects sec converts to msec.
+        Args:
+            duration(float): Sample size
+        """
+        with self._lock:
+            self._samples.append(duration * 1000)
 
-    @classmethod
-    def get_count(cls) -> int:
-        """Return number of samples."""
-        with cls._lock:
-            return len(cls._samples)
+    def get_count(self) -> int:
+        """
+        Return number of samples.
+        Returns:
+            int: How many metrics samples are there
+        """
+        with self._lock:
+            return len(self._samples)
 
-    @classmethod
-    def get_percentile(cls, percentile: float) -> float:
-        """Get elapsed time at given percentile."""
-        with cls._lock:
-            if not cls._samples:
+    def get_percentile(self, percentile: float) -> float:
+        """
+        Get duration corresponding to the given percentile.
+        Args:
+            percentile (float): Percentile value between 0 and 100.
+        Returns:
+            float: Duration at requested percentile, defaults to 0.0.
+        """
+        with self._lock:
+            if not self._samples:
                 return 0.0
-            values = sorted(_sample[1] for _sample in cls._samples)
-            _key = int((percentile / 100.0) * (len(values) - 1))
-            return values[_key]
+            values = sorted(self._samples)
+            idx = int((percentile / 100.0) * (len(values) - 1))
+            return values[idx]
 
-    @classmethod
-    def get_stats(cls):
+    def get_stats(self) -> dict:
         """Return count and common percentile stats."""
         return {
-            "count": cls.get_count(),
-            "p5": cls.get_percentile(5),
-            "p50": cls.get_percentile(50),
-            "p95": cls.get_percentile(95),
+            "count": self.get_count(),
+            "p5": self.get_percentile(5),
+            "p50": self.get_percentile(50),
+            "p95": self.get_percentile(95),
         }
 
-    @classmethod
-    def clear(cls):
-        """Clear."""
-        with cls._lock:
-            return cls._samples.clear()
+    def clear(self):
+        """Clear samples."""
+        with self._lock:
+            self._samples.clear()
 
 
 class MRUCache:
@@ -234,3 +250,23 @@ class TTLCache:
         """Returns cache size."""
         with self._lock:
             return len(self._cache)
+
+
+def measure_latency_decorator(metrics: Metrics):
+    """
+    Decorator to measure execution time and add to metrics object.
+    Args:
+        metrics: Metrics instance.
+    """
+
+    def decorator(func: Callable):
+        @wraps(func)
+        def wrapper(*args, **kwargs) -> Any:
+            start: float = monotonic()
+            result: Any = func(*args, **kwargs)
+            metrics.add_sample(monotonic() - start)
+            return result
+
+        return wrapper
+
+    return decorator

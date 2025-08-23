@@ -240,9 +240,8 @@ class LogLevel(Enum):
     def _missing_(cls, value):
         """Handle edges if value passed Enum is not found inside"""
         if isinstance(value, str):
-            value = value.strip().upper()
             for member in cls:
-                if member.name == value:
+                if member.name == value.strip().upper():
                     return member
         return cls.DEBUG  # fallback
 

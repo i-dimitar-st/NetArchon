@@ -1,400 +1,162 @@
 <!DOCTYPE html>
 <html lang="en">
-    <head>
-        <meta charset="UTF-8" />
-        <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-        <title>DNS</title>
-        <link
-            rel="icon"
-            href="{{ url_for('static', filename='favicon.svg') }}"
-            type="image/svg+xml"
-        />
-        <link
-            rel="stylesheet"
-            href="https://cdnjs.cloudflare.com/ajax/libs/bootstrap/5.3.0/css/bootstrap.min.css"
-        />
-        <link
-            rel="stylesheet"
-            href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css"
-        />
-        <link
-            rel="stylesheet"
-            href="{{ url_for('static', filename='styles.css') }}"
-        />
-    </head>
-    <body>
-        <!-- Nav -->
-        <nav class="navbar navbar-expand-lg navbar-dark">
-            <div class="container">
-                <a class="navbar-brand d-flex align-items-center" href="/">
-                    <i class="fas fa-network-wired me-2"></i>
-                    <span>DNS Service</span>
-                </a>
-                <button
-                    class="navbar-toggler"
-                    type="button"
-                    data-bs-toggle="collapse"
-                    data-bs-target="#navbarNav"
-                >
-                    <span class="navbar-toggler-icon"></span>
-                </button>
-                <div class="collapse navbar-collapse" id="navbarNav">
-                    <ul class="navbar-nav ms-auto">
-                        <li class="nav-item">
-                            <a class="nav-link" href="/">Dashboard</a>
-                        </li>
-                        <li class="nav-item">
-                            <a class="nav-link" href="/info">Info</a>
-                        </li>
-                        <li class="nav-item">
-                            <a class="nav-link" href="/dhcp">DHCP</a>
-                        </li>
-                        <li class="nav-item">
-                            <a class="nav-link active" href="/dns">DNS</a>
-                        </li>
-                        <li class="nav-item">
-                            <a class="nav-link" href="/config">Config</a>
-                        </li>
-                        <li class="nav-item">
-                            <a class="nav-link" href="/logs">Logs</a>
-                        </li>
-                    </ul>
-                </div>
-            </div>
-        </nav>
 
-        <!-- Main -->
-        <div class="container py-4">
-            <div class="row g-4">
-                <!-- DNS Statistics -->
-                <div class="col-md-4">
-                    <div class="card h-100">
-                        <div class="card-header bg-white">
-                            <div
-                                class="d-flex justify-content-between align-items-center"
-                            >
-                                <h5 class="mb-0">DNS Statistics</h5>
-                                <i class="fas fa-chart-pie text-primary"></i>
-                            </div>
+<!-- Head -->
+{% include ".head.html" %}
+
+<body>
+    <!-- Nav -->
+    {% include ".header.html" %}
+
+    <!-- Main -->
+    <div class="container py-4">
+        <div class="row g-4">
+            <!-- DNS Statistics -->
+            <div class="col-md-4">
+                <div class="card h-100 shadow-sm">
+                    <div class="card-header bg-white d-flex justify-content-between align-items-center">
+                        <h5 class="mb-0">DNS Statistics</h5>
+                        <i class="fas fa-chart-pie text-primary fs-4"></i>
+                    </div>
+                    <div class="card-body p-3">
+                        {% for key, value in dns_statistics.items() %}
+                        {% if value %}
+                        <div class="d-flex justify-content-between align-items-center mb-2 p-2 rounded bg-light">
+                            <span class="text-muted small text-uppercase">{{ key | replace('_', ' ') }}</span>
+                            <span class="fw-semibold">{{ value }}</span>
                         </div>
-                        <div class="card-body">
-                            {% for key, value in dns_statistics.items() %} {% if
-                            value %}
-                            <div
-                                class="stats-item d-flex justify-content-between p-2"
-                            >
-                                <span class="stats-label"
-                                    >{{ key | replace('_', ' ') }}</span
-                                >
-                                <span class="stats-value">{{ value }}</span>
-                            </div>
-                            {% endif %} {% endfor %}
-                        </div>
+                        {% endif %}
+                        {% endfor %}
                     </div>
                 </div>
+            </div>
 
-                <!-- DNS History -->
-                <div class="col-md-8">
-                    <div class="card">
-                        <div class="card-header bg-white">
-                            <div
-                                class="d-flex justify-content-between align-items-center"
-                            >
-                                <h5 class="mb-0">
-                                    DNS History
-                                    <span class="badge bg-primary ms-2"
-                                        >{{ dns_history | length }}</span
-                                    >
-                                </h5>
-                                <i class="fas fa-history text-primary"></i>
-                            </div>
+            <!-- DNS History -->
+            <div class="col-md-8">
+                <div class="card shadow-sm">
+                    <div class="card-header bg-white d-flex justify-content-between align-items-center">
+                        <h5 class="mb-0">
+                            DNS History
+                            <span class="badge bg-primary ms-2">{{ dns_history | length }}</span>
+                        </h5>
+                        <i class="fas fa-history text-primary fs-4"></i>
+                    </div>
+                    <div class="card-body p-3">
+                        <!-- Filter Input -->
+                        <div class="input-group mb-3">
+                            <span class="input-group-text">
+                                <i class="fas fa-search"></i>
+                            </span>
+                            <input type="text" id="urlFilter" class="form-control"
+                                placeholder="Filter domain requests..." autocomplete="off" />
+                            <button id="clearFilter" class="btn btn-outline-secondary" type="button">
+                                <i class="fas fa-times"></i>
+                            </button>
                         </div>
-                        <div class="card-body">
-                            <!-- Filter Input -->
-                            <div class="search-container mb-3">
-                                <div class="input-group">
-                                    <span class="input-group-text">
-                                        <i class="fas fa-search"></i>
-                                    </span>
-                                    <input
-                                        type="text"
-                                        id="urlFilter"
-                                        class="form-control"
-                                        placeholder="Filter domain requests..."
-                                        autocomplete="off"
-                                    />
-                                    <button
-                                        id="clearFilter"
-                                        class="btn btn-outline-secondary"
-                                        type="button"
-                                    >
-                                        <i class="fas fa-times"></i>
-                                    </button>
-                                </div>
-                            </div>
 
-                            <!-- DNS Domain Requests Table -->
-                            <div class="table-container">
-                                <div
-                                    style="max-height: 500px; overflow-y: auto"
-                                >
-                                    <table
-                                        id="dnsTable"
-                                        class="table dns-table table-hover"
-                                    >
-                                        <thead>
-                                            <tr>
-                                                <th
-                                                    id="queryHeader"
-                                                    style="cursor: pointer"
-                                                >
-                                                    Domain
-                                                    <i
-                                                        class="fas fa-sort-down"
-                                                    ></i>
-                                                </th>
-                                                <th
-                                                    id="countHeader"
-                                                    class="text-center"
-                                                    style="
-                                                        cursor: pointer;
-                                                        width: 100px;
-                                                    "
-                                                >
-                                                    Count
-                                                    <i class="fas fa-sort"></i>
-                                                </th>
-                                                <th
-                                                    id="activeHeader"
-                                                    style="
-                                                        cursor: pointer;
-                                                        width: 160px;
-                                                    "
-                                                >
-                                                    Created
-                                                    <i class="fas fa-sort"></i>
-                                                </th>
-                                            </tr>
-                                        </thead>
-                                        <tbody>
-                                            {% for item in dns_history %}
-                                            <tr>
-                                                <td class="query-text">
-                                                    {{ item.query | lower }}
-                                                </td>
-                                                <td class="text-center">
-                                                    <span class="badge-count"
-                                                        >{{ item.query_counter
-                                                        }}</span
-                                                    >
-                                                </td>
-                                                <td
-                                                    class="timestamp"
-                                                    data-timestamp="{{ item.created }}"
-                                                ></td>
-                                            </tr>
-                                            {% endfor %}
-                                        </tbody>
-                                    </table>
-                                </div>
-                            </div>
+                        <!-- DNS Domain Requests Table -->
+                        <div class="table-responsive" style="max-height: 500px; overflow-y: auto;">
+                            <table id="dnsTable" class="table table-hover mb-0">
+                                <thead class="table-light">
+                                    <tr>
+                                        <th id="queryHeader" style="cursor: pointer">Domain <i class="fas fa-sort"></i>
+                                        </th>
+                                        <th id="countHeader" class="text-center" style="cursor: pointer; width: 100px;">
+                                            Count <i class="fas fa-sort"></i>
+                                        </th>
+                                        <th id="activeHeader" style="cursor: pointer; width: 160px;">
+                                            Created <i class="fas fa-sort"></i>
+                                        </th>
+                                    </tr>
+                                </thead>
+                                <tbody>
+                                    {% for item in dns_history %}
+                                    <tr>
+                                        <td>{{ item.query | lower }}</td>
+                                        <td class="text-center">
+                                            <span class="badge bg-secondary rounded-pill">{{ item.query_counter
+                                                }}</span>
+                                        </td>
+                                        <td data-timestamp="{{ item.created }}"></td>
+                                    </tr>
+                                    {% endfor %}
+                                </tbody>
+                            </table>
                         </div>
                     </div>
                 </div>
             </div>
         </div>
+    </div>
 
-        <!-- Scripts -->
-        <script src="https://cdnjs.cloudflare.com/ajax/libs/bootstrap/5.3.0/js/bootstrap.bundle.min.js"></script>
-        <script>
-            document.addEventListener("DOMContentLoaded", function () {
-                const table = document.getElementById("dnsTable");
-                const tbody = table.querySelector("tbody");
-                const rows = Array.from(tbody.querySelectorAll("tr"));
-                const filterInput = document.getElementById("urlFilter");
-                const clearFilterBtn = document.getElementById("clearFilter");
+    <!-- Scripts -->
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/bootstrap/5.3.0/js/bootstrap.bundle.min.js"></script>
+    <script>
+        document.addEventListener("DOMContentLoaded", function () {
+            const table = document.getElementById("dnsTable");
+            const tbody = table.querySelector("tbody");
+            const rows = Array.from(tbody.querySelectorAll("tr"));
+            const filterInput = document.getElementById("urlFilter");
+            const clearFilterBtn = document.getElementById("clearFilter");
 
-                // Initialize tooltips
-                const tooltipTriggerList = [].slice.call(
-                    document.querySelectorAll('[data-bs-toggle="tooltip"]')
-                );
-                tooltipTriggerList.map(function (tooltipTriggerEl) {
-                    return new bootstrap.Tooltip(tooltipTriggerEl);
-                });
+            // Initialize tooltips
+            bootstrap.Tooltip && [].slice.call(document.querySelectorAll('[data-bs-toggle="tooltip"]')).map(el => new bootstrap.Tooltip(el));
 
-                // Table sorting state
-                let tableSortState = {
-                    column: "query",
-                    direction: "desc",
-                };
+            // Table sorting state
+            let tableSortState = { column: "query", direction: "desc" };
 
-                // Sort table function
-                function sortTable(column, type = "text") {
-                    const direction =
-                        tableSortState.column === column &&
-                        tableSortState.direction === "asc"
-                            ? "desc"
-                            : "asc";
-                    tableSortState = { column, direction };
+            function sortTable(column, type = "text") {
+                const direction = tableSortState.column === column && tableSortState.direction === "asc" ? "desc" : "asc";
+                tableSortState = { column, direction };
 
-                    // Reset all sort icons
-                    document.querySelectorAll("th i.fas").forEach((icon) => {
-                        icon.className = "fas fa-sort";
-                    });
+                document.querySelectorAll("th i.fas").forEach(icon => icon.className = "fas fa-sort");
+                const header = document.getElementById(`${column}Header`);
+                if (header) header.querySelector("i").className = `fas fa-sort-${direction === "asc" ? "up" : "down"}`;
 
-                    // Set the appropriate sort icon
-                    const headerElement = document.getElementById(
-                        `${column}Header`
-                    );
-                    if (headerElement) {
-                        const sortIcon = headerElement.querySelector("i");
-                        sortIcon.className = `fas fa-sort-${
-                            direction === "asc" ? "up" : "down"
-                        }`;
+                rows.sort((a, b) => {
+                    let valA, valB;
+                    switch (column) {
+                        case "query": valA = a.cells[0].innerText.trim().toLowerCase(); valB = b.cells[0].innerText.trim().toLowerCase(); break;
+                        case "count": valA = parseInt(a.cells[1].innerText.trim()); valB = parseInt(b.cells[1].innerText.trim()); break;
+                        case "active": valA = a.cells[2].getAttribute("data-timestamp"); valB = b.cells[2].getAttribute("data-timestamp"); break;
                     }
-
-                    // Sort the rows
-                    rows.sort((a, b) => {
-                        let valA, valB;
-
-                        switch (column) {
-                            case "query":
-                                valA = a.cells[0].innerText
-                                    .trim()
-                                    .toLowerCase();
-                                valB = b.cells[0].innerText
-                                    .trim()
-                                    .toLowerCase();
-                                break;
-                            case "count":
-                                valA = parseInt(a.cells[1].innerText.trim());
-                                valB = parseInt(b.cells[1].innerText.trim());
-                                break;
-                            case "active":
-                                valA =
-                                    a.cells[2].getAttribute("data-timestamp");
-                                valB =
-                                    b.cells[2].getAttribute("data-timestamp");
-                                break;
-                        }
-
-                        if (valA < valB) return direction === "asc" ? -1 : 1;
-                        if (valA > valB) return direction === "asc" ? 1 : -1;
-                        return 0;
-                    });
-
-                    // Reorder the visible rows
-                    const visibleRows = rows.filter(
-                        (row) => !row.classList.contains("d-none")
-                    );
-                    visibleRows.forEach((row) => tbody.appendChild(row));
-                }
-
-                // Filter table function
-                function filterTable() {
-                    const filterValue = filterInput.value.toLowerCase();
-
-                    rows.forEach((row) => {
-                        const url = row.cells[0].textContent.toLowerCase();
-                        const shouldShow = url.includes(filterValue);
-
-                        if (shouldShow) {
-                            row.classList.remove("d-none");
-                        } else {
-                            row.classList.add("d-none");
-                        }
-                    });
-
-                    // Re-apply current sort after filtering
-                    applyCurrentSort();
-                }
-
-                // Apply current sort function
-                function applyCurrentSort() {
-                    const { column, direction } = tableSortState;
-                    sortTable(column, column === "count" ? "number" : "text");
-                }
-
-                // Format timestamps function
-                function formatTimestamps() {
-                    const timestampCells = document.querySelectorAll(
-                        ".timestamp[data-timestamp]"
-                    );
-                    timestampCells.forEach((cell) => {
-                        const timestamp =
-                            cell.getAttribute("data-timestamp") * 1000;
-                        if (!isNaN(timestamp)) {
-                            const localDate = new Date(timestamp);
-                            const options = {
-                                month: "short",
-                                day: "numeric",
-                                hour: "2-digit",
-                                minute: "2-digit",
-                            };
-                            cell.textContent = localDate.toLocaleString(
-                                "en-GB",
-                                options
-                            );
-
-                            // Add full timestamp as tooltip
-                            cell.setAttribute("data-bs-toggle", "tooltip");
-                            cell.setAttribute("data-bs-placement", "top");
-
-                            const fullOptions = {
-                                year: "numeric",
-                                month: "2-digit",
-                                day: "2-digit",
-                                hour: "2-digit",
-                                minute: "2-digit",
-                                second: "2-digit",
-                                timeZoneName: "short",
-                            };
-
-                            cell.setAttribute(
-                                "title",
-                                localDate.toLocaleString("en-GB", fullOptions)
-                            );
-                        }
-                    });
-
-                    // Reinitialize tooltips
-                    const tooltips = [].slice.call(
-                        document.querySelectorAll('[data-bs-toggle="tooltip"]')
-                    );
-                    tooltips.map(function (tooltipTriggerEl) {
-                        return new bootstrap.Tooltip(tooltipTriggerEl);
-                    });
-                }
-
-                // Event listeners
-                filterInput.addEventListener("input", filterTable);
-
-                clearFilterBtn.addEventListener("click", () => {
-                    filterInput.value = "";
-                    filterTable();
-                    filterInput.focus();
+                    if (type === "number") { valA = parseFloat(valA) || 0; valB = parseFloat(valB) || 0; }
+                    if (valA < valB) return direction === "asc" ? -1 : 1;
+                    if (valA > valB) return direction === "asc" ? 1 : -1;
+                    return 0;
                 });
 
-                document
-                    .getElementById("queryHeader")
-                    .addEventListener("click", () =>
-                        sortTable("query", "text")
-                    );
-                document
-                    .getElementById("countHeader")
-                    .addEventListener("click", () =>
-                        sortTable("count", "number")
-                    );
-                document
-                    .getElementById("activeHeader")
-                    .addEventListener("click", () =>
-                        sortTable("active", "text")
-                    );
+                rows.filter(r => !r.classList.contains("d-none")).forEach(r => tbody.appendChild(r));
+            }
 
-                // Initialize
-                formatTimestamps();
-                sortTable("query", "text");
-            });
-        </script>
-    </body>
+            function filterTable() {
+                const filterValue = filterInput.value.toLowerCase();
+                rows.forEach(row => row.classList.toggle("d-none", !row.cells[0].textContent.toLowerCase().includes(filterValue)));
+                sortTable(tableSortState.column, tableSortState.column === "count" ? "number" : "text");
+            }
+
+            function formatTimestamps() {
+                tbody.querySelectorAll("td[data-timestamp]").forEach(cell => {
+                    const ts = cell.getAttribute("data-timestamp") * 1000;
+                    if (!isNaN(ts)) {
+                        const date = new Date(ts);
+                        cell.textContent = date.toLocaleString("en-GB", { month: "short", day: "numeric", hour: "2-digit", minute: "2-digit" });
+                        cell.setAttribute("data-bs-toggle", "tooltip");
+                        cell.setAttribute("title", date.toLocaleString("en-GB", { year: "numeric", month: "2-digit", day: "2-digit", hour: "2-digit", minute: "2-digit", second: "2-digit", timeZoneName: "short" }));
+                    }
+                });
+                bootstrap.Tooltip && [].slice.call(document.querySelectorAll('[data-bs-toggle="tooltip"]')).map(el => new bootstrap.Tooltip(el));
+            }
+
+            filterInput.addEventListener("input", filterTable);
+            clearFilterBtn.addEventListener("click", () => { filterInput.value = ""; filterTable(); filterInput.focus(); });
+
+            ["query", "count", "active"].forEach(col => document.getElementById(`${col}Header`).addEventListener("click", () => sortTable(col, col === "count" ? "number" : "text")));
+
+            formatTimestamps();
+            sortTable("query", "text");
+        });
+    </script>
+</body>
+
 </html>

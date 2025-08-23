@@ -1,4 +1,5 @@
 ROOT_PATH := $(abspath $(CURDIR))
+
 VENV_DIR := venv
 VENV := $(ROOT_PATH)/$(VENV_DIR)
 VENV_PIP := $(VENV)/bin/pip
@@ -6,6 +7,7 @@ VENV_BLACK := $(VENV)/bin/black
 VENV_ISORT := $(VENV)/bin/isort
 VENV_FLAKE8 := $(VENV)/bin/flake8
 VENV_PYTHON := $(VENV)/bin/python
+
 SCRIPTS := $(ROOT_PATH)/scripts
 APP := $(ROOT_PATH)/app
 APP_MAIN := app.main
@@ -22,7 +24,10 @@ APP_MAIN := app.main
         run \
 		setup
 
-setup: set_net install generate_files make_config run
+setup: set_net \
+	   install \
+	   generate_files \
+	   make_config
 
 set_net:
 	$(SCRIPTS)/set_net_buffers.sh

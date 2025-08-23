@@ -1,13 +1,17 @@
-{% macro render_config(data, prefix='', level=0) %}
+{% macro render_config(data, level=0) %}
+    <div class="config-level-{{ level }}">
     {% for key, value in data.items() %}
         {% if value is mapping %}
-            <div class="card-body-item card-body-subtitle-label">{{ key | replace('_', ' ') | upper }}</div>
-            {{ render_config(value, prefix='', level=level+1) }}
+            <div class="mb-2">
+                <strong class="text-uppercase fs-6">{{ key | replace('_', ' ') }}</strong>
+                {{ render_config(value, level + 1) }}
+            </div>
         {% elif value %}
-            <div class="card-body-item">
-                <span class="card-body-item-label">{{ key | replace('_', ' ') | title }}</span>
-                <span class="card-body-item-value">{{ value | upper }}</span>
+            <div class="d-flex justify-content-between">
+                <span class="text-muted fs-7">{{ key | replace('_', ' ') | upper }}</span>
+                <span class="fw-bold fs-7">{{ value }}</span>
             </div>
         {% endif %}
     {% endfor %}
+    </div>
 {% endmacro %}

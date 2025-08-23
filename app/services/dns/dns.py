@@ -17,7 +17,7 @@ from typing import Any, Optional
 from dnslib import QTYPE, RR, A, DNSRecord
 
 from app.config.config import config
-from app.libs.libs import MRUCache, TTLCache
+from app.libs.libs import MRUCache, TTLCache, measure_latency_decorator
 
 # Local
 from app.models.models import DNSReqMessage, DNSResponseCode
@@ -25,6 +25,7 @@ from app.services.dns.blacklist_service import BlacklistService
 from app.services.dns.db import DnsQueryHistoryDb, DnsStatsDb
 from app.services.dns.db_persistance import DbPersistanceService
 from app.services.dns.external_resolver import ExternalResolverService
+from app.services.dns.metrics import dns_metrics
 from app.services.logger.logger import MainLogger
 from app.utils.dns_utils import DNSUtils
 
@@ -121,6 +122,7 @@ class LocalResolverService:
         cls._is_init = True
 
     @classmethod
+    @measure_latency_decorator(metrics=dns_metrics)
     def _handle_blacklist(cls, dns_req_message: DNSReqMessage) -> bool:
         """Check if the domain is blacklisted and send a refusal reply if so."""
 
@@ -134,6 +136,7 @@ class LocalResolverService:
         return False
 
     @classmethod
+    @measure_latency_decorator(metrics=dns_metrics)
     def _handle_local(
         cls, dns_req_message: DNSReqMessage, zones: dict = DNS_STATIC_ZONES
     ) -> bool:
@@ -179,6 +182,7 @@ class LocalResolverService:
         return False
 
     @classmethod
+    @measure_latency_decorator(metrics=dns_metrics)
     def _handle_cache_hit(cls, dns_req_message: DNSReqMessage) -> bool:
         """
         Is DNS query result cached and send the cached reply if found.
@@ -196,6 +200,7 @@ class LocalResolverService:
         return False
 
     @classmethod
+    @measure_latency_decorator(metrics=dns_metrics)
     def _handle_external(cls, dns_req_message: DNSReqMessage) -> bool:
         """
         Forward DNS query externally and send the reply if successful.
@@ -227,6 +232,7 @@ class LocalResolverService:
         return False
 
     @classmethod
+    @measure_latency_decorator(metrics=dns_metrics)
     def _handle_server_fail(cls, dns_req_message: DNSReqMessage) -> bool:
         """
         Send a SERVFAIL response to the client for the given DNS message.
@@ -295,7 +301,6 @@ class LocalResolverService:
                     or cls._dedup_cache.is_present(_dns_req_message.dedup_key)
                 ):
                     continue
-
                 DnsStatsDb.increment(key="request_total")
                 if cls._handle_blacklist(_dns_req_message):
                     continue
