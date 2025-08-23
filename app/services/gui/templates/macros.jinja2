@@ -1,17 +1,22 @@
 {% macro render_config(data, level=0) %}
-    <div class="config-level-{{ level }}">
+<div class="config-level-{{ level }}" style="margin-left: {{ level * 15 }}px;">
     {% for key, value in data.items() %}
         {% if value is mapping %}
             <div class="mb-2">
                 <strong class="text-uppercase fs-6">{{ key | replace('_', ' ') }}</strong>
                 {{ render_config(value, level + 1) }}
             </div>
+        {% elif value is iterable and value is not string %}
+            <div class="mb-1">
+                <strong class="text-uppercase fs-7">{{ key | replace('_', ' ') }}</strong>:
+                <span class="fw-semibold">{{ value | join(', ') }}</span>
+            </div>
         {% elif value %}
-            <div class="d-flex justify-content-between">
-                <span class="text-muted fs-7">{{ key | replace('_', ' ') | upper }}</span>
-                <span class="fw-bold fs-7">{{ value }}</span>
+            <div class="d-flex justify-content-between mb-1">
+                <span class="text-uppercase small text-muted">{{ key | replace('_', ' ') }}</span>
+                <span class="fw-semibold fs-7">{{ value }}</span>
             </div>
         {% endif %}
     {% endfor %}
-    </div>
+</div>
 {% endmacro %}

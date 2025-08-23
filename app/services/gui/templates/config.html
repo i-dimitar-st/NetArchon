@@ -19,14 +19,14 @@
             ('DNS', 'fa-globe', config.get('dns'))
             ] %}
             <div class="col-md-4">
-                <div class="card h-100">
+                <div class="card h-100 rounded">
                     <div class="card-header d-flex justify-content-between align-items-center bg-white">
                         <div class="d-flex align-items-center">
                             <i class="fas {{ icon }} text-primary fa-lg me-2"></i>
                             <h5 class="mb-0">{{ section }}</h5>
                         </div>
-                        <button class="btn btn-sm btn-outline-primary edit-btn">
-                            <i class="fas fa-edit me-1"></i> Edit
+                        <button class="btn btn-sm edit-btn">
+                            <i class="fas fa-edit text-primary fa-lg me-1"></i>
                         </button>
                     </div>
                     <div class="card-body">
@@ -38,10 +38,13 @@
         </div>
 
         <!-- BLACKLIST -->
-        <div class="card mt-4">
+        <div class="card mt-4 rounded">
             <div class="card-header bg-white d-flex justify-content-between align-items-center">
-                <h5 class="mb-0"><i class="fas fa-ban me-2"></i>Blacklisted Domains</h5>
-                <button class="btn btn-sm btn-outline-danger" data-bs-toggle="modal" data-bs-target="#addRuleModal">
+                <h5 class="mb-0 d-flex align-items-center">
+                    <i class="fas fa-ban text-primary fa-lg me-2"></i>
+                    Blacklisted Domains
+                </h5>
+                <button class="btn btn-sm btn-danger" data-bs-toggle="modal" data-bs-target="#addRuleModal">
                     <i class="fas fa-plus me-1"></i> Add Rule
                 </button>
             </div>
@@ -51,8 +54,8 @@
                     <div class="col-md-6 col-lg-4 mb-2">
                         <div class="d-flex align-items-center">
                             <span class="flex-grow-1">{{ value }}</span>
-                            <button class="btn btn-sm btn-outline-danger ms-2 blacklistRemoveBtn"
-                                data-domain="{{ value }}" title="Remove blacklist rule">
+                            <button class="btn btn-sm btn-danger btn-icon blacklistRemoveBtn" data-domain="{{ value }}"
+                                title="Remove blacklist rule">
                                 <i class="fas fa-times"></i>
                             </button>
                         </div>
@@ -103,9 +106,6 @@
         </div>
     </div>
 
-    <!-- Bootstrap JS -->
-    <script src="https://cdnjs.cloudflare.com/ajax/libs/bootstrap/5.3.0/js/bootstrap.bundle.min.js"></script>
-
     <!-- Page JS -->
     <script>
         document.addEventListener("DOMContentLoaded", function () {
@@ -145,7 +145,6 @@
                         body: JSON.stringify({ category: "blacklist", type: "delete", payload: domainToRemove })
                     }).then(res => res.ok ? res.json() : Promise.reject("Server error"))
                         .then(() => {
-                            alert(`Blacklist rule "${domainToRemove}" removed.`);
                             document.querySelectorAll(".blacklistRemoveBtn").forEach(btn => {
                                 if (btn.dataset.domain === domainToRemove) {
                                     btn.closest(".col-md-6").remove();
@@ -162,8 +161,7 @@
             const blacklistUrl = document.getElementById("blacklistUrl");
             const blacklistSubmitBtn = document.getElementById("blacklistSubmitBtn");
             const addRuleModalEl = document.getElementById("addRuleModal");
-            const addRuleModal = bootstrap.Modal.getInstance(addRuleModalEl)
-                || new bootstrap.Modal(addRuleModalEl);
+            const addRuleModal = new bootstrap.Modal(addRuleModalEl);
 
             if (addRuleForm) {
                 blacklistUrl.addEventListener("input", () => {
@@ -185,10 +183,11 @@
                         body: JSON.stringify({ category: "blacklist", type: "add", payload: value })
                     }).then(res => res.ok ? res.json() : Promise.reject("Server error"))
                         .then(() => {
-                            alert("Blacklist rule added successfully.");
                             addRuleForm.reset();
                             blacklistSubmitBtn.disabled = true;
                             addRuleModal.hide();
+                            const backdrop = document.querySelector('.modal-backdrop');
+                            if (backdrop) backdrop.remove();
                         }).catch(err => alert("Failed to add: " + err));
                 });
             }

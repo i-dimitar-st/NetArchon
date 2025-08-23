@@ -7,7 +7,6 @@ import hmac
 
 from asgiref.wsgi import WsgiToAsgi
 from flask import Flask, abort, jsonify, render_template, request, session
-from secrets import token_hex
 from uvicorn import run as runUvicorn
 
 from app.config.config import config

@@ -1,6 +1,5 @@
 <!DOCTYPE html>
 <html lang="en">
-
 <!-- Head -->
 {% include ".head.html" %}
 
@@ -11,7 +10,7 @@
     <!-- Main -->
     <div class="container py-4">
         <!-- Logs Card -->
-        <div class="card shadow-sm">
+        <div class="card rounded">
             <div class="card-header bg-white d-flex justify-content-between align-items-center flex-wrap">
                 <h5 class="mb-0">
                     System Logs
@@ -23,8 +22,8 @@
                 <!-- Filters -->
                 <div class="row g-2 mb-3">
                     <div class="col-md-6">
-                        <label for="log-level-filter" class="form-label small text-uppercase">Level</label>
-                        <select class="form-select form-select-sm" id="log-level-filter">
+                        <label for="log-level-filter" class="form-label small text-uppercase rounded">Level</label>
+                        <select class="form-select form-select-sm rounded" id="log-level-filter">
                             <option value="all" selected>All Levels</option>
                             <option value="debug">Debug</option>
                             <option value="info">Info</option>
@@ -35,21 +34,17 @@
                     <div class="col-md-6">
                         <label for="log-service-filter" class="form-label small text-uppercase">Service</label>
                         <select class="form-select form-select-sm" id="log-service-filter">
-                            <option value="all" selected>All Services</option>
+                            <option value="all" selected>
+                                All Services
+                            </option>
                         </select>
                     </div>
                 </div>
 
                 <!-- Logs Window -->
-                <div id="log-window" class="border rounded p-2 bg-light" style="max-height: 500px; overflow-y: auto;">
+                <div id="log-window" class="border rounded p-2" style="max-height: 500px; overflow-y: auto">
                     <!-- Log entries injected by JavaScript -->
                 </div>
-
-                <!-- Floating scroll button -->
-                <button class="btn btn-primary position-absolute end-0 me-3 mt-2 d-none" id="floating-scroll-btn"
-                    title="Scroll to bottom">
-                    <i class="fas fa-arrow-down"></i>
-                </button>
             </div>
             <div class="card-footer bg-white">
                 <button class="btn btn-outline-primary" id="btn-scroll-bottom">
@@ -60,14 +55,16 @@
     </div>
 
     <script id="logs-data" type="application/json">
-        {{ system_logs | tojson | safe }}
-    </script>
+            {{ system_logs | tojson | safe }}
+        </script>
 
     <script>
-        const logs = JSON.parse(document.getElementById("logs-data").textContent);
+        const logs = JSON.parse(
+            document.getElementById("logs-data").textContent
+        );
 
         function getUniqueServices(logs) {
-            return [...new Set(logs.map(log => log.service))].sort();
+            return [...new Set(logs.map((log) => log.service))].sort();
         }
 
         function parseLogEntry(log) {
@@ -75,13 +72,14 @@
                 timestamp: log.timestamp.trim(),
                 level: log.level.trim(),
                 service: log.service.trim(),
-                message: log.message.trim()
+                message: log.message.trim(),
             };
         }
 
         function populateServiceFilter() {
-            const serviceFilter = document.getElementById("log-service-filter");
-            getUniqueServices(logs).forEach(service => {
+            const serviceFilter =
+                document.getElementById("log-service-filter");
+            getUniqueServices(logs).forEach((service) => {
                 const option = document.createElement("option");
                 option.value = service.toLowerCase();
                 option.textContent = service;
@@ -89,25 +87,36 @@
             });
         }
 
-        function displayLogs(logs, levelFilter = "all", serviceFilter = "all") {
+        function displayLogs(
+            logs,
+            levelFilter = "all",
+            serviceFilter = "all"
+        ) {
             const logWindow = document.getElementById("log-window");
             logWindow.innerHTML = "";
 
-            logs.forEach(log => {
+            logs.forEach((log) => {
                 const entry = parseLogEntry(log);
-                const matchesLevel = levelFilter === "all" || levelFilter === entry.level.toLowerCase();
-                const matchesService = serviceFilter === "all" || serviceFilter === entry.service.toLowerCase();
+                const matchesLevel =
+                    levelFilter === "all" ||
+                    levelFilter === entry.level.toLowerCase();
+                const matchesService =
+                    serviceFilter === "all" ||
+                    serviceFilter === entry.service.toLowerCase();
                 if (!matchesLevel || !matchesService) return;
 
                 const row = document.createElement("div");
-                row.className = "d-flex justify-content-between align-items-start mb-2 p-2 rounded bg-white shadow-sm";
+                row.className =
+                    "d-flex justify-content-between align-items-start mb-2 p-2 rounded bg-white shadow-sm";
 
                 const leftCol = document.createElement("div");
                 leftCol.className = "text-muted small me-3";
                 leftCol.textContent = entry.timestamp;
 
                 const middleCol = document.createElement("div");
-                middleCol.className = `badge bg-${getLevelColor(entry.level)} me-2`;
+                middleCol.className = `badge bg-${getLevelColor(
+                    entry.level
+                )} me-2`;
                 middleCol.textContent = entry.level.toUpperCase();
 
                 const rightCol = document.createElement("div");
@@ -126,11 +135,16 @@
 
         function getLevelColor(level) {
             switch (level.toLowerCase()) {
-                case "debug": return "secondary";
-                case "info": return "info";
-                case "warning": return "warning";
-                case "error": return "danger";
-                default: return "secondary";
+                case "debug":
+                    return "secondary";
+                case "info":
+                    return "info";
+                case "warning":
+                    return "warning";
+                case "error":
+                    return "danger";
+                default:
+                    return "secondary";
             }
         }
 
@@ -139,33 +153,33 @@
             logWindow.scrollTop = logWindow.scrollHeight;
         }
 
-        function checkScrollPosition() {
-            const logWindow = document.getElementById("log-window");
-            const floatingBtn = document.getElementById("floating-scroll-btn");
-            const isScrolledToBottom = logWindow.scrollHeight - logWindow.clientHeight <= logWindow.scrollTop + 50;
-            floatingBtn.classList.toggle("d-none", isScrolledToBottom);
-        }
-
         document.addEventListener("DOMContentLoaded", function () {
-            bootstrap.Tooltip && [].slice.call(document.querySelectorAll('[data-bs-toggle="tooltip"]')).map(el => new bootstrap.Tooltip(el));
+            bootstrap.Tooltip &&
+                [].slice
+                    .call(
+                        document.querySelectorAll(
+                            '[data-bs-toggle="tooltip"]'
+                        )
+                    )
+                    .map((el) => new bootstrap.Tooltip(el));
 
             populateServiceFilter();
             displayLogs(logs);
 
             const logWindow = document.getElementById("log-window");
-            const floatingScrollBtn = document.getElementById("floating-scroll-btn");
             const levelFilter = document.getElementById("log-level-filter");
-            const serviceFilter = document.getElementById("log-service-filter");
+            const serviceFilter =
+                document.getElementById("log-service-filter");
 
-            levelFilter.addEventListener("change", () => displayLogs(logs, levelFilter.value, serviceFilter.value));
-            serviceFilter.addEventListener("change", () => displayLogs(logs, levelFilter.value, serviceFilter.value));
-            document.getElementById("btn-scroll-bottom").addEventListener("click", scrollToBottom);
-            floatingScrollBtn.addEventListener("click", scrollToBottom);
-            logWindow.addEventListener("scroll", checkScrollPosition);
-
-            new ResizeObserver(() => checkScrollPosition()).observe(document.body);
-
-            checkScrollPosition();
+            levelFilter.addEventListener("change", () =>
+                displayLogs(logs, levelFilter.value, serviceFilter.value)
+            );
+            serviceFilter.addEventListener("change", () =>
+                displayLogs(logs, levelFilter.value, serviceFilter.value)
+            );
+            document
+                .getElementById("btn-scroll-bottom")
+                .addEventListener("click", scrollToBottom);
         });
     </script>
 </body>

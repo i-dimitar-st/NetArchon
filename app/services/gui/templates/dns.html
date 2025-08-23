@@ -13,7 +13,7 @@
         <div class="row g-4">
             <!-- DNS Statistics -->
             <div class="col-md-4">
-                <div class="card h-100 shadow-sm">
+                <div class="card h-100 rounded">
                     <div class="card-header bg-white d-flex justify-content-between align-items-center">
                         <h5 class="mb-0">DNS Statistics</h5>
                         <i class="fas fa-chart-pie text-primary fs-4"></i>
@@ -21,7 +21,7 @@
                     <div class="card-body p-3">
                         {% for key, value in dns_statistics.items() %}
                         {% if value %}
-                        <div class="d-flex justify-content-between align-items-center mb-2 p-2 rounded bg-light">
+                        <div class="d-flex justify-content-between align-items-center mb-2 p-2">
                             <span class="text-muted small text-uppercase">{{ key | replace('_', ' ') }}</span>
                             <span class="fw-semibold">{{ value }}</span>
                         </div>
@@ -33,7 +33,7 @@
 
             <!-- DNS History -->
             <div class="col-md-8">
-                <div class="card shadow-sm">
+                <div class="card rounded">
                     <div class="card-header bg-white d-flex justify-content-between align-items-center">
                         <h5 class="mb-0">
                             DNS History
@@ -74,7 +74,7 @@
                                     <tr>
                                         <td>{{ item.query | lower }}</td>
                                         <td class="text-center">
-                                            <span class="badge bg-secondary rounded-pill">{{ item.query_counter
+                                            <span class="badge bg-primary rounded-pill">{{ item.query_counter
                                                 }}</span>
                                         </td>
                                         <td data-timestamp="{{ item.created }}"></td>
