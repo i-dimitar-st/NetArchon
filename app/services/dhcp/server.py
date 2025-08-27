@@ -1,7 +1,7 @@
 from collections import deque
 from logging import Logger
 from queue import Empty, Full, Queue
-from threading import RLock, Thread, current_thread
+from threading import RLock, Thread, current_thread, Event
 
 from scapy.layers.inet import IP
 from scapy.layers.l2 import Ether
@@ -57,6 +57,7 @@ class DHCPServer:
     _initialised = False
     _running = False
     _workers = {}
+    _stop = Event()
 
     @classmethod
     def init(
@@ -104,6 +105,7 @@ class DHCPServer:
         if cls._running:
             raise RuntimeError("Server already running.")
         cls._running = True
+        cls._stop.clear()
 
         with cls._lock:
 
@@ -132,6 +134,7 @@ class DHCPServer:
 
         with cls._lock:
             cls._running = False
+            cls._stop.set()
             DbPersistanceService.stop()
             ClientDiscoveryService.stop()
             for _name, thread in cls._workers.items():

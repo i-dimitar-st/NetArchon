@@ -1,9 +1,9 @@
+import hmac
 from hashlib import sha256
 from logging import WARNING, getLogger
 from pathlib import Path
 from threading import Event, Thread
 from typing import Any
-import hmac
 
 from asgiref.wsgi import WsgiToAsgi
 from flask import Flask, abort, jsonify, render_template, request, session
@@ -15,6 +15,7 @@ from app.services.gui.helpers import (
     delete_from_blacklist,
     generate_system_stats,
     get_control_list,
+    get_csrf_token,
     get_dhcp_leases,
     get_dhcp_statistics,
     get_dns_history,
@@ -22,7 +23,6 @@ from app.services.gui.helpers import (
     get_metrics,
     get_network_interfaces,
     get_system_logs,
-    get_csrf_token,
 )
 from app.services.logger.logger import MainLogger
 
@@ -126,7 +126,8 @@ class App:
                 if request.endpoint == "static":
                     return
 
-                # When the request ends, Flask serializes the dict  session["_csrf_token"] a cookie and signs it with app.secret_key
+                # When request ends, Flask serializes session["_csrf_token"]
+                # as cookie and signs it with app.secret_key
                 if "_csrf_token" not in session:
                     session["_csrf_token"] = get_csrf_token()
 

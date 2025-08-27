@@ -1,7 +1,5 @@
 from fnmatch import fnmatch
 from functools import lru_cache
-
-# from json import load
 from pathlib import Path
 from threading import Event, RLock, Thread
 
@@ -88,22 +86,6 @@ class BlacklistService:
             ),
         }
 
-    # @classmethod
-    # def _load_blacklists_from_fs(cls) -> dict:
-    #     """
-    #     Load blacklist data from JSON file.
-    #     """
-    #     with open(BLACKLIST_PATH, mode="r", encoding="utf-8") as file_handle:
-    #         _blacklist = load(file_handle).get("payload")
-    #         return {
-    #             "blacklist": set(
-    #                 url.strip().lower() for url in _blacklist.get("urls", [])
-    #             ),
-    #             "blacklist_rules": set(
-    #                 rule.strip().lower() for rule in _blacklist.get("rules", [])
-    #             ),
-    #         }
-
     @classmethod
     def _work(cls):
         """
@@ -112,7 +94,6 @@ class BlacklistService:
         while not cls._stop_event.is_set():
             try:
                 _new_blacklists = cls._load_blacklists_from_mem()
-                # new_lists = cls._load_blacklists_from_fs()
                 with cls._lock:
                     if _new_blacklists != cls._blacklists:
                         cls._blacklists = _new_blacklists
@@ -121,16 +102,17 @@ class BlacklistService:
                             len(_new_blacklists["blacklist"]),
                             len(_new_blacklists["blacklist_rules"]),
                         )
-                        cls.is_blacklisted.cache_clear()
+                        cls.is_blacklisted_cache_if_hit.cache_clear()
             except Exception as err:
                 cls.logger.error("Failed processing control lists %s.", err)
             cls._stop_event.wait(cls._interval)
 
     @staticmethod
     @lru_cache(maxsize=CACHE_SIZE)
-    def is_blacklisted(qname: str) -> bool:
+    def is_blacklisted_cache_if_hit(qname: str) -> bool:
         """
         Check if domain matches blacklist or wildcard rules.
+        Uses LRU cache.
         """
         if not qname:
             return False

@@ -1,9 +1,9 @@
-from secrets import token_hex
 from datetime import datetime, timezone
 from json import dump, load
 from os import getloadavg
 from pathlib import Path
 from platform import machine, node, processor, release, system, version
+from secrets import token_hex
 from socket import AF_INET, AF_PACKET
 from sqlite3 import Cursor, connect
 from threading import RLock
@@ -24,9 +24,15 @@ from psutil import (
     swap_memory,
     virtual_memory,
 )
+from psutil._common import shwtemp
 
 from app.config.config import config
-from app.services.dns.metrics import dns_metrics
+from app.services.dhcp.metrics import dhcp_metrics
+from app.services.dns.metrics import (
+    dns_metrics,
+    dns_metrics_external,
+    dns_per_server_metrics,
+)
 from app.services.logger.logger import MainLogger
 from app.utils.dns_utils import DNSUtils
 
@@ -50,31 +56,8 @@ _lock = RLock()
 def generate_system_stats() -> dict:
     process = PsutilProcess()
     stats = {
-        "system": {
-            "datetime": {"value": ctime()},
-            "uptime": {"value": int(time() - boot_time()), "unit": "sec"},
-            "os_name": {"value": system()},
-            "os_version": {"value": version()},
-            "os_release": {"value": release()},
-            "architecture": {"value": machine()},
-            "processor": {"value": processor()},
-            "hostname": {"value": node()},
-        },
-        "cpu": {
-            "usage": {"value": sys_cpu_percent(interval=0.5), "unit": "%"},
-            "usage_per_core": {
-                "value": sys_cpu_percent(interval=0.5, percpu=True),
-                "unit": "%",
-            },
-            "frequency_per_core": {
-                "value": [int(freq.current) for freq in cpu_freq(percpu=True)],
-                "unit": "MHz",
-            },
-            "cores": {"value": cpu_count(logical=True), "unit": "cores"},
-            "load_1min": {"value": round(getloadavg()[0], 2)},
-            "load_5min": {"value": round(getloadavg()[1], 2)},
-            "load_15min": {"value": round(getloadavg()[2], 2)},
-        },
+        "system": {},
+        "cpu": {},
         "temperature": {},
         "memory": {},
         "swap": {},
@@ -82,80 +65,126 @@ def generate_system_stats() -> dict:
         "process": {},
         "network": {},
     }
+    stats["system"] = {
+        "datetime": {"value": ctime(), "unit": "time"},
+        "uptime": {
+            "value": round((time() - boot_time()) / 86400, 2),
+            "unit": "days",
+        },
+        "os_name": {"value": system(), "unit": "os"},
+        "os_version": {"value": release(), "unit": "version"},
+        "architecture": {"value": machine(), "unit": "arch"},
+        "processor": {"value": processor(), "unit": "cpu"},
+        "hostname": {"value": node(), "unit": "name"},
+    }
 
-    # CPU Temp
-    temp_info = sensors_temperatures(fahrenheit=False)
-    for label, sensors in temp_info.items():
-        for sensor in sensors:
-            stats["temperature"][f"{label}_{sensor.label}"] = {
+    stats["cpu"]["overall"] = {
+        "value": round(sys_cpu_percent(interval=0.5), 1),
+        "unit": "%",
+    }
+    stats["cpu"]["cores"] = {"value": cpu_count(logical=True), "unit": "cores"}
+    stats["cpu"]["per_core"] = {
+        f"core_{i}": {"value": round(u, 1), "unit": "%"}
+        for i, u in enumerate(sys_cpu_percent(interval=0.5, percpu=True))
+    }
+    stats["cpu"]["frequency_per_core"] = {
+        f"core_{i}": {"value": int(f.current), "unit": "MHz"}
+        for i, f in enumerate(cpu_freq(percpu=True))
+    }
+    stats["cpu"]["load_avg"] = {
+        f"core_{i}": {"value": round(l, 2), "unit": "proc"}
+        for i, l in enumerate(getloadavg())
+    }
+
+    stats["temperature"] = {}
+    stats["memory"] = {}
+    stats["swap"] = {}
+    stats["disks"] = {}
+    stats["network"] = {}
+    stats["process"] = {}
+
+    # CPU temperatures
+    temps: dict[str, list[shwtemp]] = sensors_temperatures(fahrenheit=False)
+    for label, sensors in temps.items():
+        stats["temperature"][label] = {}
+        for i, sensor in enumerate(sensors):
+            key = sensor.label if sensor.label else f"core_{i}"
+            stats["temperature"][label][key] = {
                 "value": int(sensor.current),
                 "unit": "°C",
             }
 
     # Memory
-    memory = virtual_memory()
+    mem = virtual_memory()
     stats["memory"] = {
-        "total": {"value": int(memory.total / 1024 / 1024), "unit": "MB"},
-        "available": {"value": int(memory.available / 1024 / 1024), "unit": "MB"},
-        "percent_used": {"value": int(memory.percent), "unit": "%"},
+        "total": {"value": mem.total // (1024 * 1024), "unit": "MB"},
+        "available": {"value": mem.available // (1024 * 1024), "unit": "MB"},
+        "used": {"value": mem.percent, "unit": "%"},
     }
 
     # Swap
     swap = swap_memory()
     stats["swap"] = {
-        "total": {"value": int(swap.total / 1024 / 1024), "unit": "MB"},
-        "used": {"value": int(swap.used / 1024 / 1024), "unit": "MB"},
-        "percent_used": {"value": int(swap.percent), "unit": "%"},
+        "total": {"value": swap.total // (1024 * 1024), "unit": "MB"},
+        "used": {"value": swap.used // (1024 * 1024), "unit": "MB"},
+        "free": {"value": swap.free // (1024 * 1024), "unit": "MB"},
+        "percent": {"value": round(swap.percent, 1), "unit": "%"},
     }
 
-    # Disks
+    # Disks per mount point
     for part in disk_partitions(all=False):
+        if "ext" not in part.fstype:
+            continue  # Only external / data disks
         try:
             usage = disk_usage(part.mountpoint)
-            if "ext" in part.fstype:
-                stats["disks"][f"disk_{part.mountpoint}_total"] = {
-                    "value": int(usage.total / 1024 / 1024),
-                    "unit": "MB",
-                }
-                stats["disks"][f"disk_{part.mountpoint}_used"] = {
-                    "value": int(usage.used / 1024 / 1024),
-                    "unit": "MB",
-                }
+            stats["disks"][part.mountpoint] = {
+                "total": {
+                    "value": round(usage.total // (1024 * 1024 * 1024), 2),
+                    "unit": "GB",
+                },
+                "used": {
+                    "value": round(usage.used // (1024 * 1024 * 1024), 2),
+                    "unit": "GB",
+                },
+                "free": {
+                    "value": round(usage.free // (1024 * 1024 * 1024), 2),
+                    "unit": "GB",
+                },
+                "percent": {"value": round(usage.percent, 1), "unit": "%"},
+            }
         except PermissionError:
             continue
 
-    # Network: Stats from all network interfaces (Flat structure)
-    network = net_io_counters(pernic=True)
-    for iface, counters in network.items():
-        stats["network"][f"{iface}_sent"] = {
-            "value": int(counters.bytes_sent / 1024 / 1024),
-            "unit": "MB",
+    # Network interfaces
+    nets = net_io_counters(pernic=True)
+    for iface, counters in nets.items():
+        stats["network"][iface] = {
+            "data_sent": {"value": counters.bytes_sent // (1024 * 1024), "unit": "MB"},
+            "data_recv": {"value": counters.bytes_recv // (1024 * 1024), "unit": "MB"},
+            "packets_sent": {"value": counters.packets_sent, "unit": "count"},
+            "packets_recv": {"value": counters.packets_recv, "unit": "count"},
+            "errors_sent": {"value": counters.errout, "unit": "count"},
+            "errors_recv": {"value": counters.errin, "unit": "count"},
         }
-        stats["network"][f"{iface}_recv"] = {
-            "value": int(counters.bytes_recv / 1024 / 1024),
-            "unit": "MB",
-        }
-        stats["network"][f"{iface}_packets_sent"] = {"value": counters.packets_sent}
-        stats["network"][f"{iface}_packets_recv"] = {"value": counters.packets_recv}
-        stats["network"][f"{iface}_errors_sent"] = {"value": counters.errout}
-        stats["network"][f"{iface}_errors_recv"] = {"value": counters.errin}
 
-    # Current Process Stats
+    # Current process stats
     with process.oneshot():
-        now: float = time()
-        create_time: float = process.create_time()
-        uptime: float = round(now - create_time, 2)
+        now = time()
         mem_info = process.memory_info()
-        cpu_percent: float = process.cpu_percent(interval=0.1)  # Short sample
-
+        cpu_perc = process.cpu_percent(interval=0.1)
         stats["process"] = {
-            "pid": {"value": process.pid},
+            "pid": {"value": process.pid, "unit": "id"},
             "name": {"value": process.name()},
             "status": {"value": process.status()},
-            "uptime": {"value": uptime, "unit": "sec"},
-            "cpu": {"value": round(cpu_percent, 2), "unit": "%"},
-            "memory_rss": {"value": int(mem_info.rss / 1024 / 1024), "unit": "MB"},
-            "memory_vms": {"value": int(mem_info.vms / 1024 / 1024), "unit": "MB"},
+            "started": {
+                "value": datetime.fromtimestamp(process.create_time()).strftime(
+                    "%Y-%m-%d %H:%M:%S"
+                )
+            },
+            "uptime": {"value": round(now - process.create_time(), 2), "unit": "sec"},
+            "cpu": {"value": round(cpu_perc, 2), "unit": "%"},
+            "memory_rss": {"value": mem_info.rss // (1024 * 1024), "unit": "MB"},
+            "memory_vms": {"value": mem_info.vms // (1024 * 1024), "unit": "MB"},
         }
 
     return stats
@@ -209,7 +238,7 @@ def get_dhcp_leases() -> list:
 
             result = []
             for _lease in _leases:
-                result.append(dict(zip(_columns, _lease)))  # type: ignore
+                result.append(dict(zip(_columns, _lease)))
 
             return result
 
@@ -399,7 +428,18 @@ def delete_from_blacklist(url: str) -> bool:
 
 
 def get_metrics() -> list[dict]:
-    return [{"label": "dns", "metrics": dns_metrics.get_stats()}]
+    _server_metrics = []
+    for server, metrics in dns_per_server_metrics.items():
+        _server_metrics.append({"label": str(server), "metrics": metrics.get_stats()})
+    return [
+        {"label": "dhcp", "metrics": dhcp_metrics.get_stats()},
+        {"label": "dns", "metrics": dns_metrics.get_stats()},
+        {
+            "label": "dns_external",
+            "metrics": dns_metrics_external.get_stats(),
+        },
+        *_server_metrics,
+    ]
 
 
 def get_csrf_token():

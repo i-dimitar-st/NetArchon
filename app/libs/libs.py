@@ -67,11 +67,8 @@ class Metrics:
     def get_stats(self) -> dict:
         """Return count and common percentile stats."""
         return {
-            "p25": self.get_percentile(25),
             "p50": self.get_percentile(50),
-            "p75": self.get_percentile(75),
             "p90": self.get_percentile(90),
-            "p95": self.get_percentile(95),
             "p99": self.get_percentile(99),
         }
 
@@ -208,10 +205,16 @@ class TTLCache:
 
     @ttl_clean_expired
     @ttl_evict
-    def add(self, key: Any, value: Any, ttl: Optional[int] = None):
-        """Add item, ttl is optinal default assigned if missing."""
+    def add(self, key: Any, value: Any, ttl: int = 0):
+        """
+        Add an item to the cache with an optional TTL.
+        Args:
+            key (Any): key to store the value.
+            value (Any): The value to cache..
+            ttl (int): TTL in sec, if <= 0 = self._ttl.
+        """
         with self._lock:
-            expiry: float = time() + (ttl if ttl and ttl > 0 else self._ttl)
+            expiry: float = time() + max(ttl, self._ttl)
             self._cache[key] = (value, expiry)
 
     @ttl_clean_expired

@@ -7,9 +7,11 @@ from scapy.packet import Packet
 from scapy.sendrecv import sendp
 
 from app.config.config import config, dhcp_static_config
+from app.libs.libs import measure_latency_decorator
 from app.services.dhcp.client_discovery import ClientDiscoveryService
 from app.services.dhcp.db_dhcp_leases import DHCPStorage
 from app.services.dhcp.db_dhcp_stats import DHCPStats
+from app.services.dhcp.metrics import dhcp_metrics
 from app.services.dhcp.models import (
     DHCPArpClient,
     DHCPLeaseType,
@@ -56,6 +58,7 @@ class DHCPMessageHandler:
         cls.logger: Logger = logger
 
     @classmethod
+    @measure_latency_decorator(metrics=dhcp_metrics)
     def handle_message(cls, dhcp_msg: DHCPMessage):
         """
         Process an incoming DHCP message based on its DHCP type.

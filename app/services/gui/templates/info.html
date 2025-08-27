@@ -1,52 +1,20 @@
 <!DOCTYPE html>
 <html lang="en">
 
-<!-- Head -->
 {% include ".head.html" %}
 
 <body>
 
-    <!-- Nav -->
     {% include ".header.html" %}
+
+    {% import 'macros.jinja2' as macros %}
 
     <!-- Main Content -->
     <div class="container py-4">
 
         <!-- System Statistics Cards -->
         <div class="row g-4">
-            {% for group_name, group_stats in system_statistics.items() %}
-            <div class="col-md-4">
-                <div class="card h-100 rounded">
-                    <div class="card-header bg-white">
-                        <div class="d-flex align-items-center gap-2">
-                            {% if 'system' in group_name.lower() %}
-                            <i class="fas fa-server text-primary fs-5"></i>
-                            {% elif 'cpu' in group_name.lower() %}
-                            <i class="fas fa-microchip text-primary fs-5"></i>
-                            {% elif 'memory' in group_name.lower() %}
-                            <i class="fas fa-memory text-primary fs-5"></i>
-                            {% elif 'disk' in group_name.lower() %}
-                            <i class="fas fa-hdd text-primary fs-5"></i>
-                            {% else %}
-                            <i class="fas fa-chart-line text-primary fs-5"></i>
-                            {% endif %}
-                            <h6 class="mb-0 text-uppercase">{{ group_name.replace('_',' ') }}</h5>
-                        </div>
-                    </div>
-                    <div class="card-body p-3">
-                        {% for stat_name, content in group_stats.items() %}
-                        <div class="d-flex justify-content-between align-items-center mb-2 p-0 rounded">
-                            <span class="text-muted small text-uppercase">{{ stat_name.replace('_',' ') }}</span>
-                            <span class="fw-semibold">
-                                {{ content.value }}
-                                {% if content.unit %}<small class="text-muted">{{ content.unit }}</small>{% endif %}
-                            </span>
-                        </div>
-                        {% endfor %}
-                    </div>
-                </div>
-            </div>
-            {% endfor %}
+            {{ macros.render_info(system_statistics) }}
         </div>
 
         <!-- Network Interfaces Card -->
@@ -71,8 +39,8 @@
                         <tbody>
                             {% for iface in network_interfaces %}
                             <tr>
-                                <td><span class="badge bg-secondary">{{ iface.name | title }}</span></td>
-                                <td><span class="badge bg-primary">{{ iface.type }}</span></td>
+                                <td><span class="badge bg-primary">{{ iface.name }}</span></td>
+                                <td><span class="badge bg-secondary">{{ iface.type }}</span></td>
                                 <td>{{ iface.ip_address }}</td>
                                 <td>{{ iface.netmask }}</td>
                                 <td>{{ iface.broadcast }}</td>

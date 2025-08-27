@@ -1,4 +1,6 @@
 import sys
+
+sys.dont_write_bytecode = True
 from logging import Logger
 from signal import SIGABRT, SIGINT, SIGQUIT, SIGTERM, signal
 from threading import Event
@@ -9,16 +11,14 @@ from app.services.gui.app import App
 from app.services.logger.logger import MainLogger
 from app.services.memory.memory import MemoryManager
 
+
 logger: Logger = MainLogger.get_logger(service_name="MAIN")
 shutdown_event = Event()
 
 
-sys.dont_write_bytecode = True
-
-
 def shutdown_handler(signum: int, frame):
     """
-    Handles app shutdown calls
+    Handles app shutdown calls.
     Args:
         signum (int): The signal number received.
         frame (frame object): Current stack frame.

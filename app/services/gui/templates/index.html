@@ -1,17 +1,11 @@
 <!DOCTYPE html>
 <html lang="en">
-
-<!-- Head -->
 {% include ".head.html" %}
 
 <body>
-
-    <!-- Nav -->
     {% include ".header.html" %}
 
-    <!-- Main -->
     <div class="container py-4">
-
         <!-- Top Stats Cards -->
         <div class="row g-4">
             <!-- System Status -->
@@ -24,7 +18,9 @@
                     <div class="card-body">
                         <div class="d-flex justify-content-between mb-2 p-2">
                             <span class="text-muted small text-uppercase">System Time</span>
-                            <span class="fw-semibold">{{ system_stats['system']['datetime']['value'] }}</span>
+                            <span class="fw-semibold">{{
+                                system_stats['system']['datetime']['value']
+                                }}</span>
                         </div>
                         <div class="d-flex justify-content-between mb-2 p-2">
                             <span class="text-muted small text-uppercase">Status</span>
@@ -32,12 +28,19 @@
                         </div>
                         <div class="d-flex justify-content-between mb-2 p-2">
                             <span class="text-muted small text-uppercase">Uptime</span>
-                            <span class="fw-semibold">{{ "%.2f"|format(system_stats['system']['uptime']['value']/86400)
-                                }} days</span>
+                            <span class="fw-semibold">{{ "%.2f"|format(system_stats['system']['uptime']['value']) }}
+                                days</span>
                         </div>
                         <div class="d-flex justify-content-between mb-2 p-2">
                             <span class="text-muted small text-uppercase">CPU Temperature</span>
-                            <span class="fw-semibold">55 °C</span>
+                            {% set temps_flat = [] %}
+                            {% for label, sensors in system_stats['temperature'].items() %}
+                            {% for sensor, val in sensors.items() %}
+                            {% set _ = temps_flat.append(val['value']) %}
+                            {% endfor %}
+                            {% endfor %}
+                            {% set max_temp = temps_flat | max %}
+                            <span class="fw-semibold">{{ max_temp }} °C</span>
                         </div>
                     </div>
                 </div>
@@ -53,11 +56,14 @@
                     <div class="card-body">
                         <div class="d-flex justify-content-between mb-2 p-2 rounded stats-item">
                             <span class="text-muted small text-uppercase">CPU Usage</span>
-                            <span class="fw-semibold">{{ "%.0f"|format(system_stats['cpu']['usage']['value']) }}%</span>
+                            <span class="fw-semibold">{{
+                                "%.0f"|format(system_stats['cpu']['overall']['value'])
+                                }}%</span>
                         </div>
                         <div class="d-flex justify-content-between mb-2 p-2 rounded stats-item">
                             <span class="text-muted small text-uppercase">Memory Usage</span>
-                            <span class="fw-semibold">{{ "%.0f"|format(system_stats['memory']['percent_used']['value'])
+                            <span class="fw-semibold">{{
+                                "%.0f"|format(system_stats['memory']['used']['value'])
                                 }}%</span>
                         </div>
                     </div>

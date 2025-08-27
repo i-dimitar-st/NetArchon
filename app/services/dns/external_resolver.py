@@ -1,7 +1,7 @@
 from concurrent.futures import Future, ThreadPoolExecutor, as_completed
 from ipaddress import IPv4Address
+from itertools import cycle
 from pathlib import Path
-from random import sample
 from socket import (
     AF_INET,
     SOCK_DGRAM,
@@ -14,6 +14,8 @@ from typing import Any
 from dnslib import DNSRecord
 
 from app.config.config import config
+from app.libs.libs import measure_latency_decorator
+from app.services.dns.metrics import dns_per_server_metrics
 
 PATHS = config.get("paths")
 ROOT_PATH = Path(PATHS.get("root"))
@@ -77,6 +79,7 @@ class ExternalResolverService:
             if cls._executor is not None:
                 raise RuntimeError("Already initialized")
             cls._dns_servers = [IPv4Address(ip) for ip in dns_servers]
+            cls._dns_cycle = cycle(cls._dns_servers)
             cls._port = port
             cls._max_msg_size = max_msg_size
             cls._timeout = timeout
@@ -122,15 +125,18 @@ class ExternalResolverService:
                 raise RuntimeError("Not started")
             if cls._dns_servers is None:
                 raise RuntimeError("No DNS Servers")
-            _executor = cls._executor
-            _dns_servers = sample(cls._dns_servers, k=len(cls._dns_servers))
+            _executor: ThreadPoolExecutor = cls._executor
             _timeout = cls._timeout + cls._timeout_buffer
 
-        # Randomize to distribute requests across DNS servers evenly per thread
+        # next uses cycle to get round robing approach
         futures = {}
-        for dns_server_ip in _dns_servers:
+        for _ in range(len(cls._dns_servers)):
+            dns_server_ip: IPv4Address = next(cls._dns_cycle)
+            decorated_query = measure_latency_decorator(
+                metrics=dns_per_server_metrics[dns_server_ip]
+            )(cls._query_external_dns_server)
             future: Future[DNSRecord] = _executor.submit(
-                cls._query_external_dns_server, dns_request, dns_server_ip
+                decorated_query, dns_request, dns_server_ip
             )
             futures[future] = dns_server_ip
 
