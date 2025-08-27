@@ -2,7 +2,7 @@ from datetime import datetime, timezone
 from json import dump, load
 from os import getloadavg
 from pathlib import Path
-from platform import machine, node, processor, release, system, version
+from platform import machine, node, processor, release, system
 from secrets import token_hex
 from socket import AF_INET, AF_PACKET
 from sqlite3 import Cursor, connect

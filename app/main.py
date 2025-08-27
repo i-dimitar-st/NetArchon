@@ -1,6 +1,3 @@
-import sys
-
-sys.dont_write_bytecode = True
 from logging import Logger
 from signal import SIGABRT, SIGINT, SIGQUIT, SIGTERM, signal
 from threading import Event
@@ -10,7 +7,6 @@ from app.services.dns.dns import DNSServer
 from app.services.gui.app import App
 from app.services.logger.logger import MainLogger
 from app.services.memory.memory import MemoryManager
-
 
 logger: Logger = MainLogger.get_logger(service_name="MAIN")
 shutdown_event = Event()

@@ -1,7 +1,7 @@
 from collections import deque
 from logging import Logger
 from queue import Empty, Full, Queue
-from threading import RLock, Thread, current_thread, Event
+from threading import Event, RLock, Thread, current_thread
 
 from scapy.layers.inet import IP
 from scapy.layers.l2 import Ether
