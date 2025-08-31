@@ -2,6 +2,7 @@ from collections import deque
 from logging import Logger
 from queue import Empty, Full, Queue
 from threading import Event, RLock, Thread, current_thread
+from time import time
 
 from scapy.layers.inet import IP
 from scapy.layers.l2 import Ether
@@ -54,10 +55,11 @@ dhcp_logger: Logger = MainLogger.get_logger(service_name="DHCP", log_level="debu
 class DHCPServer:
 
     _lock = RLock()
-    _initialised = False
-    _running = False
     _workers = {}
     _stop = Event()
+    timestamp: float
+    initialised = False
+    running = False
 
     @classmethod
     def init(
@@ -66,7 +68,7 @@ class DHCPServer:
         inbound_requests_deque_size=INBOUND_REQ_DEQUE_SIZE,
     ) -> None:
 
-        if cls._initialised:
+        if cls.initialised:
             raise RuntimeError("Already Init")
 
         cls._received_queue = Queue(maxsize=received_queue_size)
@@ -94,17 +96,18 @@ class DHCPServer:
         ClientDiscoveryService.init(logger=dhcp_logger)
         DbPersistanceService.init(logger=dhcp_logger)
 
-        cls._initialised = True
+        cls.initialised = True
 
     @classmethod
     def start(cls):
         """Start all necessary threads"""
 
-        if not cls._initialised:
+        if not cls.initialised:
             raise RuntimeError("Not init.")
-        if cls._running:
+        if cls.running:
             raise RuntimeError("Server already running.")
-        cls._running = True
+        cls.running = True
+        cls.timestamp = time()
         cls._stop.clear()
 
         with cls._lock:
@@ -129,11 +132,11 @@ class DHCPServer:
     @classmethod
     def stop(cls, worker_join_timeout=WORKER_JOIN_TIMEOUT):
 
-        if not cls._running:
+        if not cls.running:
             raise RuntimeError("Server not running.")
 
         with cls._lock:
-            cls._running = False
+            cls.running = False
             cls._stop.set()
             DbPersistanceService.stop()
             ClientDiscoveryService.stop()
@@ -146,9 +149,9 @@ class DHCPServer:
     @classmethod
     def restart(cls, worker_join_timeout=WORKER_JOIN_TIMEOUT):
         """Stop and then start the DHCP server cleanly."""
-        if not cls._initialised:
+        if not cls.initialised:
             raise RuntimeError("Server not initialized.")
-        if not cls._running:
+        if not cls.running:
             cls.start()
             return
         cls.stop(worker_join_timeout=worker_join_timeout)
@@ -161,7 +164,7 @@ class DHCPServer:
             iface=interface,
             filter=f"ip and udp and port {port}",
             prn=cls._listen,
-            stop_filter=lambda _: not cls._running,
+            stop_filter=lambda _: not cls.running,
             count=0,
             timeout=None,
             store=False,
@@ -187,7 +190,7 @@ class DHCPServer:
     def _processor(cls, worker_get_timeout=WORKER_GET_TIMEOUT):
         """Main processor function multi threaded."""
 
-        while cls._running:
+        while cls.running:
             dhcp_message = None
             try:
                 dhcp_message = DHCPMessage(

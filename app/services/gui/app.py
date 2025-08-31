@@ -13,6 +13,7 @@ from app.config.config import config
 from app.services.gui.helpers import (
     add_to_blacklist,
     delete_from_blacklist,
+    generate_network_stats,
     generate_system_stats,
     get_control_list,
     get_csrf_token,
@@ -22,6 +23,7 @@ from app.services.gui.helpers import (
     get_dns_statistics,
     get_metrics,
     get_network_interfaces,
+    get_service_stats,
     get_system_logs,
 )
 from app.services.logger.logger import MainLogger
@@ -149,11 +151,43 @@ class App:
 
             @cls._app.route("/")
             def index():
+
+                _sys_stats = generate_system_stats()
+                _cpu_temps = [
+                    sensor.get("value")
+                    for label, sensors in _sys_stats.get("temperature", {}).items()
+                    if "core" in label.lower()
+                    for sensor in sensors.values()
+                ]
+                _max_cpu_temp = {"value": max(_cpu_temps), "unit": "°C"}
+                _system_time = _sys_stats.get("system", {}).get("datetime")
+                _uptime = _sys_stats.get("system", {}).get("uptime", {})
+                _cpu_usage = _sys_stats.get("cpu", {}).get("overall", {})
+                _mem_usage = _sys_stats.get("memory", {}).get("used", {})
+                system_stats = {
+                    "system_time": _system_time,
+                    "uptime": _uptime,
+                    "cpu_temp": _max_cpu_temp,
+                    "cpu_usage": _cpu_usage,
+                    "mem_usage": _mem_usage,
+                }
+                cards = {
+                    "system": system_stats,
+                    "services": get_service_stats(),
+                    "network": generate_network_stats(),
+                }
+                quick_actions = [
+                    {"name": "DNS", "icon": "globe", "url": "/dns"},
+                    {"name": "DHCP", "icon": "network", "url": "/dhcp"},
+                    {"name": "Config", "icon": "config", "url": "/config"},
+                    {"name": "Logs", "icon": "logs", "url": "/logs"},
+                ]
+
                 return render_template(
                     "index.html",
                     active_page="dashboard",
-                    system_stats=generate_system_stats(),
-                    active_leases=len(get_dhcp_leases()),
+                    cards=cards,
+                    quick_actions=quick_actions,
                     csrf_token=session["_csrf_token"],
                 )
 

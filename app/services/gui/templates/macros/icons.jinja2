@@ -1,0 +1,23 @@
+{% macro icons(type='default', size=5) %}
+    {% set _type = type.lower().strip() %}
+    {% set icon_class = "fa-question-circle" %}
+    {% if 'bolt' in _type %} {% set icon_class = "fa-bolt" %}
+    {% elif 'config' in _type %} {% set icon_class = "fa-cogs" %}
+    {% elif 'cpu' in _type %} {% set icon_class = "fa-microchip" %}
+    {% elif 'dashboard' in _type %} {% set icon_class = "fa-tachometer" %}
+    {% elif 'dhcp' in _type %} {% set icon_class = "fa-network-wired" %}
+    {% elif 'disk' in _type %} {% set icon_class = "fa-hdd" %}
+    {% elif 'dns' in _type or 'globe' in _type %} {% set icon_class = "fa-globe" %}
+    {% elif 'edit' in _type %} {% set icon_class = "fa-edit" %}
+    {% elif 'info' in _type %} {% set icon_class = "fa-info-circle" %}
+    {% elif 'memory' in _type %} {% set icon_class = "fa-memory" %}
+    {% elif 'metrics' in _type %} {% set icon_class = "fa-chart-line" %}
+    {% elif 'network' in _type %} {% set icon_class = "fa-network-wired" %}
+    {% elif 'process' in _type %} {% set icon_class = "fa-tasks" %}
+    {% elif 'service' in _type %} {% set icon_class = "fa-server" %}
+    {% elif 'system' in _type %} {% set icon_class = "fa-cogs" %}
+    {% elif 'temperature' in _type %} {% set icon_class = "fa-thermometer-half" %}
+    {% elif 'log' in _type %} {% set icon_class = "fa-clipboard-list" %}
+    {% endif %}
+    <i class="fas {{ icon_class }} fs-{{ size }}"></i>
+{% endmacro %}

@@ -1,3 +1,7 @@
+{% import 'macros/macros.jinja2' as macros %}
+{% from 'macros/recursive_generation.jinja2' import generate_recursive_content %}
+{% from 'macros/icons.jinja2' import icons %}
+
 <!DOCTYPE html>
 <html lang="en">
 
@@ -8,7 +12,6 @@
     <!-- Nav -->
     {% include ".header.html" %}
 
-    {% import 'macros.jinja2' as macros %}
 
     <!-- Main Content -->
     <div class="container py-4">
@@ -20,17 +23,17 @@
             ] %}
             <div class="col-md-4">
                 <div class="card h-100 rounded">
-                    <div class="card-header d-flex justify-content-between align-items-center bg-white">
+                    <div class="card-header bg-white d-flex justify-content-between align-items-center">
                         <div class="d-flex align-items-center">
-                            <i class="fas {{ icon }} text-primary fa-lg me-2"></i>
-                            <h5 class="mb-0">{{ section }}</h5>
+                            <span style="color: var(--primary-color)">{{ icons(icon) }}</span>
+                            <h5 class="ps-1 mb-0 fw-bold">{{ section }}</h5>
                         </div>
-                        <button class="btn btn-sm edit-btn">
-                            <i class="fas fa-edit text-primary fa-lg me-1"></i>
+                        <button class="btn btn-sm edit-btn text-primary">
+                            {{ icons("edit") }}
                         </button>
                     </div>
                     <div class="card-body">
-                        {{ macros.render_config(conf) }}
+                        {{ generate_recursive_content(conf) }}
                     </div>
                 </div>
             </div>

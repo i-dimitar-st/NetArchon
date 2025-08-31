@@ -1,0 +1,41 @@
+{% macro generate_recursive_content(data, level=0) %}
+    <div class="level-{{ level }}">
+    {% for key, value in data.items() %}
+        {% set display_key = key | string | replace('_',' ') %}
+        {% if value is mapping and 'value' in value %}
+            {# Leaf dict with value/unit #}
+            <div class="d-flex justify-content-between mb-1">
+                <span class="text-uppercase small text-muted">{{ display_key }}</span>
+                <span class="fw-semibold small">
+                    {{ value.value }}
+                    {% if value.unit %}
+                        <small class="text-muted text-uppercase small">{{ value.unit }}</small>
+                    {% endif %}
+                </span>
+            </div>
+
+        {% elif value is mapping %}
+            {# Nested dict, recurse #}
+            <div class="mb-2">
+                <strong class="text-uppercase fw-semibold small text-muted">{{ display_key }}</strong>
+                {{ generate_recursive_content(value, level + 1) }}
+            </div>
+
+        {% elif value is iterable and value is not string %}
+            {# Iterable leaf #}
+            <div class="mb-1">
+                <strong class="text-uppercase fw-semibold small text-muted">{{ display_key }}</strong>:
+                <span class="fw-semibold small">{{ value | join(', ') }}</span>
+            </div>
+
+        {% elif value %}
+            {# Simple value leaf #}
+            <div class="d-flex justify-content-between mb-1">
+                <span class="text-uppercase small text-muted">{{ display_key }}</span>
+                <span class="fw-semibold small">{{ value }}</span>
+            </div>
+        {% endif %}
+
+    {% endfor %}
+</div>
+{% endmacro %}

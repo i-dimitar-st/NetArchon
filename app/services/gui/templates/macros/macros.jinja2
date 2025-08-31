@@ -21,39 +21,7 @@
 </div>
 {% endmacro %}
 
-{% macro render_info(stats) %}
-<div class="row g-4">
-    {% for group_name, group_stats in stats.items() %}
-        <div class="col-md-4">
-            <div class="card h-100 rounded">
-                <div class="card-header d-flex align-items-center gap-2 bg-white">
-                    {% if 'system' in group_name.lower() %}
-                        <i class="fas fa-server text-primary fs-5"></i>
-                    {% elif 'cpu' in group_name.lower() %}
-                        <i class="fas fa-microchip text-primary fs-5"></i>
-                    {% elif 'memory' in group_name.lower() %}
-                        <i class="fas fa-memory text-primary fs-5"></i>
-                    {% elif 'disk' in group_name.lower() %}
-                        <i class="fas fa-hdd text-primary fs-5"></i>
-                    {% elif 'network' in group_name.lower() %}
-                        <i class="fas fa-network-wired text-primary fs-5"></i>
-                    {% elif 'process' in group_name.lower() %}
-                        <i class="fas fa-tasks text-primary fs-5"></i>
-                    {% else %}
-                        <i class="fas fa-chart-line text-primary fs-5"></i>
-                    {% endif %}
-                    <h6 class="mb-0 text-uppercase">{{ group_name.replace('_',' ') }}</h6>
-                </div>
-                <div class="card-body p-3">
-                    {{ _render_info_recursive(group_stats) }}
-                </div>
-            </div>
-        </div>
-    {% endfor %}
-</div>
-{% endmacro %}
-
-{% macro _render_info_recursive(data, level=0) %}
+{% macro render_info_recursive(data, level=0) %}
 <div class="config-level-{{ level }}" style="margin-left: {{ level * 15 }}px;">
     {% for key, value in data.items() %}
         {% if value is mapping and 'value' in value %}
@@ -67,7 +35,7 @@
         {% elif value is mapping %}
             <div class="mb-2">
                 <strong class="text-uppercase fw-semibold small text-muted">{{ key | string | replace('_',' ') }}</strong>
-                {{ _render_info_recursive(value, level + 1) }}
+                {{ render_info_recursive(value, level + 1) }}
             </div>
         {% elif value is iterable and value is not string %}
             <div class="mb-1">

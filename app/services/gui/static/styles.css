@@ -1,60 +1,61 @@
 :root {
-    --primary-color: #4361ee;
-    --secondary-color: #3f37c9;
     --accent-color: #4895ef;
     --danger-color: #e63946;
+    --hover-bg: rgba(67, 97, 238, 0.05);
+    --icon-brand: rgba(255, 255, 255, 0.9);
+    --icon-nav: rgba(255, 255, 255, 0.8);
+    --icon-primary: var(--primary-color);
+    --icon-success: var(--success-color);
+    --icon-warning: var(--warning-color);
+    --primary-color: #4361ee;
+    --secondary-color: #3f37c9;
     --success-color: #2a9d8f;
-    --warning-color: #f9c74f;
     --text-primary: #6c757d;
     --text-secondary: #495057;
-    --hover-bg: rgba(67, 97, 238, 0.05);
+    --warning-color: #f9c74f;
 }
 
 body {
     background-color: #f0f2f5;
-    font-family: "Segoe UI", "Roboto", "Helvetica Neue", sans-serif;
+    font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", "Roboto",
+        "Helvetica Neue", sans-serif;
     margin: 0;
+    min-height: 100vh;
     padding: 0;
-    -webkit-font-smoothing: antialiased;
-    -moz-osx-font-smoothing: grayscale;
     text-rendering: optimizeLegibility;
-    font-weight: 400;
+    -moz-osx-font-smoothing: grayscale;
+    -webkit-font-smoothing: antialiased;
+}
+.brand-icon {
+    filter: invert(100%);
 }
 
-.navbar {
-    background: linear-gradient(
-        135deg,
-        var(--primary-color),
-        var(--secondary-color)
-    );
-    box-shadow: 0 2px 4px rgba(0, 0, 0, 0.08);
-}
-
-.navbar-brand,
-.navbar-nav .nav-link {
-    color: white;
-    text-shadow: 0 1px 2px rgba(0, 0, 0, 0.3);
-    text-decoration: none;
-}
-
-.navbar-nav .nav-link.active {
-    box-shadow: inset 0 -2px 0 var(--accent-color);
-    text-decoration: none;
+.badge-index {
+    background-color: #e9ecef;
+    color: var(--text-secondary);
 }
 
 .badge-rule {
     background-color: var(--danger-color);
     color: white;
 }
-.badge-index {
-    background-color: #e9ecef;
-    color: var(--text-secondary);
+
+.btn-icon {
+    align-items: center;
+    display: flex;
+    height: 32px;
+    justify-content: center;
+    padding: 0;
+    width: 32px;
 }
 
 .card {
-    box-shadow: 0 4px 10px rgba(0, 0, 0, 0.2);
+    backdrop-filter: blur(10px);
+    background: rgba(255, 255, 255, 0.95);
+    border: none;
     border-radius: 1rem;
-    transition: transform 0.2s ease, box-shadow 0.2s ease;
+    box-shadow: 0 8px 25px rgba(0, 0, 0, 0.08);
+    transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
 }
 
 .card:hover {
@@ -62,29 +63,67 @@ body {
 }
 
 .card-header {
-    background-color: white;
+    background: linear-gradient(
+        135deg,
+        rgba(67, 97, 238, 0.05),
+        rgba(72, 149, 239, 0.05)
+    );
+    border-bottom: 1px solid rgba(67, 97, 238, 0.1);
+    border-radius: 1rem 1rem 0 0 !important;
+    padding: 1.25rem 1.5rem;
 }
 
-.config-level-0 {
-    padding: 0.5rem 0;
-}
-.config-level-1 {
-    padding-left: 0.5rem;
-    border-left: 2px solid rgba(0, 0, 0, 0.05);
-}
-.config-level-2 {
-    padding-left: 0.75rem;
-    border-left: 2px solid rgba(0, 0, 0, 0.08);
-}
-.config-level-3 {
+.level-1 {
+    border-left: 2px solid rgba(0, 0, 0, 0.3);
     padding-left: 1rem;
 }
 
-.btn-icon {
-    display: flex;
-    align-items: center;
-    justify-content: center;
-    width: 32px;
-    height: 32px;
-    padding: 0;
+.level-2 {
+    border-left: 2px solid rgba(0, 0, 0, 0.2);
+    padding-left: 1rem;
+}
+
+.level-3 {
+    border-left: 2px solid rgba(0, 0, 0, 0.1);
+    padding-left: 1rem;
+}
+
+.nav-link-enhanced {
+    font-weight: 500;
+    transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+}
+
+.nav-link-enhanced:hover {
+    background: rgba(255, 255, 255, 0.1);
+}
+
+.nav-link-enhanced.active {
+    background: rgba(255, 255, 255, 0.2);
+    box-shadow: 0 2px 8px rgba(0, 0, 0, 0.2);
+}
+
+.navbar {
+    backdrop-filter: blur(12px) saturate(150%);
+    background: linear-gradient(
+        270deg,
+        var(--primary-color),
+        var(--secondary-color)
+    );
+    box-shadow: 0 4px 20px rgba(67, 97, 238, 0.2);
+}
+
+.navbar-brand,
+.navbar-nav .nav-link {
+    color: white;
+    text-decoration: none;
+    text-shadow: 0 1px 2px rgba(0, 0, 0, 0.3);
+}
+
+.navbar-nav .nav-link.active {
+    background: rgba(255, 255, 255, 0.2);
+    border-radius: 0.5rem;
+}
+
+.navbar-toggler:focus {
+    box-shadow: none;
 }

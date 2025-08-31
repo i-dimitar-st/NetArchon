@@ -1,33 +1,65 @@
+{% from 'macros/icons.jinja2' import icons %}
+
 <nav class="navbar navbar-expand-lg navbar-dark">
     <div class="container">
-        <a class="navbar-brand d-flex align-items-center" href="/">
+        <a class="navbar-brand d-flex align-items-center fw-bold" href="/">
+            <img src="{{ url_for('static', filename='favicon.svg') }}" width="36" height="36" class="me-2 brand-icon"
+                alt="Brand">
             <span>{{ active_page | title }}</span>
         </a>
-        <button class="navbar-toggler" type="button" data-bs-toggle="collapse" data-bs-target="#navbarNav">
+        <button class="navbar-toggler border-0" type="button" data-bs-toggle="collapse" data-bs-target="#navbarNav">
             <span class="navbar-toggler-icon"></span>
         </button>
         <div class="collapse navbar-collapse" id="navbarNav">
             <ul class="navbar-nav ms-auto">
                 <li class="nav-item">
-                    <a class="nav-link {% if active_page == 'dashboard' %}active{% endif %}" href="/">Dashboard</a>
+                    <a class="nav-link px-3 py-2 mx-1 rounded-3 nav-link-enhanced {% if active_page == 'dashboard' %}active{% endif %}"
+                        href="/">
+                        {{ icons("dashboard",7) }}
+                        Dashboard
+                    </a>
                 </li>
                 <li class="nav-item">
-                    <a class="nav-link {% if active_page == 'info' %}active{% endif %}" href="/info">Info</a>
+                    <a class="nav-link px-3 py-2 mx-1 rounded-3 nav-link-enhanced {% if active_page == 'info' %}active{% endif %}"
+                        href="/info">
+                        {{ icons("info",7) }}
+                        Info
+                    </a>
                 </li>
                 <li class="nav-item">
-                    <a class="nav-link {% if active_page == 'config' %}active{% endif %}" href="/config">Config</a>
+                    <a class="nav-link px-3 py-2 mx-1 rounded-3 nav-link-enhanced {% if active_page == 'config' %}active{% endif %}"
+                        href="/config">
+                        {{ icons("config",7) }}
+                        Config
+                    </a>
                 </li>
                 <li class="nav-item">
-                    <a class="nav-link {% if active_page == 'dhcp' %}active{% endif %}" href="/dhcp">DHCP</a>
+                    <a class="nav-link px-3 py-2 mx-1 rounded-3 nav-link-enhanced {% if active_page == 'dhcp' %}active{% endif %}"
+                        href="/dhcp">
+                        {{ icons("dhcp",7) }}
+                        DHCP
+                    </a>
                 </li>
                 <li class="nav-item">
-                    <a class="nav-link {% if active_page == 'dns' %}active{% endif %}" href="/dns">DNS</a>
+                    <a class="nav-link px-3 py-2 mx-1 rounded-3 nav-link-enhanced {% if active_page == 'dns' %}active{% endif %}"
+                        href="/dns">
+                        {{ icons("dns",7) }}
+                        DNS
+                    </a>
                 </li>
                 <li class="nav-item">
-                    <a class="nav-link {% if active_page == 'metrics' %}active{% endif %}" href="/metrics">Metrics</a>
+                    <a class="nav-link px-3 py-2 mx-1 rounded-3 nav-link-enhanced {% if active_page == 'metrics' %}active{% endif %}"
+                        href="/metrics">
+                        {{ icons("metrics",7) }}
+                        Metrics
+                    </a>
                 </li>
                 <li class="nav-item">
-                    <a class="nav-link {% if active_page == 'logs' %}active{% endif %}" href="/logs">Logs</a>
+                    <a class="nav-link px-3 py-2 mx-1 rounded-3 nav-link-enhanced {% if active_page == 'logs' %}active{% endif %}"
+                        href="/logs">
+                        {{ icons("logs",7) }}
+                        Logs
+                    </a>
                 </li>
             </ul>
         </div>

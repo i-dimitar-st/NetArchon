@@ -4,7 +4,7 @@ from os import getloadavg
 from pathlib import Path
 from platform import machine, node, processor, release, system
 from secrets import token_hex
-from socket import AF_INET, AF_PACKET
+from socket import AF_INET, AF_PACKET, SOCK_STREAM, socket
 from sqlite3 import Cursor, connect
 from threading import RLock
 from time import ctime, time
@@ -24,10 +24,12 @@ from psutil import (
     swap_memory,
     virtual_memory,
 )
-from psutil._common import shwtemp
+from psutil._common import shwtemp, snetio
 
 from app.config.config import config
 from app.services.dhcp.metrics import dhcp_metrics
+from app.services.dhcp.server import DHCPServer
+from app.services.dns.dns import DNSServer
 from app.services.dns.metrics import (
     dns_metrics,
     dns_metrics_external,
@@ -47,7 +49,14 @@ DHCP_STATS_DB = DB_PATH / "dhcp_stats.sqlite3"
 DNS_CONTROL_LIST = ROOT_PATH / "config" / "blacklists.json"
 LOG_FILE_PATH = ROOT_PATH / "logs" / "main.log"
 
-DB_TIMEOUT = 10
+GUI = config.get("gui")
+PING_HOST = str(GUI.get("ping_host"))
+PING_TIMEOUT = float(GUI.get("ping_timeout_sec"))
+PING_PORT = int(GUI.get("ping_port"))
+
+NET_INTERFACE = config.get("network").get("interface")
+DB_TIMEOUT = float(GUI.get("db_read_timeout_sec"))
+
 
 logger = MainLogger.get_logger(service_name="GUI", log_level="debug")
 _lock = RLock()
@@ -69,7 +78,7 @@ def generate_system_stats() -> dict:
         "datetime": {"value": ctime(), "unit": "time"},
         "uptime": {
             "value": round((time() - boot_time()) / 86400, 2),
-            "unit": "days",
+            "unit": "day",
         },
         "os_name": {"value": system(), "unit": "os"},
         "os_version": {"value": release(), "unit": "version"},
@@ -188,6 +197,30 @@ def generate_system_stats() -> dict:
         }
 
     return stats
+
+
+def generate_network_stats() -> dict:
+    _stats: snetio | None = net_io_counters(pernic=True).get(NET_INTERFACE.get("name"))
+    if _stats:
+        return {
+            "status": {
+                "value": "online" if _is_online() else "offline",
+                "unit": "state",
+            },
+            "interface": {"value": NET_INTERFACE.get("name"), "unit": "name"},
+            "ip": {"value": NET_INTERFACE.get("ip"), "unit": "addr"},
+            "gateway": {"value": NET_INTERFACE.get("gateway"), "unit": "addr"},
+            "packets": {
+                "value": _stats.packets_recv + _stats.packets_sent,
+                "unit": "qty",
+            },
+            "errors": {"value": _stats.errin + _stats.errout, "unit": "qty"},
+            "drops": {"value": _stats.dropin + _stats.dropout, "unit": "qty"},
+            "received": {"value": int(_stats.bytes_recv / (1024 * 1024)), "unit": "MB"},
+            "sent": {"value": int(_stats.bytes_sent / (1024 * 1024)), "unit": "MB"},
+        }
+
+    return {}
 
 
 def get_network_interfaces():
@@ -427,6 +460,31 @@ def delete_from_blacklist(url: str) -> bool:
         return False
 
 
+def get_service_stats() -> dict:
+    return {
+        "dhcp_status": {
+            "value": "running" if DHCPServer.running else "stopped",
+            "unit": "state",
+        },
+        "dhcp_started": {
+            "value": datetime.fromtimestamp(DHCPServer.timestamp).strftime(
+                "%Y-%m-%d %H:%M:%S"
+            ),
+            "unit": "time",
+        },
+        "dns_status": {
+            "value": "running" if DNSServer.running else "stopped",
+            "unit": "state",
+        },
+        "dns_started": {
+            "value": datetime.fromtimestamp(DNSServer.timestamp).strftime(
+                "%Y-%m-%d %H:%M:%S"
+            ),
+            "unit": "time",
+        },
+    }
+
+
 def get_metrics() -> list[dict]:
     _server_metrics = []
     for server, metrics in dns_per_server_metrics.items():
@@ -440,6 +498,19 @@ def get_metrics() -> list[dict]:
         },
         *_server_metrics,
     ]
+
+
+def _is_online(
+    host: str = PING_HOST, port: int = PING_PORT, timeout: float = PING_TIMEOUT
+) -> bool:
+    try:
+        _socket = socket(AF_INET, SOCK_STREAM)
+        _socket.settimeout(timeout)
+        _socket.connect((host, port))
+        _socket.close()
+        return True
+    except Exception:
+        return False
 
 
 def get_csrf_token():

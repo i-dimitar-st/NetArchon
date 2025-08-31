@@ -1,5 +1,6 @@
 # Native
 from threading import RLock
+from time import time
 
 from app.services.dns.blacklist_service import BlacklistService
 from app.services.dns.db import DnsQueryHistoryDb, DnsStatsDb
@@ -16,7 +17,8 @@ dns_logger = MainLogger.get_logger(service_name="DNS", log_level="debug")
 class DNSServer:
     _lock = RLock()
     _initialised = False
-    _running = False
+    running = False
+    timestamp: float
 
     @classmethod
     def init(cls):
@@ -33,19 +35,20 @@ class DNSServer:
 
     @classmethod
     def start(cls):
-        if cls._running:
+        if cls.running:
             raise RuntimeError("Server already running.")
         with cls._lock:
             BlacklistService.start()
             DbPersistanceService.start()
             ExternalResolverService.start()
             ResolverService.start()
-            cls._running = True
+            cls.running = True
+            cls.timestamp = time()
             dns_logger.info("DNS server started.")
 
     @classmethod
     def stop(cls):
-        if not cls._running:
+        if not cls.running:
             raise RuntimeError("Server not running.")
         with cls._lock:
             DbPersistanceService.stop()
@@ -53,4 +56,4 @@ class DNSServer:
             BlacklistService.stop()
             ResolverService.stop()
             dns_logger.info("Server stopped.")
-            cls._running = False
+            cls.running = False

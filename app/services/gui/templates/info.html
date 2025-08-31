@@ -1,27 +1,37 @@
+{% from 'macros/recursive_generation.jinja2' import generate_recursive_content %}
+{% from 'macros/icons.jinja2' import icons %}
+
 <!DOCTYPE html>
 <html lang="en">
-
 {% include ".head.html" %}
 
 <body>
-
     {% include ".header.html" %}
-
-    {% import 'macros.jinja2' as macros %}
-
-    <!-- Main Content -->
+    <!-- Main -->
     <div class="container py-4">
-
-        <!-- System Statistics Cards -->
+        <!-- System Statistics -->
         <div class="row g-4">
-            {{ macros.render_info(system_statistics) }}
+            {% for group_name, group_stats in system_statistics.items() %}
+            <div class="col-md-4">
+                <div class="card h-100">
+                    <div class="card-header d-flex justify-content-between align-items-center">
+                        <h5 class="mb-0 fw-bold text-capitalize" style="color:var(--text-secondary)">{{
+                            group_name.replace('_',' ') }}</h5>
+                        <span style="color: var(--primary-color)">{{ icons(group_name) }}</span>
+                    </div>
+                    <div class="card-body">
+                        {{ generate_recursive_content(group_stats) }}
+                    </div>
+                </div>
+            </div>
+            {% endfor %}
         </div>
 
         <!-- Network Interfaces Card -->
         <div class="card mt-4">
             <div class="card-header bg-white d-flex align-items-center gap-2">
-                <i class="fas fa-network-wired text-primary fs-5"></i>
-                <h5 class="mb-0">Network Interfaces</h5>
+                <h5 class="mb-0 fw-bold text-capitalize" style="color: var(--text-secondary)">network interfaces</h5>
+                <span style="color: var(--primary-color)">{{ icons("network") }}</span>
             </div>
             <div class="card-body p-0">
                 <div class="table-responsive">

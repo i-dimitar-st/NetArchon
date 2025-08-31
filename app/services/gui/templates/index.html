@@ -1,3 +1,5 @@
+{% from 'macros/icons.jinja2' import icons %}
+
 <!DOCTYPE html>
 <html lang="en">
 {% include ".head.html" %}
@@ -6,135 +8,81 @@
     {% include ".header.html" %}
 
     <div class="container py-4">
-        <!-- Top Stats Cards -->
+
+        <!-- Cards -->
         <div class="row g-4">
-            <!-- System Status -->
+            {% for card_key, card_value in cards.items() %}
             <div class="col-md-4">
-                <div class="card h-100 rounded">
-                    <div class="card-header bg-white d-flex justify-content-between align-items-center">
-                        <h5 class="mb-0">System Status</h5>
-                        <i class="fas fa-server text-primary"></i>
+                <div class="card h-100">
+                    <div class="card-header d-flex justify-content-between align-items-center">
+                        <h5 class="mb-0 fw-bold text-capitalize" style="color: var(--text-secondary)">{{ card_key }}
+                        </h5>
+                        <span style="color: var(--primary-color)">
+                            {{ icons(card_key) }}
+                        </span>
                     </div>
                     <div class="card-body">
-                        <div class="d-flex justify-content-between mb-2 p-2">
-                            <span class="text-muted small text-uppercase">System Time</span>
-                            <span class="fw-semibold">{{
-                                system_stats['system']['datetime']['value']
-                                }}</span>
+                        {% for key, value in card_value.items() %}
+                        <div class="d-flex mb-2 align-items-baseline">
+                            <span class="text-muted small text-uppercase fw-medium">{{ key | replace('_',' ') }}</span>
+                            <div class="ms-auto text-end">
+                                <span class="fw-bold" style="color: var(--text-secondary)">
+                                    {{ value.value if value.value is not none else "n/a" }}
+                                </span>
+                                {% if value.unit %}
+                                <small class="text-muted text-uppercase ms-1 fw-medium" style="font-size:0.75rem">
+                                    {{ value.unit }}
+                                </small>
+                                {% endif %}
+                            </div>
                         </div>
-                        <div class="d-flex justify-content-between mb-2 p-2">
-                            <span class="text-muted small text-uppercase">Status</span>
-                            <span class="fw-semibold text-success">Online</span>
-                        </div>
-                        <div class="d-flex justify-content-between mb-2 p-2">
-                            <span class="text-muted small text-uppercase">Uptime</span>
-                            <span class="fw-semibold">{{ "%.2f"|format(system_stats['system']['uptime']['value']) }}
-                                days</span>
-                        </div>
-                        <div class="d-flex justify-content-between mb-2 p-2">
-                            <span class="text-muted small text-uppercase">CPU Temperature</span>
-                            {% set temps_flat = [] %}
-                            {% for label, sensors in system_stats['temperature'].items() %}
-                            {% for sensor, val in sensors.items() %}
-                            {% set _ = temps_flat.append(val['value']) %}
-                            {% endfor %}
-                            {% endfor %}
-                            {% set max_temp = temps_flat | max %}
-                            <span class="fw-semibold">{{ max_temp }} °C</span>
-                        </div>
+                        {% endfor %}
                     </div>
                 </div>
             </div>
-
-            <!-- Resource Usage -->
-            <div class="col-md-4">
-                <div class="card h-100 rounded">
-                    <div class="card-header bg-white d-flex justify-content-between align-items-center">
-                        <h5 class="mb-0">Resource Usage</h5>
-                        <i class="fas fa-microchip text-primary"></i>
-                    </div>
-                    <div class="card-body">
-                        <div class="d-flex justify-content-between mb-2 p-2 rounded stats-item">
-                            <span class="text-muted small text-uppercase">CPU Usage</span>
-                            <span class="fw-semibold">{{
-                                "%.0f"|format(system_stats['cpu']['overall']['value'])
-                                }}%</span>
-                        </div>
-                        <div class="d-flex justify-content-between mb-2 p-2 rounded stats-item">
-                            <span class="text-muted small text-uppercase">Memory Usage</span>
-                            <span class="fw-semibold">{{
-                                "%.0f"|format(system_stats['memory']['used']['value'])
-                                }}%</span>
-                        </div>
-                    </div>
-                </div>
-            </div>
-
-            <!-- Network Status -->
-            <div class="col-md-4">
-                <div class="card h-100 rounded">
-                    <div class="card-header bg-white d-flex justify-content-between align-items-center">
-                        <h5 class="mb-0">Network Status</h5>
-                        <i class="fas fa-network-wired text-primary"></i>
-                    </div>
-                    <div class="card-body">
-                        <div class="d-flex justify-content-between mb-2 p-2 rounded">
-                            <span class="text-muted small text-uppercase">Active Leases</span>
-                            <span class="fw-semibold">{{ active_leases }}</span>
-                        </div>
-                        <div class="d-flex justify-content-between mb-2 p-2 rounded">
-                            <span class="text-muted small text-uppercase">Available IPs</span>
-                            <span class="fw-semibold">{{ 254 - 2 - active_leases }}</span>
-                        </div>
-                    </div>
-                </div>
-            </div>
+            {% endfor %}
         </div>
 
         <!-- Quick Actions -->
-        <div class="row mt-4">
+        <div class="row mt-5">
             <div class="col-12">
-                <div class="card rounded">
-                    <div class="card-header bg-white d-flex justify-content-between align-items-center">
-                        <h5 class="mb-0">Quick Actions</h5>
-                        <i class="fas fa-bolt text-primary"></i>
+                <div class="card">
+                    <div class="card-header d-flex justify-content-between align-items-center">
+                        <h5 class="mb-0 fw-bold" style="color: var(--text-secondary)">Quick Actions</h5>
+                        <span style="color: var(--primary-color)">{{ icons("bolt") }}</span>
                     </div>
-                    <div class="card-body">
-                        <div class="row g-3 text-center">
+                    <div class="card-body p-4">
+                        <div class="row g-3">
+                            {% for action in quick_actions %}
                             <div class="col-sm-6 col-md-3">
-                                <a href="/dns" class="text-decoration-none d-block p-3 rounded shadow-sm">
-                                    <i class="fas fa-globe mb-2 text-primary fs-4"></i>
-                                    <div class="fw-bold">DNS</div>
-                                    <small class="text-muted">Manage DNS Settings</small>
+                                <a href="{{ action.url }}"
+                                    class="quick-action text-decoration-none d-block p-4 rounded-3 text-center">
+                                    <div class="mb-2 fs-4" style="color: var(--primary-color);">
+                                        {{ icons(action.icon) }}
+                                    </div>
+                                    <div class="fw-bold" style="color: var(--text-secondary);">{{ action.name }}</div>
                                 </a>
                             </div>
-                            <div class="col-sm-6 col-md-3">
-                                <a href="/dhcp" class="text-decoration-none d-block p-3 rounded shadow-sm">
-                                    <i class="fas fa-network-wired mb-2 text-primary fs-4"></i>
-                                    <div class="fw-bold">DHCP</div>
-                                    <small class="text-muted">Manage DHCP Settings</small>
-                                </a>
-                            </div>
-                            <div class="col-sm-6 col-md-3">
-                                <a href="/config" class="text-decoration-none d-block p-3 rounded shadow-sm">
-                                    <i class="fas fa-cogs mb-2 text-primary fs-4"></i>
-                                    <div class="fw-bold">Config</div>
-                                    <small class="text-muted">System Configuration</small>
-                                </a>
-                            </div>
-                            <div class="col-sm-6 col-md-3">
-                                <a href="/logs" class="text-decoration-none d-block p-3 rounded shadow-sm">
-                                    <i class="fas fa-clipboard-list mb-2 text-primary fs-4"></i>
-                                    <div class="fw-bold">Logs</div>
-                                    <small class="text-muted">View System Logs</small>
-                                </a>
-                            </div>
+                            {% endfor %}
                         </div>
                     </div>
                 </div>
             </div>
         </div>
     </div>
+    <style>
+        .quick-action {
+            background: rgba(255, 255, 255, 0.8);
+            border: 1px solid rgba(67, 97, 238, 0.1);
+            transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+        }
+
+        .quick-action:hover {
+            background: var(--hover-bg);
+            border-color: var(--primary-color);
+            box-shadow: 0 6px 20px rgba(67, 97, 238, 0.15);
+        }
+    </style>
 </body>
 
 </html>
