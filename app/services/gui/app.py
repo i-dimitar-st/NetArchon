@@ -4,6 +4,7 @@ from logging import WARNING, getLogger
 from pathlib import Path
 from threading import Event, Thread
 from typing import Any
+from datetime import datetime
 
 from asgiref.wsgi import WsgiToAsgi
 from flask import Flask, abort, jsonify, render_template, request, session
@@ -82,6 +83,16 @@ class App:
             SESSION_COOKIE_SAMESITE="Lax",
             PERMANENT_SESSION_LIFETIME=PERMANENT_SESSION_LIFETIME_SEC,
         )
+
+        # --- REGISTER CUSTOM FILTER ---
+        @cls._app.template_filter('datetimeformat')
+        def datetimeformat(value, fmt='%Y-%m-%d %H:%M:%S'):
+            try:
+                return datetime.fromtimestamp(int(value)).strftime(fmt)
+            except (ValueError, TypeError):
+                return value  # fallback if value is invalid
+
+        # --- END FILTER ---
         cls._app.jinja_env.globals['csrf_token'] = get_csrf_token
         cls._app_wsgi: WsgiToAsgi = WsgiToAsgi(cls._app)
 
@@ -245,7 +256,7 @@ class App:
                     "config.html",
                     active_page="config",
                     config={
-                        "network": config.get("network").get("lan", {}),
+                        "network": config.get("network").get("interface"),
                         "dns": config.get("dns"),
                         "dhcp": config.get("dhcp"),
                     },

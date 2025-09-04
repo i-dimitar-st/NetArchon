@@ -1,83 +1,95 @@
+{% from 'macros/icons.jinja2' import icons %}
 <!DOCTYPE html>
 <html lang="en">
 
-<!-- Head -->
 {% include ".head.html" %}
 
 <body>
-    <!-- Nav -->
     {% include ".header.html" %}
 
-    <!-- Main -->
     <div class="container py-4">
         <div class="row g-4">
-            <!-- DNS Statistics -->
-            <div class="col-md-4">
-                <div class="card h-100 rounded">
-                    <div class="card-header bg-white d-flex justify-content-between align-items-center">
-                        <h5 class="mb-0">DNS Statistics</h5>
-                        <i class="fas fa-chart-pie text-primary fs-4"></i>
+            <div class="col-md-4 d-flex">
+                <div class="card flex-fill h-100">
+                    <div class="card-header d-flex justify-content-between align-items-center">
+                        <h5 class="mb-0 fw-bold text-capitalize" style="color:var(--text-secondary)">
+                            statistics
+                        </h5>
+                        <span style="color:var(--primary-color)">
+                            {{ icons("stats") }}
+                        </span>
                     </div>
-                    <div class="card-body p-3">
+                    <div class="card-body" style="overflow-y:auto; max-height:500px;">
                         {% for key, value in dns_statistics.items() %}
                         {% if value %}
-                        <div class="d-flex justify-content-between align-items-center mb-2 p-2">
+                        <div class="d-flex justify-content-between mb-1">
                             <span class="text-muted small text-uppercase">{{ key | replace('_', ' ') }}</span>
-                            <span class="fw-semibold">{{ value }}</span>
+                            <span class="fw-semibold small">
+                                {% if key == 'start_time' or key == 'last_updated' %}
+                                {{ value | int | datetimeformat }}
+                                {% else %}
+                                {{ value }}
+                                {% endif %}
+                            </span>
                         </div>
                         {% endif %}
                         {% endfor %}
                     </div>
                 </div>
             </div>
-
-            <!-- DNS History -->
-            <div class="col-md-8">
-                <div class="card rounded">
-                    <div class="card-header bg-white d-flex justify-content-between align-items-center">
-                        <h5 class="mb-0">
-                            DNS History
-                            <span class="badge bg-primary ms-2">{{ dns_history | length }}</span>
+            <div class="col-md-8 d-flex">
+                <div class="card flex-fill h-100">
+                    <div class="card-header d-flex justify-content-between align-items-center">
+                        <h5 class="mb-0 fw-bold text-capitalize" style="color:var(--text-secondary)">
+                            History
+                            <span class="badge badge-index">{{ dns_history | length }}</span>
                         </h5>
-                        <i class="fas fa-history text-primary fs-4"></i>
+                        <span style="color: var(--primary-color)">{{ icons("list") }}</span>
                     </div>
-                    <div class="card-body p-3">
-                        <!-- Filter Input -->
+                    <div class="card-body p-3" style="overflow-y:auto; max-height:500px;">
                         <div class="input-group mb-3">
-                            <span class="input-group-text">
-                                <i class="fas fa-search"></i>
+                            <span class="input-group-text" style="color:var(--accent-color)">
+                                {{icons("search")}}
                             </span>
-                            <input type="text" id="urlFilter" class="form-control"
-                                placeholder="Filter domain requests..." autocomplete="off" />
+                            <input type="text" id="urlFilter" class="form-control" placeholder="Find domain..."
+                                autocomplete="off" />
                             <button id="clearFilter" class="btn btn-outline-secondary" type="button">
-                                <i class="fas fa-times"></i>
+                                {{ icons("times") }}
                             </button>
                         </div>
 
-                        <!-- DNS Domain Requests Table -->
-                        <div class="table-responsive" style="max-height: 500px; overflow-y: auto;">
-                            <table id="dnsTable" class="table table-hover mb-0">
+                        <div class="table-responsive">
+                            <table id="table-dns-history"
+                                class="table table-sm table-hover align-middle text-nowrap text-center">
                                 <thead class="table-light">
                                     <tr>
-                                        <th id="queryHeader" style="cursor: pointer">Domain <i class="fas fa-sort"></i>
+                                        <th id="createdHeader" style="cursor:pointer;color:var(--text-secondary);">
+                                            Created
+                                            {{icons("sort")}}
                                         </th>
-                                        <th id="countHeader" class="text-center" style="cursor: pointer; width: 100px;">
-                                            Count <i class="fas fa-sort"></i>
+                                        <th id="countHeader" class="text-center"
+                                            style="cursor:pointer;color:var(--text-secondary)">
+                                            Count
+                                            {{icons("sort")}}
                                         </th>
-                                        <th id="activeHeader" style="cursor: pointer; width: 160px;">
-                                            Created <i class="fas fa-sort"></i>
+                                        <th id="queryHeader" style="cursor:pointer;color:var(--text-secondary)">
+                                            Domain
+                                            {{icons("sort")}}
                                         </th>
                                     </tr>
                                 </thead>
                                 <tbody>
                                     {% for item in dns_history %}
                                     <tr>
-                                        <td>{{ item.query | lower }}</td>
-                                        <td class="text-center">
-                                            <span class="badge bg-primary rounded-pill">{{ item.query_counter
-                                                }}</span>
-                                        </td>
                                         <td data-timestamp="{{ item.created }}"></td>
+                                        <td class="text-center">
+                                            <span class="badge badge-dns-count rounded-pill">
+                                                {{
+                                                item.query_counter
+                                                }}
+                                            </span>
+                                        </td>
+                                        <td>{{ item.query | lower }}</td>
                                     </tr>
                                     {% endfor %}
                                 </tbody>
@@ -88,21 +100,15 @@
             </div>
         </div>
     </div>
-
-    <!-- Scripts -->
-    <script src="https://cdnjs.cloudflare.com/ajax/libs/bootstrap/5.3.0/js/bootstrap.bundle.min.js"></script>
     <script>
         document.addEventListener("DOMContentLoaded", function () {
-            const table = document.getElementById("dnsTable");
-            const tbody = table.querySelector("tbody");
-            const rows = Array.from(tbody.querySelectorAll("tr"));
+            const dnsHistoryTable = document.getElementById("table-dns-history");
+            const dnsHistoryTableBody = dnsHistoryTable.querySelector("tbody");
+            const dnsHistoryTableBodyRows = Array.from(dnsHistoryTableBody.querySelectorAll("tr"));
             const filterInput = document.getElementById("urlFilter");
             const clearFilterBtn = document.getElementById("clearFilter");
 
-            // Initialize tooltips
             bootstrap.Tooltip && [].slice.call(document.querySelectorAll('[data-bs-toggle="tooltip"]')).map(el => new bootstrap.Tooltip(el));
-
-            // Table sorting state
             let tableSortState = { column: "query", direction: "desc" };
 
             function sortTable(column, type = "text") {
@@ -113,12 +119,21 @@
                 const header = document.getElementById(`${column}Header`);
                 if (header) header.querySelector("i").className = `fas fa-sort-${direction === "asc" ? "up" : "down"}`;
 
-                rows.sort((a, b) => {
+                dnsHistoryTableBodyRows.sort((a, b) => {
                     let valA, valB;
                     switch (column) {
-                        case "query": valA = a.cells[0].innerText.trim().toLowerCase(); valB = b.cells[0].innerText.trim().toLowerCase(); break;
-                        case "count": valA = parseInt(a.cells[1].innerText.trim()); valB = parseInt(b.cells[1].innerText.trim()); break;
-                        case "active": valA = a.cells[2].getAttribute("data-timestamp"); valB = b.cells[2].getAttribute("data-timestamp"); break;
+                        case "created":
+                            valA = a.cells[0].getAttribute("data-timestamp");
+                            valB = b.cells[0].getAttribute("data-timestamp");
+                            break;
+                        case "count":
+                            valA = parseInt(a.cells[1].innerText.trim());
+                            valB = parseInt(b.cells[1].innerText.trim());
+                            break;
+                        case "query":
+                            valA = a.cells[2].innerText.trim().toLowerCase();
+                            valB = b.cells[2].innerText.trim().toLowerCase();
+                            break;
                     }
                     if (type === "number") { valA = parseFloat(valA) || 0; valB = parseFloat(valB) || 0; }
                     if (valA < valB) return direction === "asc" ? -1 : 1;
@@ -126,17 +141,20 @@
                     return 0;
                 });
 
-                rows.filter(r => !r.classList.contains("d-none")).forEach(r => tbody.appendChild(r));
+                dnsHistoryTableBodyRows.filter(r => !r.classList.contains("d-none")).forEach(r => dnsHistoryTableBody.appendChild(r));
             }
 
             function filterTable() {
                 const filterValue = filterInput.value.toLowerCase();
-                rows.forEach(row => row.classList.toggle("d-none", !row.cells[0].textContent.toLowerCase().includes(filterValue)));
+                dnsHistoryTableBodyRows.forEach(row => {
+                    const domain = row.cells[2].textContent.toLowerCase();
+                    row.classList.toggle("d-none", !domain.includes(filterValue));
+                });
                 sortTable(tableSortState.column, tableSortState.column === "count" ? "number" : "text");
             }
 
             function formatTimestamps() {
-                tbody.querySelectorAll("td[data-timestamp]").forEach(cell => {
+                dnsHistoryTableBody.querySelectorAll("td[data-timestamp]").forEach(cell => {
                     const ts = cell.getAttribute("data-timestamp") * 1000;
                     if (!isNaN(ts)) {
                         const date = new Date(ts);
@@ -151,7 +169,7 @@
             filterInput.addEventListener("input", filterTable);
             clearFilterBtn.addEventListener("click", () => { filterInput.value = ""; filterTable(); filterInput.focus(); });
 
-            ["query", "count", "active"].forEach(col => document.getElementById(`${col}Header`).addEventListener("click", () => sortTable(col, col === "count" ? "number" : "text")));
+            ["created", "query", "count"].forEach(col => document.getElementById(`${col}Header`).addEventListener("click", () => sortTable(col, col === "count" ? "number" : "text")));
 
             formatTimestamps();
             sortTable("query", "text");

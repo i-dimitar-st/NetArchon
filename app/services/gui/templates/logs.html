@@ -1,25 +1,22 @@
+{% from 'macros/icons.jinja2' import icons %}
+
 <!DOCTYPE html>
 <html lang="en">
-<!-- Head -->
+
 {% include ".head.html" %}
 
 <body>
-    <!-- Nav -->
     {% include ".header.html" %}
-
-    <!-- Main -->
     <div class="container py-4">
-        <!-- Logs Card -->
-        <div class="card rounded">
-            <div class="card-header bg-white d-flex justify-content-between align-items-center flex-wrap">
-                <h5 class="mb-0">
-                    System Logs
-                    <span class="badge bg-primary ms-2">{{ system_logs | length }}</span>
+        <div class="card">
+            <div class="card-header d-flex justify-content-between align-items-center">
+                <h5 class="mb-0 fw-bold text-capitalize" style="color:var(--text-secondary)">
+                    Logs
+                    <span class="badge badge-index">{{ system_logs | length }}</span>
                 </h5>
-                <i class="fas fa-file-alt text-primary fs-4"></i>
+                <span style="color:var(--primary-color)">{{ icons("log") }}</span>
             </div>
             <div class="card-body p-3">
-                <!-- Filters -->
                 <div class="row g-2 mb-3">
                     <div class="col-md-6">
                         <label for="log-level-filter" class="form-label small text-uppercase rounded">Level</label>
@@ -40,28 +37,24 @@
                         </select>
                     </div>
                 </div>
-
-                <!-- Logs Window -->
-                <div id="log-window" class="border rounded p-2" style="max-height: 500px; overflow-y: auto">
-                    <!-- Log entries injected by JavaScript -->
+                <div id="log-window" class="border rounded p-2" style="overflow-y:auto;max-height:500px">
+                    <!-- Log entries -->
                 </div>
             </div>
             <div class="card-footer bg-white">
-                <button class="btn btn-outline-primary" id="btn-scroll-bottom">
-                    <i class="fas fa-arrow-down me-2"></i>Scroll to Bottom
+                <button class="btn btn-sm d-inline-flex align-items-center button-custom" id="btn-scroll-bottom">
+                    <span class="me-2">{{ icons("arrow-down") }}</span>
+                    To Bottom
                 </button>
             </div>
         </div>
     </div>
-
+    {# Yeah otherwise linter complains #}
     <script id="logs-data" type="application/json">
             {{ system_logs | tojson | safe }}
-        </script>
-
+    </script>
     <script>
-        const logs = JSON.parse(
-            document.getElementById("logs-data").textContent
-        );
+        const logs = JSON.parse(document.getElementById("logs-data").textContent);
 
         function getUniqueServices(logs) {
             return [...new Set(logs.map((log) => log.service))].sort();
@@ -77,8 +70,7 @@
         }
 
         function populateServiceFilter() {
-            const serviceFilter =
-                document.getElementById("log-service-filter");
+            const serviceFilter = document.getElementById("log-service-filter");
             getUniqueServices(logs).forEach((service) => {
                 const option = document.createElement("option");
                 option.value = service.toLowerCase();
@@ -109,23 +101,21 @@
                 row.className =
                     "d-flex justify-content-between align-items-start mb-2 p-2 rounded bg-white shadow-sm";
 
-                const leftCol = document.createElement("div");
-                leftCol.className = "text-muted small me-3";
-                leftCol.textContent = entry.timestamp;
+                const timestamp = document.createElement("div");
+                timestamp.className = "text-muted small me-3";
+                timestamp.textContent = entry.timestamp;
 
-                const middleCol = document.createElement("div");
-                middleCol.className = `badge bg-${getLevelColor(
-                    entry.level
-                )} me-2`;
-                middleCol.textContent = entry.level.toUpperCase();
+                const level = document.createElement("div");
+                level.className = `badge bg-${getLevelColor(entry.level)} me-2`;
+                level.textContent = entry.level.toUpperCase();
 
-                const rightCol = document.createElement("div");
-                rightCol.className = "flex-grow-1";
-                rightCol.innerHTML = `<strong>${entry.service}</strong>: ${entry.message}`;
+                const logContent = document.createElement("div");
+                logContent.className = "flex-grow-1";
+                logContent.innerHTML = `<strong>${entry.service}</strong>: ${entry.message}`;
 
-                row.appendChild(leftCol);
-                row.appendChild(middleCol);
-                row.appendChild(rightCol);
+                row.appendChild(timestamp);
+                row.appendChild(level);
+                row.appendChild(logContent);
 
                 logWindow.appendChild(row);
             });

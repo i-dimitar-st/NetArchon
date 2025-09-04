@@ -15,7 +15,8 @@
             <div class="col-md-4">
                 <div class="card h-100">
                     <div class="card-header d-flex justify-content-between align-items-center">
-                        <h5 class="mb-0 fw-bold text-capitalize" style="color: var(--text-secondary)">{{ card_key }}
+                        <h5 class="mb-0 fw-bold text-capitalize" style="color: var(--text-secondary)">
+                            {{ card_key }}
                         </h5>
                         <span style="color: var(--primary-color)">
                             {{ icons(card_key) }}
@@ -42,47 +43,7 @@
             </div>
             {% endfor %}
         </div>
-
-        <!-- Quick Actions -->
-        <div class="row mt-5">
-            <div class="col-12">
-                <div class="card">
-                    <div class="card-header d-flex justify-content-between align-items-center">
-                        <h5 class="mb-0 fw-bold" style="color: var(--text-secondary)">Quick Actions</h5>
-                        <span style="color: var(--primary-color)">{{ icons("bolt") }}</span>
-                    </div>
-                    <div class="card-body p-4">
-                        <div class="row g-3">
-                            {% for action in quick_actions %}
-                            <div class="col-sm-6 col-md-3">
-                                <a href="{{ action.url }}"
-                                    class="quick-action text-decoration-none d-block p-4 rounded-3 text-center">
-                                    <div class="mb-2 fs-4" style="color: var(--primary-color);">
-                                        {{ icons(action.icon) }}
-                                    </div>
-                                    <div class="fw-bold" style="color: var(--text-secondary);">{{ action.name }}</div>
-                                </a>
-                            </div>
-                            {% endfor %}
-                        </div>
-                    </div>
-                </div>
-            </div>
-        </div>
     </div>
-    <style>
-        .quick-action {
-            background: rgba(255, 255, 255, 0.8);
-            border: 1px solid rgba(67, 97, 238, 0.1);
-            transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
-        }
-
-        .quick-action:hover {
-            background: var(--hover-bg);
-            border-color: var(--primary-color);
-            box-shadow: 0 6px 20px rgba(67, 97, 238, 0.15);
-        }
-    </style>
 </body>
 
 </html>

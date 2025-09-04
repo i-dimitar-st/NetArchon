@@ -167,6 +167,8 @@ def generate_system_stats() -> dict:
     # Network interfaces
     nets = net_io_counters(pernic=True)
     for iface, counters in nets.items():
+        if iface.startswith("vet"):
+            continue
         stats["network"][iface] = {
             "data_sent": {"value": counters.bytes_sent // (1024 * 1024), "unit": "MB"},
             "data_recv": {"value": counters.bytes_recv // (1024 * 1024), "unit": "MB"},

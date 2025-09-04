@@ -7,17 +7,18 @@
 
 <body>
     {% include ".header.html" %}
-    <!-- Main -->
     <div class="container py-4">
-        <!-- System Statistics -->
         <div class="row g-4">
             {% for group_name, group_stats in system_statistics.items() %}
             <div class="col-md-4">
                 <div class="card h-100">
                     <div class="card-header d-flex justify-content-between align-items-center">
-                        <h5 class="mb-0 fw-bold text-capitalize" style="color:var(--text-secondary)">{{
-                            group_name.replace('_',' ') }}</h5>
-                        <span style="color: var(--primary-color)">{{ icons(group_name) }}</span>
+                        <h5 class="mb-0 fw-bold text-capitalize" style="color:var(--text-secondary)">
+                            {{ group_name.replace('_',' ') }}
+                        </h5>
+                        <span style="color:var(--primary-color)">
+                            {{ icons(group_name) }}
+                        </span>
                     </div>
                     <div class="card-body">
                         {{ generate_recursive_content(group_stats) }}
@@ -27,34 +28,33 @@
             {% endfor %}
         </div>
 
-        <!-- Network Interfaces Card -->
         <div class="card mt-4">
             <div class="card-header bg-white d-flex align-items-center gap-2">
-                <h5 class="mb-0 fw-bold text-capitalize" style="color: var(--text-secondary)">network interfaces</h5>
-                <span style="color: var(--primary-color)">{{ icons("network") }}</span>
+                <h5 class="mb-0 fw-bold text-capitalize" style="color:var(--text-secondary)">network interfaces</h5>
+                <span style="color:var(--primary-color)">{{ icons("network") }}</span>
             </div>
             <div class="card-body p-0">
                 <div class="table-responsive">
-                    <table class="table table-striped table-hover mb-0">
-                        <thead>
+                    <table class="table table-sm table-hover align-middle text-nowrap text-center">
+                        <thead class="table-light">
                             <tr>
-                                <th>Interface</th>
-                                <th>Type</th>
-                                <th>IP Address</th>
-                                <th>Netmask</th>
-                                <th>Broadcast</th>
-                                <th>MAC Address</th>
+                                <th class="fw-bold text-capitalize" style="color:var(--text-secondary)">Interface</th>
+                                <th class="fw-bold text-capitalize" style="color:var(--text-secondary)">Type</th>
+                                <th class="fw-bold text-capitalize" style="color:var(--text-secondary)">IP</th>
+                                <th class="fw-bold text-capitalize" style="color:var(--text-secondary)">Netmask</th>
+                                <th class="fw-bold text-capitalize" style="color:var(--text-secondary)">Broadcast</th>
+                                <th class="fw-bold text-capitalize" style="color:var(--text-secondary)">MAC</th>
                             </tr>
                         </thead>
                         <tbody>
                             {% for iface in network_interfaces %}
                             <tr>
-                                <td><span class="badge bg-primary">{{ iface.name }}</span></td>
-                                <td><span class="badge bg-secondary">{{ iface.type }}</span></td>
-                                <td>{{ iface.ip_address }}</td>
-                                <td>{{ iface.netmask }}</td>
-                                <td>{{ iface.broadcast }}</td>
-                                <td>{{ iface.mac_address | upper }}</td>
+                                <td class="px-2">{{ iface.name }}</td>
+                                <td class="px-2">{{ iface.type or "N/A" }}</td>
+                                <td class="px-2">{{ iface.ip_address or "N/A" }}</td>
+                                <td class="px-2">{{ iface.netmask or "N/A" }}</td>
+                                <td class="px-2">{{ iface.broadcast or "N/A" }}</td>
+                                <td class="px-2">{{ iface.mac_address | upper or "N/A" }}</td>
                             </tr>
                             {% endfor %}
                         </tbody>

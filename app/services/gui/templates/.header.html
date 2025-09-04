@@ -3,9 +3,7 @@
 <nav class="navbar navbar-expand-lg navbar-dark">
     <div class="container">
         <a class="navbar-brand d-flex align-items-center fw-bold" href="/">
-            <img src="{{ url_for('static', filename='favicon.svg') }}" width="36" height="36" class="me-2 brand-icon"
-                alt="Brand">
-            <span>{{ active_page | title }}</span>
+            <span class="text-uppercase">{{ active_page }}</span>
         </a>
         <button class="navbar-toggler border-0" type="button" data-bs-toggle="collapse" data-bs-target="#navbarNav">
             <span class="navbar-toggler-icon"></span>

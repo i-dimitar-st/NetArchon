@@ -7,7 +7,8 @@
     {% elif 'dashboard' in _type %} {% set icon_class = "fa-tachometer" %}
     {% elif 'dhcp' in _type %} {% set icon_class = "fa-network-wired" %}
     {% elif 'disk' in _type %} {% set icon_class = "fa-hdd" %}
-    {% elif 'dns' in _type or 'globe' in _type %} {% set icon_class = "fa-globe" %}
+    {% elif 'dns' in _type %} {% set icon_class = "fa-globe" %}
+    {% elif 'globe' in _type %} {% set icon_class = "fa-globe" %}
     {% elif 'edit' in _type %} {% set icon_class = "fa-edit" %}
     {% elif 'info' in _type %} {% set icon_class = "fa-info-circle" %}
     {% elif 'memory' in _type %} {% set icon_class = "fa-memory" %}
@@ -17,7 +18,16 @@
     {% elif 'service' in _type %} {% set icon_class = "fa-server" %}
     {% elif 'system' in _type %} {% set icon_class = "fa-cogs" %}
     {% elif 'temperature' in _type %} {% set icon_class = "fa-thermometer-half" %}
+    {% elif 'ban' in _type %} {% set icon_class = "fa-ban" %}
+    {% elif 'plus' in _type %} {% set icon_class = "fa-solid fa-circle-plus" %}
+    {% elif 'times' in _type %} {% set icon_class = "fa-solid fa-circle-xmark" %}
+    {% elif 'stats' in _type %} {% set icon_class = "fa-solid fa-chart-simple" %}
+    {% elif 'list' in _type %} {% set icon_class = "fa-solid fa-list" %}
+    {% elif 'history' in _type %} {% set icon_class = "fa-solid fa-list-timeline" %}
+    {% elif 'sort' in _type %} {% set icon_class = "fa-solid fa-list-timeline" %}
     {% elif 'log' in _type %} {% set icon_class = "fa-clipboard-list" %}
+    {% elif 'search' in _type %} {% set icon_class = "fas fa-search" %}
+    {% elif 'arrow-down' in _type %} {% set icon_class = "fas fa-arrow-down" %}
     {% endif %}
     <i class="fas {{ icon_class }} fs-{{ size }}"></i>
 {% endmacro %}

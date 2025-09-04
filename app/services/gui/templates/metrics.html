@@ -1,44 +1,43 @@
+{% from 'macros/icons.jinja2' import icons %}
+
 <!DOCTYPE html>
 <html lang="en">
 
-<!-- Head -->
 {% include ".head.html" %}
 
 <body>
-    <!-- Nav -->
-    {% include ".header.html" %}
-
-    <!-- Main -->
     {% set max_value = 1000 %}
+    {% include ".header.html" %}
 
     <div class="container py-4">
         <div class="row g-4">
             {% for item in metrics %}
             <div class="col-md-4">
-                <div class="card h-100 rounded">
-                    <div class="card-header bg-white d-flex justify-content-between align-items-center">
-                        <h5 class="mb-0 text-uppercase">{{ item.label | replace("_", " ") }}</h5>
-                        <i class="fas fa-chart-bar text-primary"></i>
+                <div class="card h-100">
+                    <div class="card-header d-flex justify-content-between align-items-center">
+                        <h5 class="mb-0 fw-bold text-capitalize" style="color:var(--text-secondary)">
+                            {{ item.label | replace("_", " ") }}
+                        </h5>
+                        <span style="color:var(--primary-color)">
+                            {{ icons("globe") }}
+                        </span>
                     </div>
                     <div class="card-body">
                         {% for key, value in item.metrics.items() %}
                         <div class="stats-item d-flex justify-content-between p-2">
-                            <span class="stats-label text-muted">{{ key | replace("p", "") }}%</span>
-                            <span class="stats-value">{{ '%.2f' | format(value) }} ms</span>
+                            <span class="text-lowercase small text-muted">{{ key }}</span>
+                            <span class="fw-semibold small">{{ '%.2f' | format(value) }} ms</span>
                         </div>
-                        {% set width_percent = (value|int / max_value * 100) %}
+                        {% set width_percent = (value | int) / max_value * 100 %}
                         {% if width_percent > 100 %}
                         {% set width_percent = 100 %}
                         {% endif %}
-                        <div class="progress" style="height: 6px">
-                            <div class="progress-bar bg-primary" role="progressbar" style="width: {{ width_percent }}%"
-                                aria-valuenow="{{ value|int }}" aria-valuemin="0" aria-valuemax="{{max_value}}"></div>
+                        <div class="progress" style="height:6px">
+                            <div class="progress-bar" role="progressbar"
+                                style="color:var(--text-primary);width:{{ width_percent }}%"
+                                aria-valuenow="{{ value|int }}" aria-valuemin="0" aria-valuemax="{{max_value}}">
+                            </div>
                         </div>
-                        <div class="d-flex justify-content-between small text-muted">
-                            <span>0 ms</span>
-                            <span>{{ max_value }} ms</span>
-                        </div>
-
                         {% endfor %}
                     </div>
                 </div>

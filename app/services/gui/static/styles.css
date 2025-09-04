@@ -22,12 +22,10 @@ body {
     margin: 0;
     min-height: 100vh;
     padding: 0;
+    font-weight: 400;
     text-rendering: optimizeLegibility;
     -moz-osx-font-smoothing: grayscale;
     -webkit-font-smoothing: antialiased;
-}
-.brand-icon {
-    filter: invert(100%);
 }
 
 .badge-index {
@@ -35,18 +33,40 @@ body {
     color: var(--text-secondary);
 }
 
+.badge-dhcp-static {
+    background-color: var(--accent-color);
+}
+
+.badge-dhcp-manual {
+    background-color: var(--secondary-color);
+}
+
+.badge-dhcp-dynamic,
+.badge-dns-count {
+    background-color: var(--primary-color);
+}
+
 .badge-rule {
     background-color: var(--danger-color);
     color: white;
 }
 
-.btn-icon {
+.button-custom {
+    background-color: var(--accent-color);
+    color: white;
+    border: none;
+    border-radius: 0.25rem;
     align-items: center;
-    display: flex;
-    height: 32px;
     justify-content: center;
-    padding: 0;
-    width: 32px;
+    cursor: pointer;
+    font-size: 0.8rem;
+    text-transform: uppercase;
+    transition: background-color 0.2s ease;
+}
+
+.button-custom:hover {
+    color: white;
+    background-color: var(--primary-color);
 }
 
 .card {
@@ -86,6 +106,12 @@ body {
 .level-3 {
     border-left: 2px solid rgba(0, 0, 0, 0.1);
     padding-left: 1rem;
+}
+
+#table-dhcp-leases,
+#table-dns-history,
+#log-window {
+    font-size: 0.9rem;
 }
 
 .nav-link-enhanced {
