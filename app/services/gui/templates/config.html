@@ -31,24 +31,17 @@
             {% endfor %}
         </div>
 
-        <!-- BLACKLIST -->
-        <div class="card mt-4 rounded">
+        <div class="card mt-4 overflow-y-auto" style="max-height:500px">
             <div class="card-header bg-white d-flex justify-content-between align-items-center">
-                <span style="color:var(--primary-color)">
-                    {{ icons("ban") }}
-                </span>
-                <h5 class="mb-0 d-flex align-items-center">
-                    Blacklisted
-                </h5>
+                <span style="color:var(--primary-color)">{{ icons("ban") }}</span>
+                <h5 class="mb-0 d-flex align-items-center">Blacklisted</h5>
                 <button class="btn btn-sm d-inline-flex align-items-center justify-content-center button-custom"
                     data-bs-toggle="modal" data-bs-target="#addRuleModal">
-                    <span class="me-1 d-flex align-items-center">
-                        {{ icons("plus") }}
-                    </span>
-                    <span>add blacklist</span>
+                    <span class="me-1">{{icons("plus")}}</span>
+                    <span>add</span>
                 </button>
             </div>
-            <div class="card-body">
+            <div class="card-body p-2">
                 <div class="row">
                     {% for value in dns_control_list %}
                     {% if value %}

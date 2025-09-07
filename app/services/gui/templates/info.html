@@ -14,11 +14,8 @@
                 <div class="card h-100">
                     <div class="card-header d-flex justify-content-between align-items-center">
                         <h5 class="mb-0 fw-bold text-capitalize" style="color:var(--text-secondary)">
-                            {{ group_name.replace('_',' ') }}
-                        </h5>
-                        <span style="color:var(--primary-color)">
-                            {{ icons(group_name) }}
-                        </span>
+                            {{group_name.replace('_',' ')}}</h5>
+                        <span style="color:var(--primary-color)">{{icons(group_name)}}</span>
                     </div>
                     <div class="card-body">
                         {{ generate_recursive_content(group_stats) }}

@@ -1,10 +1,10 @@
 import hmac
+from datetime import datetime
 from hashlib import sha256
 from logging import WARNING, getLogger
 from pathlib import Path
 from threading import Event, Thread
 from typing import Any
-from datetime import datetime
 
 from asgiref.wsgi import WsgiToAsgi
 from flask import Flask, abort, jsonify, render_template, request, session
@@ -187,18 +187,11 @@ class App:
                     "services": get_service_stats(),
                     "network": generate_network_stats(),
                 }
-                quick_actions = [
-                    {"name": "DNS", "icon": "globe", "url": "/dns"},
-                    {"name": "DHCP", "icon": "network", "url": "/dhcp"},
-                    {"name": "Config", "icon": "config", "url": "/config"},
-                    {"name": "Logs", "icon": "logs", "url": "/logs"},
-                ]
 
                 return render_template(
                     "index.html",
                     active_page="dashboard",
                     cards=cards,
-                    quick_actions=quick_actions,
                     csrf_token=session["_csrf_token"],
                 )
 

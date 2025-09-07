@@ -463,6 +463,36 @@ def delete_from_blacklist(url: str) -> bool:
 
 
 def get_service_stats() -> dict:
+    _dns_stats = get_dns_statistics()
+
+    _dns_blacklist_hit_rate = int(
+        100
+        * _dns_stats.get("request_blacklisted", 0)
+        / _dns_stats.get("request_valid", 0)
+        if _dns_stats.get("request_valid", 0) > 0
+        else 0
+    )
+
+    _dns_external_hit_rate = int(
+        100
+        * _dns_stats.get("request_external", 0)
+        / _dns_stats.get("response_total", 0)
+        if _dns_stats.get("response_total", 0) > 0
+        else 0
+    )
+    _dns_cache_hit_rate = int(
+        100
+        * _dns_stats.get("request_cache_hit", 0)
+        / (
+            _dns_stats.get("request_cache_hit", 0)
+            + _dns_stats.get("request_cache_miss", 0)
+        )
+        if _dns_stats.get("request_cache_miss", 0) > 0
+        else 0
+    )
+
+    #
+
     return {
         "dhcp_status": {
             "value": "running" if DHCPServer.running else "stopped",
@@ -483,6 +513,18 @@ def get_service_stats() -> dict:
                 "%Y-%m-%d %H:%M:%S"
             ),
             "unit": "time",
+        },
+        "dns_cache_hit_rate": {
+            "value": _dns_cache_hit_rate,
+            "unit": "%",
+        },
+        "dns_blacklist_hit_rate": {
+            "value": _dns_blacklist_hit_rate,
+            "unit": "%",
+        },
+        "dns_external_hit_rate": {
+            "value": _dns_external_hit_rate,
+            "unit": "%",
         },
     }
 

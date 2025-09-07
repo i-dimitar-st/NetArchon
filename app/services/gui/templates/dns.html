@@ -12,18 +12,14 @@
             <div class="col-md-4 d-flex">
                 <div class="card flex-fill h-100">
                     <div class="card-header d-flex justify-content-between align-items-center">
-                        <h5 class="mb-0 fw-bold text-capitalize" style="color:var(--text-secondary)">
-                            statistics
-                        </h5>
-                        <span style="color:var(--primary-color)">
-                            {{ icons("stats") }}
-                        </span>
+                        <h5 class="mb-0 fw-bold text-capitalize" style="color:var(--text-secondary)">statistics</h5>
+                        <span style="color:var(--primary-color)">{{icons("stats")}}</span>
                     </div>
-                    <div class="card-body" style="overflow-y:auto; max-height:500px;">
+                    <div class="card-body" style="overflow-y:auto;max-height:500px;">
                         {% for key, value in dns_statistics.items() %}
-                        {% if value %}
-                        <div class="d-flex justify-content-between mb-1">
-                            <span class="text-muted small text-uppercase">{{ key | replace('_', ' ') }}</span>
+                        {% if value and 'id' not in key %}
+                        <div class="d-flex justify-content-between align-items-center mb-1">
+                            <span class="text-muted text-uppercase small fw-medium">{{ key | replace('_',' ') }}</span>
                             <span class="fw-semibold small">
                                 {% if key == 'start_time' or key == 'last_updated' %}
                                 {{ value | int | datetimeformat }}
@@ -58,7 +54,7 @@
                             </button>
                         </div>
 
-                        <div class="table-responsive">
+                        <div class="table-responsive" style="overflow-x:auto">
                             <table id="table-dns-history"
                                 class="table table-sm table-hover align-middle text-nowrap text-center">
                                 <thead class="table-light">

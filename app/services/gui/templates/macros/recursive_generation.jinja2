@@ -1,41 +1,36 @@
-{% macro generate_recursive_content(data, level=0) %}
-    <div class="level-{{ level }}">
-    {% for key, value in data.items() %}
-        {% set display_key = key | string | replace('_',' ') %}
-        {% if value is mapping and 'value' in value %}
-            {# Leaf dict with value/unit #}
-            <div class="d-flex justify-content-between mb-1">
-                <span class="text-uppercase small text-muted">{{ display_key }}</span>
-                <span class="fw-semibold small">
-                    {{ value.value }}
-                    {% if value.unit %}
-                        <small class="text-muted text-uppercase small">{{ value.unit }}</small>
-                    {% endif %}
-                </span>
-            </div>
-
-        {% elif value is mapping %}
-            {# Nested dict, recurse #}
-            <div class="mb-2">
-                <strong class="text-uppercase fw-semibold small text-muted">{{ display_key }}</strong>
-                {{ generate_recursive_content(value, level + 1) }}
-            </div>
-
-        {% elif value is iterable and value is not string %}
-            {# Iterable leaf #}
-            <div class="mb-1">
-                <strong class="text-uppercase fw-semibold small text-muted">{{ display_key }}</strong>:
-                <span class="fw-semibold small">{{ value | join(', ') }}</span>
-            </div>
-
-        {% elif value %}
-            {# Simple value leaf #}
-            <div class="d-flex justify-content-between mb-1">
-                <span class="text-uppercase small text-muted">{{ display_key }}</span>
-                <span class="fw-semibold small">{{ value }}</span>
-            </div>
+{% macro render_each(label, value, unit=None) %}
+<div class="d-flex justify-content-between align-items-center mb-1">
+    <span class="text-muted text-uppercase small fw-medium">{{ label }}</span>
+    <span class="fw-semibold small">
+        {{ value }}
+        {% if unit %}
+            <small class="text-muted text-uppercase small">{{ unit }}</small>
         {% endif %}
+    </span>
+</div>
+{% endmacro %}
 
+{% macro generate_recursive_content(data, level=0) %}
+<div class="level-{{ level }}">
+    {% for key, val in data.items() %}
+        {% set label = key|string|replace('_',' ') %}
+
+        {% if val is mapping %}
+            {% if 'value' in val %}
+                {{ render_each(label, val.value, val.unit) }}
+            {% else %}
+                <div class="mb-2">
+                    <span class="text-muted text-uppercase small fw-semibold d-block mb-1">{{ label }}</span>
+                    <div class="ps-3">{{ generate_recursive_content(val, level + 1) }}</div>
+                </div>
+            {% endif %}
+
+        {% elif val is iterable and val is not string %}
+            {{ render_each(label, val|join(', ')) }}
+
+        {% elif val %}
+            {{ render_each(label, val) }}
+        {% endif %}
     {% endfor %}
 </div>
 {% endmacro %}

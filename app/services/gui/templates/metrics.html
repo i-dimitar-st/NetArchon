@@ -25,8 +25,11 @@
                     <div class="card-body">
                         {% for key, value in item.metrics.items() %}
                         <div class="stats-item d-flex justify-content-between p-2">
-                            <span class="text-lowercase small text-muted">{{ key }}</span>
-                            <span class="fw-semibold small">{{ '%.2f' | format(value) }} ms</span>
+                            <span class="text-muted text-uppercase small fw-medium">{{ key }}</span>
+                            <span class="fw-semibold small">
+                                {{ '%.2f' | format(value) }}
+                                <small class="text-muted text-uppercase small ms-1">ms</small>
+                            </span>
                         </div>
                         {% set width_percent = (value | int) / max_value * 100 %}
                         {% if width_percent > 100 %}

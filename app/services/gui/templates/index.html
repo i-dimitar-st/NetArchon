@@ -6,32 +6,27 @@
 
 <body>
     {% include ".header.html" %}
-
     <div class="container py-4">
-
-        <!-- Cards -->
         <div class="row g-4">
             {% for card_key, card_value in cards.items() %}
             <div class="col-md-4">
                 <div class="card h-100">
                     <div class="card-header d-flex justify-content-between align-items-center">
-                        <h5 class="mb-0 fw-bold text-capitalize" style="color: var(--text-secondary)">
+                        <h5 class="mb-0 fw-bold text-capitalize" style="color:var(--text-secondary)">
                             {{ card_key }}
                         </h5>
-                        <span style="color: var(--primary-color)">
+                        <span style="color:var(--primary-color)">
                             {{ icons(card_key) }}
                         </span>
                     </div>
                     <div class="card-body">
                         {% for key, value in card_value.items() %}
-                        <div class="d-flex mb-2 align-items-baseline">
-                            <span class="text-muted small text-uppercase fw-medium">{{ key | replace('_',' ') }}</span>
-                            <div class="ms-auto text-end">
-                                <span class="fw-bold" style="color: var(--text-secondary)">
-                                    {{ value.value if value.value is not none else "n/a" }}
-                                </span>
+                        <div class="d-flex justify-content-between align-items-center mb-1">
+                            <span class="text-muted text-uppercase small fw-medium">{{ key | replace('_',' ') }}</span>
+                            <div class="fw-semibold small">
+                                {{ value.value if value.value is not none else "n/a" }}
                                 {% if value.unit %}
-                                <small class="text-muted text-uppercase ms-1 fw-medium" style="font-size:0.75rem">
+                                <small class="text-muted text-uppercase small">
                                     {{ value.unit }}
                                 </small>
                                 {% endif %}
