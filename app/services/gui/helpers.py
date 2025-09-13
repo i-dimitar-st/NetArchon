@@ -463,7 +463,14 @@ def delete_from_blacklist(url: str) -> bool:
 
 
 def get_service_stats() -> dict:
-    _dns_stats = get_dns_statistics()
+    _dns_stats: dict = get_dns_statistics()
+    _leases = get_dhcp_leases()
+    _dhcp_stats = {
+        "leases": len(_leases),
+        "static": sum(1 for lease in _leases if lease.get("type") == "static"),
+        "dynamic": sum(1 for lease in _leases if lease.get("type") == "dynamic"),
+        "manual": sum(1 for lease in _leases if lease.get("type") == "manual"),
+    }
 
     _dns_blacklist_hit_rate = int(
         100
@@ -504,6 +511,10 @@ def get_service_stats() -> dict:
             ),
             "unit": "time",
         },
+        "dhcp_leases_total": {"value": _dhcp_stats["leases"], "unit": "qty"},
+        "dhcp_leases_static": {"value": _dhcp_stats["static"], "unit": "qty"},
+        "dhcp_leases_dynamic": {"value": _dhcp_stats["dynamic"], "unit": "qty"},
+        "dhcp_leases_manual": {"value": _dhcp_stats["manual"], "unit": "qty"},
         "dns_status": {
             "value": "running" if DNSServer.running else "stopped",
             "unit": "state",

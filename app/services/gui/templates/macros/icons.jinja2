@@ -9,7 +9,7 @@
     {% elif 'disk' in _type %} {% set icon_class = "fa-hdd" %}
     {% elif 'dns' in _type %} {% set icon_class = "fa-globe" %}
     {% elif 'globe' in _type %} {% set icon_class = "fa-globe" %}
-    {% elif 'edit' in _type %} {% set icon_class = "fa-edit" %}
+    {% elif 'edit' in _type %} {% set icon_class = "fa-solid fa-pen-to-square" %}
     {% elif 'info' in _type %} {% set icon_class = "fa-info-circle" %}
     {% elif 'memory' in _type %} {% set icon_class = "fa-memory" %}
     {% elif 'metrics' in _type %} {% set icon_class = "fa-chart-line" %}
@@ -28,6 +28,7 @@
     {% elif 'log' in _type %} {% set icon_class = "fa-clipboard-list" %}
     {% elif 'search' in _type %} {% set icon_class = "fas fa-search" %}
     {% elif 'arrow-down' in _type %} {% set icon_class = "fas fa-arrow-down" %}
+    {% elif 'arrow-left' in _type %} {% set icon_class = "fas fa-arrow-left" %}
     {% endif %}
     <i class="fas {{ icon_class }} fs-{{ size }}"></i>
 {% endmacro %}

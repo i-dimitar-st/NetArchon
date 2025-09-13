@@ -52,16 +52,19 @@ body {
 }
 
 .button-custom {
-    background-color: var(--accent-color);
-    color: white;
-    border: none;
-    border-radius: 0.25rem;
+    display: flex;
     align-items: center;
     justify-content: center;
+    color: white;
+    padding: 0.25rem;
+    background-color: var(--accent-color);
+    border: none;
+    border-radius: 0.5rem;
     cursor: pointer;
-    font-size: 0.8rem;
+    font-size: 0.85rem;
     text-transform: uppercase;
     transition: background-color 0.2s ease;
+    gap: 2px;
 }
 
 .button-custom:hover {
