@@ -11,6 +11,7 @@ VENV_PYTHON := $(VENV)/bin/python
 SCRIPTS := $(ROOT_PATH)/scripts
 APP := $(ROOT_PATH)/app
 APP_MAIN := app.main
+APP_NEURAL_NET := app.services.neural_net.neutral_net
 
 .PHONY: set_net \
         install \
@@ -22,6 +23,7 @@ APP_MAIN := app.main
         lint \
         del_cache \
         run \
+		train \
 		setup
 
 setup: set_net \
@@ -60,6 +62,9 @@ lint:
 
 del_cache:
 	find $(APP) -type d -name "__pycache__" -exec rm -rf {} +
+
+train:
+	@PYTHONPATH=$(ROOT_PATH) ROOT_PATH=$(ROOT_PATH) $(VENV_PYTHON) -m $(APP_NEURAL_NET)
 
 run:
 	@echo "Not configured yet"
