@@ -11,7 +11,7 @@ VENV_PYTHON := $(VENV)/bin/python
 SCRIPTS := $(ROOT_PATH)/scripts
 APP := $(ROOT_PATH)/app
 APP_MAIN := app.main
-APP_NEURAL_NET := app.services.neural_net.neutral_net
+APP_NEURAL_NET := app.services.neural_net.neural_net
 
 .PHONY: set_net \
         install \

@@ -29,6 +29,7 @@
     {% elif 'search' in _type %} {% set icon_class = "fas fa-search" %}
     {% elif 'arrow-down' in _type %} {% set icon_class = "fas fa-arrow-down" %}
     {% elif 'arrow-left' in _type %} {% set icon_class = "fas fa-arrow-left" %}
+    {% elif 'neural_net' in _type %} {% set icon_class = "fa-brain" %}
     {% endif %}
     <i class="fas {{ icon_class }} fs-{{ size }}"></i>
 {% endmacro %}

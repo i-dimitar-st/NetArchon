@@ -111,9 +111,7 @@ class DHCPMessageHandler:
                         cls.logger.warning("Unknown dhcp type %s.", dhcp_msg.dhcp_type)
 
             except Exception as err:
-                cls.logger.exception(
-                    "%s error processing packet: %s.", cls.__name__, err
-                )
+                cls.logger.exception("%s error processing packet: %s.", cls.__name__, err)
 
     @classmethod
     def _handle_discover(cls, dhcp_msg: DHCPMessage):
@@ -124,9 +122,7 @@ class DHCPMessageHandler:
         with cls._lock:
             cls.logger.debug("DISCOVER XID=%s, MAC=%s.", dhcp_msg.xid, dhcp_msg.mac)
 
-            proposed_ip: IPv4Address | None = ClientDiscoveryService.get_available_ip(
-                dhcp_msg.mac
-            )
+            proposed_ip: IPv4Address | None = ClientDiscoveryService.get_available_ip(dhcp_msg.mac)
             if not proposed_ip:
                 cls.logger.warning("No available IP to offer.")
                 return
@@ -228,19 +224,13 @@ class DHCPMessageHandler:
                     request_packet=dhcp_msg.packet,
                 )
             )
-            cls.logger.debug(
-                "ACK sent for static client %s IP %s", dhcp_msg.mac, static_ip
-            )
+            cls.logger.debug("ACK sent for static client %s IP %s", dhcp_msg.mac, static_ip)
             return True
 
     @classmethod
     def _handle_request_after_offer(cls, dhcp_msg: DHCPMessage) -> bool:
 
-        if not (
-            dhcp_msg.requested_ip
-            and dhcp_msg.server_id
-            and dhcp_msg.ciaddr == NO_IP_ASSIGNED
-        ):
+        if not (dhcp_msg.requested_ip and dhcp_msg.server_id and dhcp_msg.ciaddr == NO_IP_ASSIGNED):
             return False  # Not a request-after-offer case
 
         # Client requests an IP after receiving an OFFER
@@ -304,8 +294,8 @@ class DHCPMessageHandler:
             )
             return True
 
-        _arp_client: DHCPArpClient | None = (
-            ClientDiscoveryService.get_live_client_by_ip(dhcp_msg.requested_ip)
+        _arp_client: DHCPArpClient | None = ClientDiscoveryService.get_live_client_by_ip(
+            dhcp_msg.requested_ip
         )
 
         if _arp_client and _arp_client.mac != dhcp_msg.mac:
@@ -405,9 +395,7 @@ class DHCPMessageHandler:
 
         with cls._lock:
             _declined_ip = dhcp_message.requested_ip
-            LeaseReservationCache.cancel_booking(
-                ip=dhcp_message.requested_ip, mac=dhcp_message.mac
-            )
+            LeaseReservationCache.cancel_booking(ip=dhcp_message.requested_ip, mac=dhcp_message.mac)
             _existing_lease = DHCPStorage.get_lease_by_mac(dhcp_message.mac)
             # Case 1: The client has a lease and it is for the declined IP
             if _existing_lease and _existing_lease[1] == _declined_ip:

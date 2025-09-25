@@ -81,11 +81,7 @@ class LiveClients:
             Set of DHCPArpClient currently tracked (count >= min_count).
         """
         with self._lock:
-            return {
-                client
-                for client, count in self.live_clients.items()
-                if count >= self.min_ctr
-            }
+            return {client for client, count in self.live_clients.items() if count >= self.min_ctr}
 
     def get_count_for_client(self, client: DHCPArpClient) -> int:
         """
@@ -129,9 +125,7 @@ class LiveClients:
         """
         with self._lock:
             _expired_clients: set[DHCPArpClient] = {
-                _client
-                for _client, _count in self.live_clients.items()
-                if _count < self.min_ctr
+                _client for _client, _count in self.live_clients.items() if _count < self.min_ctr
             }
             for client in _expired_clients:
                 self.live_clients.pop(client, None)

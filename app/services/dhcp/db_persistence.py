@@ -13,9 +13,7 @@ PERSISTANCE_INTERVAL = float(DB_CONFIG.get("persistence_interval"))
 WORKER_JOIN_TIMEOUT = float(DB_CONFIG.get("persistance_worker_join_timeout"))
 
 
-def _get_stale_leases_by_type(
-    live_macs: set[str], lease_type=DHCPLeaseType.MANUAL.value
-) -> set:
+def _get_stale_leases_by_type(live_macs: set[str], lease_type=DHCPLeaseType.MANUAL.value) -> set:
     """
     Checks current leased macs agaisn the current db leases.
 
@@ -170,9 +168,7 @@ class DbPersistanceService:
                     # Clean expired
                     DHCPStorage.remove_expired_leases()
 
-                    _live_clients: set[DHCPArpClient] = (
-                        ClientDiscoveryService.get_live_clients()
-                    )
+                    _live_clients: set[DHCPArpClient] = ClientDiscoveryService.get_live_clients()
                     _live_macs: set[str] = {client.mac for client in _live_clients}
 
                     # Remove stale manual leases first, then re-fetch active ones
@@ -180,9 +176,7 @@ class DbPersistanceService:
                     DHCPStorage.remove_leases_by_macs(
                         macs=_get_stale_leases_by_type(live_macs=_live_macs)
                     )
-                    _add_manual_leases(
-                        active_macs=get_active_macs(), live_clients=_live_clients
-                    )
+                    _add_manual_leases(active_macs=get_active_macs(), live_clients=_live_clients)
 
                     DHCPStorage.save_to_disk()
                     DHCPStats.save_to_disk()

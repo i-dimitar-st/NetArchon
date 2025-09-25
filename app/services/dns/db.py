@@ -1,4 +1,5 @@
 # Native
+from logging import Logger
 from pathlib import Path
 from sqlite3 import Connection, Cursor, connect
 from threading import RLock
@@ -43,7 +44,7 @@ class DnsQueryHistoryDb:
         return wrapper
 
     @classmethod
-    def init(cls, max_size=DNS_DB_MAX_HISTORY_SIZE):
+    def init(cls, logger: Logger, max_size=DNS_DB_MAX_HISTORY_SIZE):
         """Initializes the class-level SQLite connection and cursor."""
 
         if cls._cursor or cls._conn:
@@ -53,6 +54,7 @@ class DnsQueryHistoryDb:
         cls._cursor = cls._conn.cursor()
         cls._create_table()
         cls._max_size = max_size
+        cls.logger = logger
 
     @classmethod
     @_is_init
@@ -63,13 +65,20 @@ class DnsQueryHistoryDb:
         with cls._lock:
             cls._cursor.execute(DBSchemas.dnsHistory)
             cls._cursor.execute(
-                "CREATE INDEX IF NOT EXISTS idx_query ON history(query)"
+                """
+                CREATE INDEX IF NOT EXISTS
+                idx_query ON history(query)"""
             )
             cls._cursor.execute(
-                "CREATE INDEX IF NOT EXISTS idx_created ON history(created)"
+                """
+                CREATE INDEX IF NOT EXISTS
+                idx_created ON history(created)
+                """
             )
             cls._cursor.execute(
-                "CREATE INDEX IF NOT EXISTS idx_query_counter ON history(query_counter)"
+                """
+                CREATE INDEX IF NOT EXISTS
+                idx_query_counter ON history(query_counter)"""
             )
             cls._conn.commit()
 
@@ -167,6 +176,22 @@ class DnsQueryHistoryDb:
 
     @classmethod
     @_is_init
+    def clear_history(cls) -> bool:
+        """Empties the entire DNS query history table."""
+        with cls._lock:
+            assert cls._cursor is not None, "DB cursor not initialized"
+            assert cls._conn is not None, "DB connection not initialized"
+            try:
+                cls._cursor.execute("DELETE FROM history")
+                cls._conn.commit()
+                cls.logger.debug("Cleared history")
+                return True
+            except Exception as err:
+                cls.logger.debug(f"Error clearing history {str(err)}")
+                return False
+
+    @classmethod
+    @_is_init
     def close(cls):
         """Closes the in-memory history database and releases resources."""
         assert cls._cursor is not None, "DB cursor not initialized"
@@ -233,9 +258,7 @@ class DnsStatsDb:
                 (_now, _now),
             )
             cls._conn.commit()
-            columns_info: list[Any] = cls._cursor.execute(
-                "PRAGMA table_info(stats)"
-            ).fetchall()
+            columns_info: list[Any] = cls._cursor.execute("PRAGMA table_info(stats)").fetchall()
             cls._valid_columns.update({col[1] for col in columns_info})
 
     @classmethod

@@ -7,6 +7,7 @@ from app.services.dns.dns import DNSServer
 from app.services.gui.app import App
 from app.services.logger.logger import MainLogger
 from app.services.memory.memory import MemoryManager
+from app.services.neural_net.neural_net import NNDomainClassifierService
 
 logger: Logger = MainLogger.get_logger(service_name="MAIN")
 shutdown_event = Event()
@@ -40,11 +41,13 @@ if __name__ == "__main__":
     MemoryManager.init()
     DNSServer.init()
     DHCPServer.init()
+    NNDomainClassifierService.init()
 
     DHCPServer.start()
     DNSServer.start()
     MemoryManager.start()
     App.start()
+    NNDomainClassifierService.start()
 
     shutdown_event.wait()
     logger.info("Stopping services")
@@ -53,5 +56,6 @@ if __name__ == "__main__":
     DNSServer.stop()
     MemoryManager.stop()
     App.stop()
+    NNDomainClassifierService.stop()
 
     logger.info("Shutdown complete")

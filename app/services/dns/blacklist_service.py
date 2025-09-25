@@ -81,9 +81,7 @@ class BlacklistService:
         _blacklist = dns_blacklists.get_config()
         return {
             "blacklist": set(url.strip().lower() for url in _blacklist.get("urls", [])),
-            "blacklist_rules": set(
-                rule.strip().lower() for rule in _blacklist.get("rules", [])
-            ),
+            "blacklist_rules": set(rule.strip().lower() for rule in _blacklist.get("rules", [])),
         }
 
     @classmethod
@@ -109,16 +107,16 @@ class BlacklistService:
 
     @staticmethod
     @lru_cache(maxsize=CACHE_SIZE)
-    def is_blacklisted_cache_if_hit(qname: str) -> bool:
+    def is_blacklisted_cache_if_hit(query_name: str) -> bool:
         """
         Check if domain matches blacklist or wildcard rules.
         Uses LRU cache.
         """
-        if not qname:
+        if not query_name:
             return False
-        if qname in BlacklistService._blacklists["blacklist"]:
+        if query_name in BlacklistService._blacklists["blacklist"]:
             return True
         for _rule in BlacklistService._blacklists["blacklist_rules"]:
-            if fnmatch(qname, _rule):
+            if fnmatch(query_name, _rule):
                 return True
         return False

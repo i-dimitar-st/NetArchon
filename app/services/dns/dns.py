@@ -26,7 +26,7 @@ class DNSServer:
             if cls._initialised:
                 raise RuntimeError("Already Init")
             DnsStatsDb.init()
-            DnsQueryHistoryDb.init()
+            DnsQueryHistoryDb.init(logger=dns_logger)
             DbPersistanceService.init(logger=dns_logger)
             ExternalResolverService.init(logger=dns_logger)
             BlacklistService.init(logger=dns_logger)

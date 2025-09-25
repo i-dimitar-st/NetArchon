@@ -4,18 +4,30 @@ from hashlib import sha256
 from logging import WARNING, getLogger
 from pathlib import Path
 from threading import Event, Thread
-from typing import Any
+from typing import Any, Generator
 
 from asgiref.wsgi import WsgiToAsgi
-from flask import Flask, abort, jsonify, render_template, request, session
+from flask import (
+    Flask,
+    Response,
+    abort,
+    render_template,
+    request,
+    session,
+    stream_with_context,
+)
 from uvicorn import run as runUvicorn
 
 from app.config.config import config
+from app.services.dns.db import DnsQueryHistoryDb
 from app.services.gui.helpers import (
     add_to_blacklist,
+    add_to_whitelist,
     delete_from_blacklist,
+    delete_from_whitelist,
     generate_network_stats,
     generate_system_stats,
+    get_blacklist,
     get_control_list,
     get_csrf_token,
     get_dhcp_leases,
@@ -26,8 +38,12 @@ from app.services.gui.helpers import (
     get_network_interfaces,
     get_service_stats,
     get_system_logs,
+    get_whitelist,
+    make_response,
 )
 from app.services.logger.logger import MainLogger
+from app.services.neural_net.models import TrainingProgress
+from app.services.neural_net.neural_net import NNDomainClassifierService
 
 APP_CONFIG = config.get("app")
 PORT = APP_CONFIG.get("port")
@@ -224,27 +240,6 @@ class App:
 
             @cls._app.route("/config", methods=["GET", "POST"])
             def get_config():
-                if request.method == "POST":
-                    # This passed header validation already
-                    data: Any | None = request.get_json(silent=True)
-                    if not data:
-                        abort(400, description="Invalid or empty JSON")
-
-                    category = data.get("category")
-                    action = data.get("type")
-                    payload = data.get("payload")
-
-                    if category == "blacklist":
-                        if action == "add" and add_to_blacklist(payload):
-                            logger.info("%s added to blacklists.", payload)
-                            return jsonify(status="received"), 200
-                        if action == "delete" and delete_from_blacklist(payload):
-                            logger.info("%s deleted from blacklists.", payload)
-                            return jsonify(status="received"), 200
-                        abort(400, description=f"Failed to {action} from {category}")
-
-                    abort(400, description="Invalid action or category")
-
                 return render_template(
                     "config.html",
                     active_page="config",
@@ -261,6 +256,93 @@ class App:
                     ).hexdigest(),
                 )
 
+            @cls._app.route("/neural_net", methods=["GET", "POST"])
+            def get_neural_net():
+                if request.method == "POST":
+
+                    data: Any | None = request.get_json(silent=True)
+                    if not data:
+                        abort(400, description="Invalid or empty JSON")
+
+                    action = data.get("type")
+                    category = data.get("category")
+                    payload = data.get("payload")
+
+                    if category == "blacklist":
+                        if action == "add" and add_to_blacklist(payload):
+                            logger.info(f"{payload} {action} to {category}.")
+                            return make_response(success=True)
+                        if action == "remove" and delete_from_blacklist(payload):
+                            logger.info(f"{payload} {action} to {category}.")
+                            return make_response(success=True)
+                        return make_response(success=False, error=f"Failed {action} {category}")
+                    if category == "whitelist":
+                        if action == "add" and add_to_whitelist(payload):
+                            logger.info(f"{payload} {action} to {category}.")
+                            return make_response(success=True)
+                        if action == "remove" and delete_from_whitelist(payload):
+                            logger.info(f"{payload} {action} to {category}.")
+                            return make_response(success=True)
+                        return make_response(success=False, error=f"Failed {action} {category}")
+
+                    if action == "clear-dns-history":
+                        if DnsQueryHistoryDb.clear_history():
+                            return make_response(success=True)
+                        else:
+                            return make_response(success=False)
+
+                    if action == "get-model-timestamp":
+                        return make_response(
+                            success=True,
+                            payload={"timestamp": NNDomainClassifierService.get_model_age()},
+                        )
+                    if action == "train-new-model":
+
+                        def status_stream():
+                            trainingStatus: Generator[TrainingProgress, None, None] = (
+                                NNDomainClassifierService.train_new_model()
+                            )
+                            for each in trainingStatus:
+                                # each={"status":"starting","progress": 0.0,"payload":None}
+                                res, status_code = make_response(
+                                    success=True, payload=each.to_dict()
+                                )
+                                yield res.get_data(as_text=True) + "\n"
+
+                        return Response(
+                            stream_with_context(status_stream()),
+                            mimetype="application/x-ndjson",
+                        )
+
+                    if action == "predict":
+                        try:
+                            return make_response(
+                                success=True,
+                                payload={
+                                    "predictions": NNDomainClassifierService.predict_from_domains(
+                                        domains=payload
+                                    )
+                                },
+                            )
+                        except Exception as err:
+                            return make_response(success=False, error=str(err))
+                    make_response(success=False, error="Invalid action or category")
+                return render_template(
+                    "neural_net.html",
+                    active_page="net",
+                    config=config.get("neural_net"),
+                    dns_history=get_dns_history(),
+                    blacklist=get_blacklist(),
+                    whitelist=get_whitelist(),
+                    model_timestamp="",
+                    model_predictions=[],
+                    bearer_token_hash=hmac.new(
+                        key=BEARER_TOKEN_HASH.encode(),
+                        msg=session["_csrf_token"].encode(),
+                        digestmod=sha256,
+                    ).hexdigest(),
+                )
+
             @cls._app.route("/logs")
             def logs():
                 return render_template(
@@ -269,9 +351,7 @@ class App:
 
             @cls._app.route("/metrics")
             def metrics():
-                return render_template(
-                    "metrics.html", active_page="metrics", metrics=get_metrics()
-                )
+                return render_template("metrics.html", active_page="metrics", metrics=get_metrics())
 
             @cls._app.errorhandler(404)
             def not_found(error):

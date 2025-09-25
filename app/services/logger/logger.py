@@ -11,9 +11,7 @@ class MainLogger:
     """Aplication wide logging."""
 
     @classmethod
-    def get_logger(
-        cls, service_name: str = "MAIN", log_level: str = "DEBUG"
-    ) -> logging.Logger:
+    def get_logger(cls, service_name: str = "MAIN", log_level: str = "DEBUG") -> logging.Logger:
         """Logging instance getter, configurable by service name and level
         Args:
             service_name(str): Logger instance

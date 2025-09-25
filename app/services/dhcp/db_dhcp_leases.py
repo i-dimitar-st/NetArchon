@@ -90,10 +90,7 @@ class DHCPStorage:
         Args:
             logger (Logger): Logger instance for debug/warning output.
         """
-        if (
-            getattr(cls, "_conn", None) is not None
-            or getattr(cls, "_cursor", None) is not None
-        ):
+        if getattr(cls, "_conn", None) is not None or getattr(cls, "_cursor", None) is not None:
             raise RuntimeError("Already init")
 
         with cls._lock:
@@ -229,9 +226,7 @@ class DHCPStorage:
         """Remove expired leases."""
         with cls._lock:
             try:
-                cls._cursor.execute(
-                    "DELETE FROM leases WHERE expiry_time < ?", (int(time()),)
-                )
+                cls._cursor.execute("DELETE FROM leases WHERE expiry_time < ?", (int(time()),))
                 cls._conn.commit()
                 if cls._cursor.rowcount:
                     cls.logger.info("Deleted %s expired leases.", cls._cursor.rowcount)
@@ -284,8 +279,7 @@ class DHCPStorage:
         with cls._lock:
             try:
                 return {
-                    lease[0]
-                    for lease in cls._cursor.execute("SELECT ip FROM leases").fetchall()
+                    lease[0] for lease in cls._cursor.execute("SELECT ip FROM leases").fetchall()
                 }
             except Exception as _err:
                 cls.logger.error("Failed to get active leases: %s.", _err)

@@ -124,9 +124,7 @@ class ResolverService:
 
     @classmethod
     @measure_latency_decorator(metrics=dns_metrics)
-    def _handle_local(
-        cls, dns_req_message: DNSReqMessage, zones: dict = DNS_STATIC_ZONES
-    ) -> bool:
+    def _handle_local(cls, dns_req_message: DNSReqMessage, zones: dict = DNS_STATIC_ZONES) -> bool:
         """
         Check if the requested domain matches any local DNS zone and respond with the
         corresponding IP address if found.
@@ -140,9 +138,7 @@ class ResolverService:
                     continue
 
                 if dns_req_message.domain.endswith(_zone.lower()):
-                    _hostname: str = DNSUtils.extract_hostname(
-                        dns_req_message.domain, _zone
-                    )
+                    _hostname: str = DNSUtils.extract_hostname(dns_req_message.domain, _zone)
                     _hostname_ip: Any = zones[_zone].get(_hostname)
                     if _hostname_ip:
                         break
@@ -174,9 +170,7 @@ class ResolverService:
         Is DNS query result cached and send the cached reply if found.
         """
 
-        _cached_reply: Optional[DNSRecord] = cls._dns_cache.get(
-            dns_req_message.cache_key
-        )
+        _cached_reply: Optional[DNSRecord] = cls._dns_cache.get(dns_req_message.cache_key)
         if _cached_reply:
             cls._send_reply(dns_req_message, _cached_reply)
             return True
@@ -195,8 +189,8 @@ class ResolverService:
         """
 
         try:
-            dns_res_message: Optional[DNSRecord] = (
-                ExternalResolverService.resolve_external(dns_req_message.dns_message)
+            dns_res_message: Optional[DNSRecord] = ExternalResolverService.resolve_external(
+                dns_req_message.dns_message
             )
             if dns_res_message:
                 cls._dns_cache.add(
@@ -240,9 +234,7 @@ class ResolverService:
                     cls._dns_socket.sendto(dns_res_message.pack(), dns_req_message.addr)
 
         except Exception as _err:
-            cls.logger.error(
-                "Failed sending reply to %s %s.", dns_req_message.addr, _err
-            )
+            cls.logger.error("Failed sending reply to %s %s.", dns_req_message.addr, _err)
 
     @classmethod
     def _work_listen_traffic(cls, timeout: float = DNS_SOCKET_TIMEOUT):

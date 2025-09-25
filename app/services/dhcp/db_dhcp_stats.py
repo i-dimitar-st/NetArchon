@@ -78,10 +78,7 @@ class DHCPStats:
             logger (Logger): Logger instance for debug/warning output.
         """
 
-        if (
-            getattr(cls, "_conn", None) is not None
-            or getattr(cls, "_cursor", None) is not None
-        ):
+        if getattr(cls, "_conn", None) is not None or getattr(cls, "_cursor", None) is not None:
             raise RuntimeError("Already init")
 
         with cls._lock:

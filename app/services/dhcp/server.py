@@ -122,9 +122,7 @@ class DHCPServer:
             cls._workers["dhcp-traffic_listener"] = _traffic_listener
 
             for _index in range(WORKERS):
-                _worker = Thread(
-                    target=cls._processor, name=f"dhcp-worker-{_index}", daemon=True
-                )
+                _worker = Thread(target=cls._processor, name=f"dhcp-worker-{_index}", daemon=True)
                 _worker.start()
                 cls._workers[f"dhcp-worker-{_index}"] = _worker
             dhcp_logger.info("Started %s", cls.__name__)
@@ -193,9 +191,7 @@ class DHCPServer:
         while cls.running:
             dhcp_message = None
             try:
-                dhcp_message = DHCPMessage(
-                    cls._received_queue.get(timeout=worker_get_timeout)
-                )
+                dhcp_message = DHCPMessage(cls._received_queue.get(timeout=worker_get_timeout))
 
                 with cls._lock:
                     if dhcp_message.dedup_key in cls._dedup_queue:

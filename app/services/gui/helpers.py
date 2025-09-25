@@ -10,6 +10,7 @@ from threading import RLock
 from time import ctime, time
 from typing import Any
 
+from flask import jsonify
 from psutil import (
     Process as PsutilProcess,
     boot_time,
@@ -46,7 +47,8 @@ DNS_HISTORY_DB = DB_PATH / "dns_history.sqlite3"
 DNS_STATS_DB = DB_PATH / "dns_stats.sqlite3"
 DHCP_LEASES_DB = DB_PATH / "dhcp_leases.sqlite3"
 DHCP_STATS_DB = DB_PATH / "dhcp_stats.sqlite3"
-DNS_CONTROL_LIST = ROOT_PATH / "config" / "blacklists.json"
+BLACKLIST = ROOT_PATH / "config" / "blacklists.json"
+WHITELIST = ROOT_PATH / "config" / "whitelists.json"
 LOG_FILE_PATH = ROOT_PATH / "logs" / "main.log"
 
 GUI = config.get("gui")
@@ -101,8 +103,7 @@ def generate_system_stats() -> dict:
         for i, f in enumerate(cpu_freq(percpu=True))
     }
     stats["cpu"]["load_avg"] = {
-        f"core_{i}": {"value": round(l, 2), "unit": "proc"}
-        for i, l in enumerate(getloadavg())
+        f"core_{i}": {"value": round(l, 2), "unit": "proc"} for i, l in enumerate(getloadavg())
     }
 
     stats["temperature"] = {}
@@ -188,9 +189,7 @@ def generate_system_stats() -> dict:
             "name": {"value": process.name()},
             "status": {"value": process.status()},
             "started": {
-                "value": datetime.fromtimestamp(process.create_time()).strftime(
-                    "%Y-%m-%d %H:%M:%S"
-                )
+                "value": datetime.fromtimestamp(process.create_time()).strftime("%Y-%m-%d %H:%M:%S")
             },
             "uptime": {"value": round(now - process.create_time(), 2), "unit": "sec"},
             "cpu": {"value": round(cpu_perc, 2), "unit": "%"},
@@ -264,9 +263,7 @@ def get_dhcp_leases() -> list:
         with connect(DHCP_LEASES_DB) as _conn:
 
             _cursor: Cursor = _conn.cursor()
-            columns_raw: list[Any] = _cursor.execute(
-                "PRAGMA table_info(leases)"
-            ).fetchall()
+            columns_raw: list[Any] = _cursor.execute("PRAGMA table_info(leases)").fetchall()
 
             _columns: list[str] = [column[1] for column in columns_raw]
             _leases: list[tuple] = _cursor.execute("SELECT * FROM leases").fetchall()
@@ -290,9 +287,7 @@ def get_dns_history() -> list:
             _cursor: Cursor = _conn.cursor().execute("PRAGMA table_info(history)")
             _columns: list[str] = [_column[1] for _column in _cursor.fetchall()]
 
-            _history_records: list[tuple] = _cursor.execute(
-                "SELECT * FROM history"
-            ).fetchall()
+            _history_records: list[tuple] = _cursor.execute("SELECT * FROM history").fetchall()
 
             dns_records = []
             for history_record in _history_records:
@@ -314,9 +309,7 @@ def get_dns_statistics() -> dict:
             _row: tuple | None = _cursor.execute("SELECT * FROM stats").fetchone()
             if _row and _columns:
                 if len(_columns) != len(_row):
-                    logger.warning(
-                        f"Column count ({len(_columns)}) != Row length ({len(_row)})"
-                    )
+                    logger.warning(f"Column count ({len(_columns)}) != Row length ({len(_row)})")
                 return dict(zip(_columns, _row))
 
     except Exception as e:
@@ -346,17 +339,37 @@ def get_dhcp_statistics() -> dict:
     return {}
 
 
-def get_control_list() -> list:
+def get_control_list() -> list[str]:
     try:
         blacklist_rules = []
-        with open(DNS_CONTROL_LIST, mode="r", encoding="utf-8") as file_handle:
+        with open(BLACKLIST, mode="r", encoding="utf-8") as file_handle:
             _blacklists = load(file_handle).get("payload")
         for _key, _value in _blacklists.items():
             blacklist_rules.extend(_value)
         return sorted(blacklist_rules)
     except Exception as e:
-        logger.error(f"Error: Failed to read {DNS_CONTROL_LIST} - {e}")
+        logger.error(f"Error: Failed to read {BLACKLIST} - {e}")
     return []
+
+
+def get_blacklist() -> set[str]:
+    try:
+        with open(BLACKLIST, mode="r", encoding="utf-8") as file_handle:
+            urls = load(file_handle).get("payload", {}).get("urls", [])
+            return set(urls)
+    except Exception as e:
+        logger.error("Failed to load blackist: %s", e)
+        return set()
+
+
+def get_whitelist() -> set[str]:
+    try:
+        with open(WHITELIST, mode="r", encoding="utf-8") as file_handle:
+            urls = load(file_handle).get("payload", {}).get("urls", [])
+            return set(urls)
+    except Exception as e:
+        logger.error("Failed to load whitelist: %s", e)
+        return set()
 
 
 def get_system_logs() -> list:
@@ -384,6 +397,65 @@ def get_system_logs() -> list:
         return []
 
 
+def add_to_whitelist(url: str) -> bool:
+
+    if not url or not DNSUtils.is_valid_domain(url.replace("*", "a")):
+        return False
+
+    try:
+        with _lock:
+            with open(WHITELIST, mode="r", encoding="utf-8") as file_handle:
+                _whitelists = load(file_handle)
+
+            payload = _whitelists.get("payload", {})
+            urls = payload.get("urls", [])
+
+            if url in urls:
+                return True
+            urls.append(url)
+            payload["urls"] = urls
+
+            _whitelists["payload"] = payload
+            _whitelists["timestamp"] = datetime.now(timezone.utc).isoformat()
+
+            with open(WHITELIST, mode="w", encoding="utf-8") as file_handle:
+                dump(_whitelists, file_handle, indent=2)
+
+        return True
+    except Exception as e:
+        logger.error(f"Failed to add URL '{url}' to blacklist: {e}")
+        return False
+
+
+def delete_from_whitelist(url: str) -> bool:
+    if not url or not DNSUtils.is_valid_domain(url.replace("*", "a")):
+        return False
+
+    try:
+        with _lock:
+            with open(WHITELIST, mode="r", encoding="utf-8") as file_handle:
+                _whitelist = load(file_handle)
+
+            payload = _whitelist.get("payload", {})
+            url_list = payload.get("urls", [])
+
+            if url not in url_list:
+                return True
+
+            payload["urls"] = [url_rule for url_rule in url_list if url_rule != url]
+
+            _whitelist["timestamp"] = datetime.now(timezone.utc).isoformat()
+            _whitelist["payload"] = payload
+
+            with open(WHITELIST, mode="w", encoding="utf-8") as file_handle:
+                dump(_whitelist, file_handle, indent=2)
+
+        return True
+    except Exception as e:
+        logger.error(f"Failed to delete URL '{url}' from blacklist: {e}")
+        return False
+
+
 def add_to_blacklist(url: str) -> bool:
 
     if not url:
@@ -394,7 +466,7 @@ def add_to_blacklist(url: str) -> bool:
 
     try:
         with _lock:
-            with open(DNS_CONTROL_LIST, mode="r", encoding="utf-8") as file_handle:
+            with open(BLACKLIST, mode="r", encoding="utf-8") as file_handle:
                 _blacklists = load(file_handle)
 
             payload = _blacklists.get("payload", {})
@@ -415,7 +487,7 @@ def add_to_blacklist(url: str) -> bool:
             _blacklists["payload"] = payload
             _blacklists["timestamp"] = datetime.now(timezone.utc).isoformat()
 
-            with open(DNS_CONTROL_LIST, mode="w", encoding="utf-8") as file_handle:
+            with open(BLACKLIST, mode="w", encoding="utf-8") as file_handle:
                 dump(_blacklists, file_handle, indent=2)
 
         return True
@@ -433,7 +505,7 @@ def delete_from_blacklist(url: str) -> bool:
 
     try:
         with _lock:
-            with open(DNS_CONTROL_LIST, mode="r", encoding="utf-8") as file_handle:
+            with open(BLACKLIST, mode="r", encoding="utf-8") as file_handle:
                 _blacklists = load(file_handle)
 
             payload = _blacklists.get("payload", {})
@@ -453,7 +525,7 @@ def delete_from_blacklist(url: str) -> bool:
             _blacklists["timestamp"] = datetime.now(timezone.utc).isoformat()
             _blacklists["payload"] = payload
 
-            with open(DNS_CONTROL_LIST, mode="w", encoding="utf-8") as file_handle:
+            with open(BLACKLIST, mode="w", encoding="utf-8") as file_handle:
                 dump(_blacklists, file_handle, indent=2)
 
         return True
@@ -471,34 +543,23 @@ def get_service_stats() -> dict:
         "dynamic": sum(1 for lease in _leases if lease.get("type") == "dynamic"),
         "manual": sum(1 for lease in _leases if lease.get("type") == "manual"),
     }
-
     _dns_blacklist_hit_rate = int(
-        100
-        * _dns_stats.get("request_blacklisted", 0)
-        / _dns_stats.get("request_valid", 0)
+        100 * _dns_stats.get("request_blacklisted", 0) / _dns_stats.get("request_valid", 0)
         if _dns_stats.get("request_valid", 0) > 0
         else 0
     )
-
     _dns_external_hit_rate = int(
-        100
-        * _dns_stats.get("request_external", 0)
-        / _dns_stats.get("response_total", 0)
+        100 * _dns_stats.get("request_external", 0) / _dns_stats.get("response_total", 0)
         if _dns_stats.get("response_total", 0) > 0
         else 0
     )
     _dns_cache_hit_rate = int(
         100
         * _dns_stats.get("request_cache_hit", 0)
-        / (
-            _dns_stats.get("request_cache_hit", 0)
-            + _dns_stats.get("request_cache_miss", 0)
-        )
+        / (_dns_stats.get("request_cache_hit", 0) + _dns_stats.get("request_cache_miss", 0))
         if _dns_stats.get("request_cache_miss", 0) > 0
         else 0
     )
-
-    #
 
     return {
         "dhcp_status": {
@@ -506,9 +567,7 @@ def get_service_stats() -> dict:
             "unit": "state",
         },
         "dhcp_started": {
-            "value": datetime.fromtimestamp(DHCPServer.timestamp).strftime(
-                "%Y-%m-%d %H:%M:%S"
-            ),
+            "value": datetime.fromtimestamp(DHCPServer.timestamp).strftime("%Y-%m-%d %H:%M:%S"),
             "unit": "time",
         },
         "dhcp_leases_total": {"value": _dhcp_stats["leases"], "unit": "qty"},
@@ -520,9 +579,7 @@ def get_service_stats() -> dict:
             "unit": "state",
         },
         "dns_started": {
-            "value": datetime.fromtimestamp(DNSServer.timestamp).strftime(
-                "%Y-%m-%d %H:%M:%S"
-            ),
+            "value": datetime.fromtimestamp(DNSServer.timestamp).strftime("%Y-%m-%d %H:%M:%S"),
             "unit": "time",
         },
         "dns_cache_hit_rate": {
@@ -555,9 +612,17 @@ def get_metrics() -> list[dict]:
     ]
 
 
-def _is_online(
-    host: str = PING_HOST, port: int = PING_PORT, timeout: float = PING_TIMEOUT
-) -> bool:
+def make_response(success: bool, payload: Any = None, error: str | None = None) -> tuple[Any, int]:
+    """Centralized API response structure."""
+    response = {
+        "success": success,
+        "payload": payload if payload is not None else {},
+        "error": error,
+    }
+    return jsonify(response), 200 if success else 400
+
+
+def _is_online(host: str = PING_HOST, port: int = PING_PORT, timeout: float = PING_TIMEOUT) -> bool:
     try:
         _socket = socket(AF_INET, SOCK_STREAM)
         _socket.settimeout(timeout)

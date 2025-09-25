@@ -162,9 +162,7 @@ class ExternalResolverService:
         return None
 
     @classmethod
-    def _query_external_dns_server(
-        cls, request: DNSRecord, dns_server: IPv4Address
-    ) -> DNSRecord:
+    def _query_external_dns_server(cls, request: DNSRecord, dns_server: IPv4Address) -> DNSRecord:
         """Send DNS query to a single upstream DNS server and return the response."""
 
         if not request or not dns_server:

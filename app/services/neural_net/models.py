@@ -1,14 +1,44 @@
 from torch import (
     Tensor,
     cat,
-    device as torchDevice,
+    cuda,
     long as torchLong,
     no_grad,
     sigmoid,
     tensor,
 )
+from torch.cuda import device_count
 from torch.nn import LSTM, Dropout, Embedding, Linear, Module
 from torch.utils.data import Dataset
+
+from app.services.neural_net.utils import get_allowed_devices
+
+
+class TrainingProgress:
+    def __init__(self, status: str = "", progress: float = 0.0, payload: dict = {}):
+        self.status = status
+        self.progress = progress
+        self.payload = payload
+
+    def __repr__(self):
+        return (
+            f"(status={self.status}, progress={self.progress}, payload={self.payload})"
+        )
+
+    def to_dict(self):
+        """Return a dict representation for JSON serialization or yielding."""
+        return {
+            "status": self.status,
+            "progress": self.progress,
+            "payload": self.payload,
+        }
+
+    def __del__(self):
+        try:
+            for attr in list(self.__dict__.keys()):
+                delattr(self, attr)
+        except Exception:
+            pass
 
 
 class DomainDataset(Dataset):
@@ -28,6 +58,13 @@ class DomainDataset(Dataset):
 
         self.domains: list[str] = domains
         self.labels: list[int] = labels
+
+    def __del__(self):
+        try:
+            for self_attribute in list(self.__dict__.keys()):
+                delattr(self, self_attribute)
+        except Exception:
+            pass
 
     def __len__(self) -> int:
         return len(self.domains)
@@ -57,6 +94,7 @@ class DomainClassifier(Module):
     def __init__(
         self,
         allowed_chars: str,
+        char2idx: dict[str, int],
         max_domain_length: int,
         pad_char: int,
         vocab_size: int,
@@ -77,12 +115,13 @@ class DomainClassifier(Module):
             "num_layers": int(num_layers),
             "dropout_rate": float(dropout_rate),
             "allowed_chars": str(allowed_chars),
-            "char2idx": {c: i + 1 for i, c in enumerate(allowed_chars)},
+            "char2idx": char2idx,
             "pad_char": int(pad_char),
             "max_domain_length": int(max_domain_length),
             "device": str(device),
             "bidirectional": bool(bidirectional),
         }
+        self._validate_config()
         self._input_layer = Embedding(
             num_embeddings=self._config["vocab_size"],
             embedding_dim=self._config["embed_dim"],
@@ -102,8 +141,59 @@ class DomainClassifier(Module):
         if self._config["bidirectional"]:
             _hidden_size = self._config["hidden_size"] * 2
         self._output_layer = Linear(_hidden_size, self._config["output_dim"])
-
         self.set_and_move_to_device()
+
+    def _validate_config(self):
+        """Validate model configuration dictionary."""
+
+        required_fields = {
+            "vocab_size": int,
+            "embed_dim": int,
+            "output_dim": int,
+            "hidden_size": int,
+            "num_layers": int,
+            "dropout_rate": float,
+            "allowed_chars": str,
+            "char2idx": dict,
+            "pad_char": int,
+            "max_domain_length": int,
+            "device": str,
+            "bidirectional": bool,
+        }
+
+        for field, field_type in required_fields.items():
+            if field not in self._config:
+                raise ValueError(f"Config missing {field}")
+            if not isinstance(self._config[field], field_type):
+                raise TypeError(f"{field} to be {field_type}")
+
+        if self._config["vocab_size"] <= 0:
+            raise ValueError("vocab_size > 0")
+        if self._config["embed_dim"] <= 0:
+            raise ValueError("embed_dim > 0")
+        if self._config["output_dim"] <= 0:
+            raise ValueError("output_dim > 0")
+        if self._config["hidden_size"] <= 0:
+            raise ValueError("hidden_size > 0")
+        if self._config["num_layers"] <= 0:
+            raise ValueError("num_layers > 0")
+        if not (0.0 <= self._config["dropout_rate"] < 1.0):
+            raise ValueError("dropout_rate must be between 0.0 and 1.0")
+        if self._config["pad_char"] not in self._config["char2idx"].values():
+            raise ValueError("pad_char index not found in char2idx")
+        if self._config["vocab_size"] != len(self._config["char2idx"]):
+            raise ValueError("vocab_size does not match length of char2idx")
+        if self._config["device"] not in get_allowed_devices():
+            raise ValueError(f"Invalid device: {self._config['device']}")
+
+    def __del__(self):
+        try:
+            for _model_attributes in list(self.__dict__.keys()):
+                delattr(self, _model_attributes)
+            if cuda.is_available():
+                cuda.empty_cache()
+        except Exception:
+            pass
 
     def forward(self, encoded_domains: Tensor) -> Tensor:
         """
@@ -113,34 +203,31 @@ class DomainClassifier(Module):
                 with shape [batch_size, sequence_length]. Each integer corresponds
                 to a character index in the embedding vocabulary.
         Returns:
-            Tensor: Probabilities for each input domain, with shape [batch_size, output_dim].
-                Values are in the range [0, 1] due to the final sigmoid activation.
+            Tensor: Probabilities for each input with shape [batch_size, output_dim].
+                Values floats between[0, 1] due to the final sigmoid activation.
         """
-        _embedded = self._input_layer(encoded_domains)
+        _embedded: Tensor = self._input_layer(encoded_domains)
         _lstm_out, (_hidden_states, cell_states) = self._lstm(_embedded)
-        _sequence_representation = _hidden_states[-1]
+        _sequence_representation: Tensor = _hidden_states[-1]
         if self._config["bidirectional"]:
             _sequence_representation = cat(
                 (_hidden_states[-2], _hidden_states[-1]), dim=1
             )
-        _dropped = self._dropout(_sequence_representation)
-        _output_raw = self._output_layer(_dropped)
-        return sigmoid(_output_raw)
+        _dropped: Tensor = self._dropout(_sequence_representation)
+        output_raw: Tensor = self._output_layer(_dropped)
+        return sigmoid(output_raw)
 
-    def set_and_move_to_device(self, device: str | None = None):
+    def set_and_move_to_device(self):
         """
         Move the model to a specified device and update its configuration.
-        Args:
-            device (str): The target device, e.g., 'cpu' or 'cuda:0'.
-        Effects:
-            - Updates the model's `self.device` attribute.
-            - Updates the internal `_config["device"]` value.
-            - Moves all model parameters and buffers to the specified device.
+        Updates self.device,
+        Updates _config["device"],
+        Moves all model parameters and buffers to the specified device
         """
-        if device:
-            torchDevice(device)
-            self._config["device"] = device
-        self.to(self._config["device"])
+        _target_device = "cpu"
+        if self.get_model_device() in DomainClassifier._get_available_devices():
+            _target_device = self._config["device"]
+        self.to(_target_device)
 
     def predict(self, domains: list[str]) -> Tensor:
         """
@@ -151,9 +238,9 @@ class DomainClassifier(Module):
             torch.Tensor: Probabilities for each domain, shape [batch_size, output_dim].
         """
         self.eval()
-        _vectorised_domains = self.convert_domains_to_tensor(domains=domains).to(
-            self._config["device"]
-        )
+        _vectorised_domains: Tensor = self.convert_domains_to_tensor(
+            domains=domains
+        ).to(self._config["device"])
         with no_grad():
             return self.forward(_vectorised_domains)
 
@@ -162,20 +249,17 @@ class DomainClassifier(Module):
         Convert a list of domain strings to a padded tensor of integer indices.
         Args:
             domains (list[str]): List of domain strings to encode.
-            allowed_chars (str): Characters allowed in domains.
-            max_domain_length (int): Maximum sequence length (pads or truncates domains).
         Returns:
-            torch.Tensor: Tensor of shape [batch_size, max_domain_length], dtype=torch.long.
-                        Each element is an integer index corresponding to a character.
-                        0 is reserved for padding.
+            torch.Tensor: Tensor [batch_size, max_domain_length], dtype=torch.long.
+                Element are integer index corresponding to a character,0=padding.
         """
         batch_encoded = []
         for _domain in domains:
             _filtered_doman: str = DomainClassifier._filter_domain(
-                domain=_domain, allowed_chars=self._config["allowed_chars"]
+                domain=_domain, allowed_chars=self.get_allowed_chars()
             )
             _indexed_domain: list[int] = DomainClassifier._domain_to_indices(
-                _filtered_doman, self._config["char2idx"]
+                _filtered_doman, self.get_char2index()
             )
             _padded_domain: list[int] = DomainClassifier._pad_domain(
                 domain_indices=_indexed_domain,
@@ -184,6 +268,28 @@ class DomainClassifier(Module):
             )
             batch_encoded.append(_padded_domain)
         return tensor(batch_encoded, dtype=torchLong)
+
+    def get_allowed_chars(self) -> str:
+        return self._config["allowed_chars"]
+
+    def get_model_device(self) -> str:
+        return self._config["device"]
+
+    def get_model_output_dim(self) -> int:
+        return self._config["output_dim"]
+
+    def get_char2index(self) -> dict:
+        return self._config["char2idx"]
+
+    @staticmethod
+    def _get_available_devices() -> list[str]:
+        """
+        Returns a list of available devices as strings.
+        Always includes 'cpu'. Adds 'cuda:0', 'cuda:1', etc. for available GPUs.
+        """
+        devices = ["cpu"]
+        devices.extend([f"cuda:{i}" for i in range(device_count())])
+        return devices
 
     @staticmethod
     def _domain_to_indices(domain: str, char2idx: dict[str, int]) -> list[int]:
@@ -218,6 +324,14 @@ class DomainClassifier(Module):
         Returns:
             list[int]: Padded or truncated list of length `max_length`.
         """
+        if not isinstance(domain_indices, list) or not all(
+            isinstance(i, int) for i in domain_indices
+        ):
+            raise TypeError("domain_indices must be a list of integers")
+        if not isinstance(max_domain_length, int) or max_domain_length <= 0:
+            raise ValueError("max_domain_length must be a positive integer")
+        if not isinstance(pad_char, int):
+            raise TypeError("pad_char must be an integer")
         if len(domain_indices) > max_domain_length:
             return domain_indices[:max_domain_length]
         return domain_indices + [pad_char] * (max_domain_length - len(domain_indices))

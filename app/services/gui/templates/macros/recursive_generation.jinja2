@@ -1,6 +1,8 @@
 {% macro render_each(label, value, unit=None) %}
 <div class="d-flex justify-content-between align-items-center mb-1">
-    <span class="text-muted text-uppercase small fw-medium">{{ label }}</span>
+    <span class="text-muted text-uppercase small fw-medium"
+          style="min-width:150px; display:inline-block;"
+          >{{ label }}</span>
     <span class="fw-semibold small">
         {{ value }}
         {% if unit %}
@@ -12,25 +14,35 @@
 
 {% macro generate_recursive_content(data, level=0) %}
 <div class="level-{{ level }}">
-    {% for key, val in data.items() %}
-        {% set label = key|string|replace('_',' ') %}
+    {% if data is mapping %}
+        {% for key, val in data.items() %}
+            {% set label = key|string|replace('_',' ') %}
 
-        {% if val is mapping %}
-            {% if 'value' in val %}
-                {{ render_each(label, val.value, val.unit) }}
-            {% else %}
-                <div class="mb-2">
-                    <span class="text-muted text-uppercase small fw-semibold d-block mb-1">{{ label }}</span>
-                    <div class="ps-3">{{ generate_recursive_content(val, level + 1) }}</div>
-                </div>
+            {% if val is mapping %}
+                {% if 'value' in val %}
+                    {{ render_each(label, val.value, val.unit if 'unit' in val else '') }}
+                {% else %}
+                    <div class="mb-2">
+                        <span class="text-muted text-uppercase small fw-semibold d-block mb-1">{{ label }}</span>
+                        <div class="ps-3">{{ generate_recursive_content(val, level + 1) }}</div>
+                    </div>
+                {% endif %}
+
+            {% elif val is sequence and val is not string %}
+                {{ render_each(label, val|join(', ')) }}
+
+            {% elif val is not none %}
+                {{ render_each(label, val) }}
             {% endif %}
+        {% endfor %}
 
-        {% elif val is iterable and val is not string %}
-            {{ render_each(label, val|join(', ')) }}
+    {% elif data is sequence and data is not string %}
+        {% for item in data %}
+            {{ generate_recursive_content(item, level) }}
+        {% endfor %}
 
-        {% elif val %}
-            {{ render_each(label, val) }}
-        {% endif %}
-    {% endfor %}
+    {% elif data is not none %}
+        {{ render_each('', data) }}
+    {% endif %}
 </div>
 {% endmacro %}

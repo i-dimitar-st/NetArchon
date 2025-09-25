@@ -1,7 +1,12 @@
 from random import shuffle
 
+import requests
+
 from app.services.neural_net.models import DomainDataset
 from app.services.neural_net.utils import filter_unknown_chars_from_domain
+
+TIMEOUT = 30
+YOYO_ADSERVERS_URL = "https://pgl.yoyo.org/adservers/serverlist.php"
 
 
 def generate_training_dataset(
@@ -29,12 +34,8 @@ def generate_training_dataset(
     if not allowed_chars:
         raise ValueError("allowed_chars must not be empty")
 
-    _whitelist_filtered = [
-        filter_unknown_chars_from_domain(d, allowed_chars) for d in whitelist
-    ]
-    _blacklist_filtered = [
-        filter_unknown_chars_from_domain(d, allowed_chars) for d in blacklist
-    ]
+    _whitelist_filtered = [filter_unknown_chars_from_domain(d, allowed_chars) for d in whitelist]
+    _blacklist_filtered = [filter_unknown_chars_from_domain(d, allowed_chars) for d in blacklist]
     dataset = [{"domain": d, "label": 0} for d in _whitelist_filtered]
     dataset.extend([{"domain": d, "label": 1} for d in _blacklist_filtered])
     shuffle(dataset)
@@ -50,7 +51,7 @@ def generate_testing_dataset() -> DomainDataset:
         {"domain": "wikipedia.org", "label": 0},
         {"domain": "netflix.com", "label": 0},
         {"domain": "apple.com", "label": 0},
-        {"domain": "brave.com", "label": 0},
+        {"domain": "api.fitbit.com", "label": 0},
         {"domain": "signal.org", "label": 0},
         {"domain": "reddit.com", "label": 0},
         {"domain": "linkedin.com", "label": 0},
@@ -70,31 +71,22 @@ def generate_testing_dataset() -> DomainDataset:
         {"domain": "aws.amazon.com", "label": 0},
         {"domain": "docs.google.com", "label": 0},
         {"domain": "calendar.google.com", "label": 0},
-        {"domain": "ads.example.net", "label": 1},
-        {"domain": "tracker.example.com", "label": 1},
-        {"domain": "clickbait.site", "label": 1},
-        {"domain": "popups.badsite.org", "label": 1},
-        {"domain": "adserver.malicious.com", "label": 1},
-        {"domain": "promo.example.net", "label": 1},
-        {"domain": "analytics.spam.com", "label": 1},
-        {"domain": "offer.scam.net", "label": 1},
-        {"domain": "banner.ads.org", "label": 1},
-        {"domain": "malware.example.com", "label": 1},
-        {"domain": "push.example.net", "label": 1},
-        {"domain": "suspicious.api.com", "label": 1},
-        {"domain": "affiliate.tracker.com", "label": 1},
-        {"domain": "ads.badexample.org", "label": 1},
-        {"domain": "adclick.example.com", "label": 1},
-        {"domain": "adredirect.net", "label": 1},
-        {"domain": "popunder.site", "label": 1},
-        {"domain": "marketing.spam.net", "label": 1},
-        {"domain": "trackingpixel.example.org", "label": 1},
-        {"domain": "pushnotification.bad.com", "label": 1},
-        {"domain": "promoapi.example.net", "label": 1},
-        {"domain": "adtrack.example.org", "label": 1},
-        {"domain": "badapi.example.com", "label": 1},
-        {"domain": "adnetwork.example.net", "label": 1},
-        {"domain": "offers.example.org", "label": 1},
+        {"domain": "connect.facebook.net", "label": 0},
+        {"domain": "firebaseinstallations.googleapis.com", "label": 0},
+        {"domain": "push-service.push.apple.com", "label": 0},
+        {"domain": "static.addtoany.com", "label": 1},
+        {"domain": "cdn.doubleclick.net", "label": 1},
+        {"domain": "ads.pubmatic.com", "label": 1},
+        {"domain": "track.adform.net", "label": 1},
+        {"domain": "ad.centrum.cz", "label": 1},
+        {"domain": "ad4mat.com", "label": 1},
+        {"domain": "30ads.com", "label": 1},
+        {"domain": "ads.yahoo.com", "label": 1},
+        {"domain": "ads.twitter.com", "label": 1},
+        {"domain": "marketing.microsoft.com", "label": 1},
+        {"domain": "adnami.io", "label": 1},
+        {"domain": "adnet.de", "label": 1},
+        {"domain": "app-measurement.com", "label": 1},
     ]
     return DomainDataset(
         domains=[_item["domain"] for _item in _testing_datasets],
@@ -102,53 +94,22 @@ def generate_testing_dataset() -> DomainDataset:
     )
 
 
-def generate_bad_urls() -> set:
-    return {
-        "doubleclick.net",
-        "adnxs.com",
-        "adsrvr.org",
-        "rubiconproject.com",
-        "openx.net",
-        "pubmatic.com",
-        "criteo.com",
-        "appnexus.com",
-        "adroll.com",
-        "outbrain.com",
-        "taboola.com",
-        "revcontent.com",
-        "advertising.com",
-        "moatads.com",
-        "mixpanel.com",
-        "matomo.org",
-        "amplitude.com",
-        "heap.io",
-        "kissmetrics.com",
-        "optimizely.com",
-        "adsafeprotected.com",
-        "adform.net",
-        "truste.com",
-        "crwdcntrl.net",
-        "securepubads.g.doubleclick.net",
-        "ad.doubleclick-x23.net",
-        "track.adnxs-89.com",
-        "analytics.adsrvr-7.org",
-        "pubmatic-qwe12.com",
-        "criteo-srv001.com",
-        "appnexus-xyz.net",
-        "adroll-9876.com",
-        "outbrain-ads.abc.com",
-        "taboola-feed-34.com",
-        "revcontent-track-01.com",
-        "moatads-xyz123.net",
-        "mixpanel-analytics-99.com",
-        "amplitude-001.io",
-        "heap-tracking-777.io",
-        "ssbsync.smartadserver.co",
-        "optimizely-beta-55.com",
-        "adform-tracker-42.net",
-        "crwdcntrl-pixel-12.net",
-        "config.ads.vungle.com",
-        "config.aps.amazon-adsystem.com",
-        "aax.amazon-adsystem.com",
-        "enduser.adsrvr.org",
-    }
+def get_latest_adservers(
+    url: str = YOYO_ADSERVERS_URL,
+) -> set:
+    """
+    Fetch the latest adserver domains from YoYo's Peter Lowe blocklist.
+    Returns a set of domains.
+    """
+    adservers = set()
+    try:
+        response = requests.get(url, timeout=TIMEOUT)
+        response.raise_for_status()
+        for _line in response.text.splitlines():
+            _line = _line.strip()
+            if _line.startswith("127.0.0.1"):
+                parts = _line.split()
+                if len(parts) == 2:
+                    adservers.add(parts[1])
+    finally:
+        return adservers

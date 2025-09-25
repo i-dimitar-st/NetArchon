@@ -120,10 +120,7 @@ def explore_live_functions():
             filename = code.co_filename
 
             # Only inside your project and exclude site-packages
-            if (
-                "/projects/gitlab/netarchon" not in filename
-                or "site-packages" in filename
-            ):
+            if "/projects/gitlab/netarchon" not in filename or "site-packages" in filename:
                 continue
 
             # name = fn.__name__
