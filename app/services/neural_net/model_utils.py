@@ -111,9 +111,7 @@ def train_model(
         or 0 > min_acceptable_epoch_loss
         or 1 < min_acceptable_epoch_loss
     ):
-        raise ValueError(
-            "min_acceptable_epoch_loss must be a non-negative float between 0 - 1"
-        )
+        raise ValueError("min_acceptable_epoch_loss must be a non-negative float between 0 - 1")
 
     yield TrainingProgress(status="starting", progress=0.0)
 
@@ -127,14 +125,12 @@ def train_model(
         for _i in range(0, len(train_dataset), batch_size):
 
             _batch_domains, _batch_labels = train_dataset.get_items(_i, _i + batch_size)
-            _batch_labels = torchTensor(
-                _batch_labels, device=device, dtype=torchFloat
-            ).unsqueeze(1)
+            _batch_labels = torchTensor(_batch_labels, device=device, dtype=torchFloat).unsqueeze(1)
 
             optimizer.zero_grad()
-            _batch_domains_tensor: Tensor = model.convert_domains_to_tensor(
-                _batch_domains
-            ).to(device)
+            _batch_domains_tensor: Tensor = model.convert_domains_to_tensor(_batch_domains).to(
+                device
+            )
             _batch_domains_prediction: Tensor = model(_batch_domains_tensor)
 
             _loss: Tensor = criterion(_batch_domains_prediction, _batch_labels)
@@ -180,9 +176,7 @@ def evaluate_model(model: DomainClassifier, test_dataset: DomainDataset) -> floa
 
     model.eval()
     _domains, _labels = test_dataset.get_items(0)
-    _labels_tensor: Tensor = torchTensor(
-        _labels, device=model.get_model_device(), dtype=torchFloat
-    )
+    _labels_tensor: Tensor = torchTensor(_labels, device=model.get_model_device(), dtype=torchFloat)
     _predictions: Tensor = model.predict(_domains)
     if model.get_model_output_dim() == 1:
         _labels_tensor = _labels_tensor.unsqueeze(1)

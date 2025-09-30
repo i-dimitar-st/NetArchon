@@ -1,35 +1,28 @@
-import hmac
 from datetime import datetime
-from hashlib import sha256
 from logging import WARNING, getLogger
 from pathlib import Path
 from threading import Event, Thread
-from typing import Any, Generator
+from concurrent.futures import ThreadPoolExecutor
 
 from asgiref.wsgi import WsgiToAsgi
-from flask import (
-    Flask,
-    Response,
-    abort,
-    render_template,
-    request,
-    session,
-    stream_with_context,
-)
+from flask import Flask, abort, render_template, request, session
 from uvicorn import run as runUvicorn
 
 from app.config.config import config
-from app.services.dns.db import DnsQueryHistoryDb
-from app.services.gui.helpers import (
-    add_to_blacklist,
-    add_to_whitelist,
-    delete_from_blacklist,
-    delete_from_whitelist,
+from app.libs.libs import measure_latency_decorator
+from app.services.gui.api import api_gateway
+from app.services.gui.auth import (
+    BEARER_TOKEN_HASH,
+    decode_and_verify_bearer_token,
+    generate_bearer_token,
+    generate_csrf_token,
+)
+from app.services.gui.metrics import gui_metrics
+from app.services.gui.utils import (
     generate_network_stats,
     generate_system_stats,
     get_blacklist,
     get_control_list,
-    get_csrf_token,
     get_dhcp_leases,
     get_dhcp_statistics,
     get_dns_history,
@@ -39,28 +32,22 @@ from app.services.gui.helpers import (
     get_service_stats,
     get_system_logs,
     get_whitelist,
-    make_response,
 )
 from app.services.logger.logger import MainLogger
-from app.services.neural_net.models import TrainingProgress
-from app.services.neural_net.neural_net import NNDomainClassifierService
-
-APP_CONFIG = config.get("app")
-PORT = APP_CONFIG.get("port")
-HOST = APP_CONFIG.get("host")
-BEARER_TOKEN = APP_CONFIG.get("bearer_token")
-BEARER_TOKEN_HASH = sha256(BEARER_TOKEN.encode()).hexdigest()
 
 PATHS = config.get("paths")
 ROOT_PATH = Path(PATHS.get("root"))
-
 CERTIFICATES = config.get("certificates")
 CERT_PATH = ROOT_PATH / PATHS.get("certificates")
 PEM_PATH = CERT_PATH / CERTIFICATES.get("cert")
 KEY_PATH = CERT_PATH / CERTIFICATES.get("key")
-KEEP_ALIVE_TIMEOUT = 30
-APP_LOG_LEVEL = "warning"
-PERMANENT_SESSION_LIFETIME_SEC = 1800
+
+APP_CONFIG = config.get("app")
+PORT = APP_CONFIG.get("port")
+HOST = APP_CONFIG.get("host")
+KEEP_ALIVE_TIMEOUT = int(APP_CONFIG.get("keep_alive_timeout_sec"))
+APP_LOG_LEVEL = str(APP_CONFIG.get("log_level"))
+PERMANENT_SESSION_LIFETIME_SEC = int(APP_CONFIG.get("permanent_session_livetime_sec"))
 
 
 logger = MainLogger.get_logger(service_name="GUI", log_level="debug")
@@ -100,16 +87,14 @@ class App:
             PERMANENT_SESSION_LIFETIME=PERMANENT_SESSION_LIFETIME_SEC,
         )
 
-        # --- REGISTER CUSTOM FILTER ---
         @cls._app.template_filter('datetimeformat')
-        def datetimeformat(value, fmt='%Y-%m-%d %H:%M:%S'):
+        def datetimeformat(value: int, fmt='%Y-%m-%d %H:%M:%S'):
             try:
                 return datetime.fromtimestamp(int(value)).strftime(fmt)
             except (ValueError, TypeError):
-                return value  # fallback if value is invalid
+                return value
 
-        # --- END FILTER ---
-        cls._app.jinja_env.globals['csrf_token'] = get_csrf_token
+        cls._app.jinja_env.globals['csrf_token'] = generate_csrf_token
         cls._app_wsgi: WsgiToAsgi = WsgiToAsgi(cls._app)
 
         cls._bootstrap_loggers()
@@ -158,45 +143,46 @@ class App:
                 # When request ends, Flask serializes session["_csrf_token"]
                 # as cookie and signs it with app.secret_key
                 if "_csrf_token" not in session:
-                    session["_csrf_token"] = get_csrf_token()
+                    session["_csrf_token"] = generate_csrf_token()
 
                 session.permanent = True
 
                 if request.method == "POST" and request.endpoint == "get_config":
-                    _auth: str = request.headers.get("Authorization", "")
-                    if not hmac.compare_digest(
-                        _auth[7:].strip(),
-                        hmac.new(
-                            key=BEARER_TOKEN_HASH.encode(),
-                            msg=session["_csrf_token"].encode(),
-                            digestmod=sha256,
-                        ).hexdigest(),
-                    ):
+                    _auth_header = request.headers.get("Authorization", "")
+                    if not _auth_header.startswith("Bearer "):
+                        abort(401, description="Unauthorized")
+                    _bearer_token = _auth_header[7:].strip()
+                    if not decode_and_verify_bearer_token(_bearer_token, session["_csrf_token"]):
                         abort(401, description="Unauthorized")
 
                 session.modified = True
 
+            @cls._app.route("/api", methods=["GET", "POST"])
+            @measure_latency_decorator(metrics=gui_metrics)
+            def api_endpoint():
+                """
+                Centralized API endpoint for all JSON calls.
+                """
+                return api_gateway(request)
+
             @cls._app.route("/")
+            @measure_latency_decorator(metrics=gui_metrics)
             def index():
 
-                _sys_stats = generate_system_stats()
-                _cpu_temps = [
+                sys_stats = generate_system_stats()
+                cpu_temps = [
                     sensor.get("value")
-                    for label, sensors in _sys_stats.get("temperature", {}).items()
+                    for label, sensors in sys_stats.get("temperature", {}).items()
                     if "core" in label.lower()
                     for sensor in sensors.values()
                 ]
-                _max_cpu_temp = {"value": max(_cpu_temps), "unit": "°C"}
-                _system_time = _sys_stats.get("system", {}).get("datetime")
-                _uptime = _sys_stats.get("system", {}).get("uptime", {})
-                _cpu_usage = _sys_stats.get("cpu", {}).get("overall", {})
-                _mem_usage = _sys_stats.get("memory", {}).get("used", {})
+
                 system_stats = {
-                    "system_time": _system_time,
-                    "uptime": _uptime,
-                    "cpu_temp": _max_cpu_temp,
-                    "cpu_usage": _cpu_usage,
-                    "mem_usage": _mem_usage,
+                    "system_time": sys_stats.get("system", {}).get("datetime"),
+                    "uptime": sys_stats.get("system", {}).get("uptime", {}),
+                    "cpu_temp": {"value": max(cpu_temps), "unit": "°C"},
+                    "cpu_usage": sys_stats.get("cpu", {}).get("overall", {}),
+                    "mem_usage": sys_stats.get("memory", {}).get("used", {}),
                 }
                 cards = {
                     "system": system_stats,
@@ -212,6 +198,7 @@ class App:
                 )
 
             @cls._app.route("/info")
+            @measure_latency_decorator(metrics=gui_metrics)
             def info():
                 return render_template(
                     "info.html",
@@ -221,6 +208,7 @@ class App:
                 )
 
             @cls._app.route("/dhcp")
+            @measure_latency_decorator(metrics=gui_metrics)
             def dhcp():
                 return render_template(
                     "dhcp.html",
@@ -230,6 +218,7 @@ class App:
                 )
 
             @cls._app.route("/dns")
+            @measure_latency_decorator(metrics=gui_metrics)
             def dns():
                 return render_template(
                     "dns.html",
@@ -239,6 +228,7 @@ class App:
                 )
 
             @cls._app.route("/config", methods=["GET", "POST"])
+            @measure_latency_decorator(metrics=gui_metrics)
             def get_config():
                 return render_template(
                     "config.html",
@@ -249,107 +239,30 @@ class App:
                         "dhcp": config.get("dhcp"),
                     },
                     dns_control_list=get_control_list(),
-                    bearer_token_hash=hmac.new(
-                        key=BEARER_TOKEN_HASH.encode(),
-                        msg=session["_csrf_token"].encode(),
-                        digestmod=sha256,
-                    ).hexdigest(),
+                    bearer_token_hash=generate_bearer_token(session["_csrf_token"]),
                 )
 
             @cls._app.route("/neural_net", methods=["GET", "POST"])
             def get_neural_net():
-                if request.method == "POST":
-
-                    data: Any | None = request.get_json(silent=True)
-                    if not data:
-                        abort(400, description="Invalid or empty JSON")
-
-                    action = data.get("type")
-                    category = data.get("category")
-                    payload = data.get("payload")
-
-                    if category == "blacklist":
-                        if action == "add" and add_to_blacklist(payload):
-                            logger.info(f"{payload} {action} to {category}.")
-                            return make_response(success=True)
-                        if action == "remove" and delete_from_blacklist(payload):
-                            logger.info(f"{payload} {action} to {category}.")
-                            return make_response(success=True)
-                        return make_response(success=False, error=f"Failed {action} {category}")
-                    if category == "whitelist":
-                        if action == "add" and add_to_whitelist(payload):
-                            logger.info(f"{payload} {action} to {category}.")
-                            return make_response(success=True)
-                        if action == "remove" and delete_from_whitelist(payload):
-                            logger.info(f"{payload} {action} to {category}.")
-                            return make_response(success=True)
-                        return make_response(success=False, error=f"Failed {action} {category}")
-
-                    if action == "clear-dns-history":
-                        if DnsQueryHistoryDb.clear_history():
-                            return make_response(success=True)
-                        else:
-                            return make_response(success=False)
-
-                    if action == "get-model-timestamp":
-                        return make_response(
-                            success=True,
-                            payload={"timestamp": NNDomainClassifierService.get_model_age()},
-                        )
-                    if action == "train-new-model":
-
-                        def status_stream():
-                            trainingStatus: Generator[TrainingProgress, None, None] = (
-                                NNDomainClassifierService.train_new_model()
-                            )
-                            for each in trainingStatus:
-                                # each={"status":"starting","progress": 0.0,"payload":None}
-                                res, status_code = make_response(
-                                    success=True, payload=each.to_dict()
-                                )
-                                yield res.get_data(as_text=True) + "\n"
-
-                        return Response(
-                            stream_with_context(status_stream()),
-                            mimetype="application/x-ndjson",
-                        )
-
-                    if action == "predict":
-                        try:
-                            return make_response(
-                                success=True,
-                                payload={
-                                    "predictions": NNDomainClassifierService.predict_from_domains(
-                                        domains=payload
-                                    )
-                                },
-                            )
-                        except Exception as err:
-                            return make_response(success=False, error=str(err))
-                    make_response(success=False, error="Invalid action or category")
                 return render_template(
                     "neural_net.html",
                     active_page="net",
-                    config=config.get("neural_net"),
+                    config=dict(config.get("neural_net")),
                     dns_history=get_dns_history(),
-                    blacklist=get_blacklist(),
-                    whitelist=get_whitelist(),
-                    model_timestamp="",
-                    model_predictions=[],
-                    bearer_token_hash=hmac.new(
-                        key=BEARER_TOKEN_HASH.encode(),
-                        msg=session["_csrf_token"].encode(),
-                        digestmod=sha256,
-                    ).hexdigest(),
+                    blacklist=list(get_blacklist()),
+                    whitelist=list(get_whitelist()),
+                    bearer_token_hash=generate_bearer_token(session["_csrf_token"]),
                 )
 
             @cls._app.route("/logs")
+            @measure_latency_decorator(metrics=gui_metrics)
             def logs():
                 return render_template(
                     "logs.html", active_page="logs", system_logs=get_system_logs()
                 )
 
             @cls._app.route("/metrics")
+            @measure_latency_decorator(metrics=gui_metrics)
             def metrics():
                 return render_template("metrics.html", active_page="metrics", metrics=get_metrics())
 

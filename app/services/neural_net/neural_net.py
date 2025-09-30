@@ -61,8 +61,8 @@ MIN_ACCEPTABLE_EPOCH_LOSS = float(TRAINING_SPECS.get("min_acceptable_epoch_loss"
 LOSS_DELTA = float(TRAINING_SPECS.get("loss_delta"))
 BATCH_SIZE = int(TRAINING_SPECS.get("batch_size"))
 
-DEVICE = get_device()
-VOCAB_SIZE = len(ALLOWED_CHARS) + 1  # padding
+DEVICE: str = get_device()
+VOCAB_SIZE: int = len(ALLOWED_CHARS) + 1  # padding accounted in generate_char2idx
 
 
 neural_net_logger: Logger = MainLogger.get_logger(service_name="NEURAL_NET", log_level="debug")
@@ -72,6 +72,7 @@ class NNDomainClassifierService:
     _lock = RLock()
     _initialised = False
     running = False
+    busy = False
     timestamp: float
 
     @classmethod
@@ -84,9 +85,9 @@ class NNDomainClassifierService:
 
     @classmethod
     def start(cls):
-        if cls.running:
-            raise RuntimeError("Service already running.")
         with cls._lock:
+            if cls.running:
+                raise RuntimeError("Service already running.")
             cls.running = True
             cls.timestamp = time()
             neural_net_logger.info("Started.")
@@ -135,10 +136,10 @@ class NNDomainClassifierService:
         Train a new DomainClassifier and store it in the service.
         After training, the service will be marked as initialised.
         """
-        neural_net_logger.info("Training model ...")
-        if cls.running:
-            raise RuntimeError("Already running")
         with cls._lock:
+            if cls.busy:
+                raise RuntimeError("In Training")
+            neural_net_logger.info("Training model ...")
             cls.running = True
             _model: DomainClassifier | None = None
             _trained_model: DomainClassifier | None = None
@@ -211,7 +212,8 @@ class NNDomainClassifierService:
                 del _model_accuracy
                 clean_device_cache()
                 collect()
-                cls.running = False
+                cls.busy = False
+                neural_net_logger.info(f"Training completed")
                 yield TrainingProgress(status="done", progress=1.0)
 
     @classmethod
@@ -227,23 +229,23 @@ class NNDomainClassifierService:
         if not all(isinstance(_domain, str) for _domain in domains):
             raise TypeError("All items in 'domains' must be strings.")
         with cls._lock:
-
-            cls.running = True
+            if cls.busy:
+                raise RuntimeError("Busy")
+            cls.busy = True
             _model_predictor: ModelPredictor | None = None
             _model: DomainClassifier | None = None
-
             try:
-                neural_net_logger.debug("Predicting ...")
                 _model_predictor = ModelPredictor(logger=neural_net_logger)
                 _model = _model_predictor.prep_model(file_path=MODEL_PATH)
+                neural_net_logger.debug(f"Predicting for {len(domains)}")
                 return _model_predictor.predict(domains=domains, model=_model)
-
             finally:
                 del _model
                 del _model_predictor
                 clean_device_cache()
                 collect()
-                cls.running = False
+                cls.busy = False
+                neural_net_logger.info(f"Prediction completed")
 
     @classmethod
     def stop(cls):

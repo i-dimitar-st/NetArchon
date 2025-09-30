@@ -5,540 +5,73 @@
 <html lang="en">
 {% include ".head.html" %}
 
+<script src="https://unpkg.com/react@18/umd/react.production.min.js" crossorigin></script>
+<script src="https://unpkg.com/react-dom@18/umd/react-dom.production.min.js" crossorigin></script>
+<script src="https://unpkg.com/@babel/standalone/babel.min.js" crossorigin></script>
+
 <body>
     {% include ".header.html" %}
     <div class="container py-4">
 
+        <!-- Specs -->
+        <div id="react-app-specs"></div>
 
-
-        <!-- Config -->
-        <div class="row g-4 mb-4">
-            {% for name, values in config.items() %}
-            <div class="col-md-3">
-                <div class="card h-100">
-                    <div class="card-header d-flex justify-content-between align-items-center">
-                        <h5 class="mb-0 fw-bold text-capitalize" style="color:var(--text-secondary)">
-                            {{ name | replace("_"," ") }}
-                        </h5>
-                        <span style="color:var(--primary-color)" data-bs-toggle="tooltip"
-                            title="Configuration for {{ name }}">
-                            {{ icons('system') }}
-                        </span>
-                    </div>
-                    <div class="card-body overflow-auto" style="max-height:200px">
-                        {{ generate_recursive_content(values) }}
-                    </div>
-                </div>
-            </div>
-            {% endfor %}
-        </div>
-
-        <div class="row g-4">
-            <div class="col-md-12">
-                <div class="card mb-4">
-                    <div class="card-header d-flex justify-content-between align-items-center">
-                        <h5 class="mb-0 fw-bold" style="color:var(--text-secondary)">Model Actions</h5>
-                    </div>
-                    <div class="card-body p-3">
-
-                        <!-- Row 1: Get Model Timestamp -->
-                        <div class="d-flex justify-content-between align-items-center mb-2 pb-2 border-bottom">
-                            <button id="getModelTimestampBtn" class="btn btn-info text-white"
-                                style="min-width:225px;">Last Updated</button>
-                            <span id="modelTimestampDisplay" class="badge bg-info text-white">
-                                {% if model_timestamp %}
-                                {{ (model_timestamp / 60) | int }} min
-                                {% else %}
-                                No timestamp yet
-                                {% endif %}
-                            </span>
-                        </div>
-
-                        <!-- Row 2: Train Model -->
-                        <div class="d-flex justify-content-between align-items-center mb-2 pb-2 border-bottom">
-                            <button id="trainModelBtn" class="btn btn-primary" style="min-width:225px;">
-                                Train
-                            </button>
-                            <span class="badge bg-primary" id="modelTrainingStatus">
-                                Training not started
-                            </span>
-                        </div>
-
-                        <!-- Row 3: Predict Results -->
-                        <div class="d-flex justify-content-between align-items-center">
-                            <button id="predictResultsBtn" class="btn btn-success" style="min-width:225px;">Grade
-                                History</button>
-                            <span class="badge bg-success" id="modelPredictionsDisplay">
-                                {{ model_predictions | length }} predictions
-                            </span>
-                        </div>
-
-                    </div>
-                </div>
-            </div>
-        </div>
+        <!-- Model Actions -->
+        <div id="react-app-model-actions"></div>
 
         <div class="row g-4">
             <!-- Blacklist -->
-            <div class="col-12 col-md-6">
-                <div class="card mb-4 overflow-hidden">
-                    <div class="card-header d-flex align-items-center justify-content-between">
-                        <div class="d-flex align-items-center gap-2">
-                            <h5 class="mb-0 fw-bold" style="color:var(--text-secondary)">Blacklist</h5>
-                            <span class="badge bg-danger" id="blacklistCount">{{ blacklist | length }}</span>
-                        </div>
-                        <button class="btn btn-sm btn-danger" data-bs-toggle="modal"
-                            data-bs-target="#addBlacklistModal">
-                            Add
-                        </button>
-                    </div>
-                    <div class="card-body p-2">
-                        <div id="blacklistContainer" class="overflow-y-auto w-100" style="max-height: 500px;">
-                            {% if blacklist|length == 0 %}
-                            <div class="text-muted text-center py-3 no-blacklist">
-                                <em>No blacklisted domains</em>
-                            </div>
-                            {% else %}
-                            {% for url in blacklist %}
-                            {% if url %}
-                            <div class="d-flex align-items-center justify-content-between bg-light border-bottom px-3 py-2 mb-2
-                                    blacklist-item" data-domain="{{ url }}">
-                                <span class="text-truncate me-2" style="max-width: calc(100% - 40px);">{{ url }}</span>
-                                <button class="btn btn-sm btn-danger blacklistRemoveBtn" data-domain="{{ url }}"
-                                    title="Remove from blacklist" aria-label="Remove {{ url }} from blacklist">
-                                    Remove
-                                </button>
-                            </div>
-                            {% endif %}
-                            {% endfor %}
-                            {% endif %}
-                        </div>
-                    </div>
-                </div>
-            </div>
-
+            <div id="react-app-blacklist" class="col-12 col-md-6"></div>
             <!-- Whitelist -->
-            <div class="col-12 col-md-6">
-                <div class="card mb-4 overflow-hidden">
-                    <div class="card-header d-flex align-items-center justify-content-between">
-                        <div class="d-flex align-items-center gap-2">
-                            <h5 class="mb-0 fw-bold" style="color:var(--text-secondary)">Whitelist</h5>
-                            <span class="badge bg-success" id="whitelistCount">{{ whitelist | length }}</span>
-                        </div>
-                        <button class="btn btn-sm btn-success" data-bs-toggle="modal"
-                            data-bs-target="#addWhitelistModal">
-                            Add
-                        </button>
-                    </div>
-                    <div class="card-body p-2">
-                        <div id="whitelistContainer" class="overflow-y-auto w-100" style="max-height: 500px;">
-                            {% if whitelist | length == 0 %}
-                            <div class="text-muted text-center py-3 no-whitelist">
-                                <em>No whitelisted domains</em>
-                            </div>
-                            {% else %}
-                            {% for url in whitelist %}
-                            {% if url %}
-                            <div class="d-flex align-items-center justify-content-between bg-light border-bottom px-3 py-2 mb-2
-                                    whitelist-item" data-domain="{{ url }}">
-                                <span class="text-truncate me-2" style="max-width: calc(100% - 40px);">{{ url }}</span>
-                                <button
-                                    class="btn btn-sm btn-success blacklistRemoveBtn d-flex align-items-center justify-content-between"
-                                    data-domain="{{ url }}" title="Remove from whitelist"
-                                    aria-label="Remove {{ url }} from whitelist">
-                                    Remove
-                                </button>
-                            </div>
-                            {% endif %}
-                            {% endfor %}
-                            {% endif %}
-                        </div>
-                    </div>
-                </div>
-            </div>
+            <div id="react-app-whitelist" class="col-12 col-md-6"></div>
         </div>
 
-        <!-- History Domains -->
-        <div class="card mt-4 overflow-hidden">
-            <div class="card-header d-flex align-items-center justify-content-between">
-                <div class="d-flex align-items-center gap-2">
-                    <h5 class="mb-0 d-inline-flex">DNS Query History</h5>
-                    <span class="badge bg-primary text-center">{{ dns_history | length }}</span>
-                </div>
-                <div>
-                    <button id="clearHistoryBtn" class="btn btn-sm btn-danger">Clear</button>
-                </div>
-            </div>
-            <div class="card-body p-2" style="max-height:300px; overflow-y:auto;" id="dns-history-container">
-                {% if dns_history | length == 0 %}
-                <div class="text-muted text-center py-3">
-                    <em>No history</em>
-                </div>
-                {% else %}
-                {% for item in dns_history %}
-                <div class="d-flex align-items-center justify-content-between bg-light border rounded-pill px-3 py-2 mb-2 dns-history-item"
-                    data-query="{{ item.query | lower }}">
+        <!-- DNS History -->
+        <div id="react-app-dnsHistory"></div>
 
-                    <!-- Left: URL -->
-                    <span class="text-truncate" style="max-width:40%; word-break:break-word;">
-                        {{ item.query | lower }}
-                    </span>
+        <!-- Modals -->
+        <div id="modal-root"></div>
 
-                    <!-- Right: Prediction + Counter + Add buttons -->
-                    <div class="d-flex align-items-center gap-2">
-                        <span class="badge bg-secondary text-center prediction-badge">0.50</span>
-                        <span class="badge bg-primary text-center">{{ item.query_counter }}</span>
-
-                        <!-- Add to Blacklist -->
-                        <button class="btn btn-sm btn-danger addToBlacklistBtn"
-                            data-domain="{{ item.query | lower }}">Blacklist
-                        </button>
-
-                        <!-- Add to Whitelist -->
-                        <button class="btn btn-sm btn-success addToWhitelistBtn"
-                            data-domain="{{ item.query | lower }}">Whitelist
-                        </button>
-                    </div>
-                </div>
-                {% endfor %}
-                {% endif %}
-            </div>
-        </div>
-
-        <!-- Add Blacklist Modal -->
-        <div class="modal fade" id="addBlacklistModal" tabindex="-1" aria-hidden="true">
-            <div class="modal-dialog">
-                <form id="addBlacklistForm" class="modal-content">
-                    <div class="modal-header">
-                        <h5 class="modal-title">Add Blacklist Rule</h5>
-                        <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
-                    </div>
-                    <div class="modal-body">
-                        <label for="blacklistUrl" class="form-label">Enter domain to blacklist</label>
-                        <input type="text" id="blacklistUrl" class="form-control"
-                            placeholder="example.com or *.example.com"
-                            pattern="^(\*\.)?([a-zA-Z0-9\-]+\.)+[a-zA-Z]{2,}$" required>
-                    </div>
-                    <div class="modal-footer">
-                        <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Cancel</button>
-                        <button type="submit" class="btn btn-danger">Add</button>
-                    </div>
-                </form>
-            </div>
-        </div>
-
-        <!-- Add Whitelist Modal -->
-        <div class="modal fade" id="addWhitelistModal" tabindex="-1" aria-hidden="true">
-            <div class="modal-dialog">
-                <form id="addWhitelistForm" class="modal-content">
-                    <div class="modal-header">
-                        <h5 class="modal-title">Add Whitelist Rule</h5>
-                        <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
-                    </div>
-                    <div class="modal-body">
-                        <label for="whitelistUrl" class="form-label">Enter domain to whitelist</label>
-                        <input type="text" id="whitelistUrl" class="form-control"
-                            placeholder="example.com or *.example.com"
-                            pattern="^(\*\.)?([a-zA-Z0-9\-]+\.)+[a-zA-Z]{2,}$" required>
-                    </div>
-                    <div class="modal-footer">
-                        <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Cancel</button>
-                        <button type="submit" class="btn btn-success">Add</button>
-                    </div>
-                </form>
-            </div>
-        </div>
-
-        <!-- Loading Overlay -->
-        <div id="loadingOverlay"
-            style="display:none;position:fixed;top:0;left:0;width:100%;height:100%;background:rgba(255,255,255,0.7);z-index:1050;align-items:center;justify-content:center;">
-            <div class="spinner-border text-primary" role="status"><span class="visually-hidden">Loading...</span></div>
-        </div>
-        <script>
-            let model_age = "{{ model_timestamp }}"
-            let model_predictions = {{ model_predictions | tojson }}
-            const dnsHistoryRaw = {{ dns_history | tojson }}
-            const dnsHistory = dnsHistoryRaw.map(item => item.query)
-            const token = "{{ bearer_token_hash }}";
-
-            document.addEventListener("DOMContentLoaded", function () {
-
-                const showLoading = () => document.getElementById("loadingOverlay").style.display = "flex";
-                const hideLoading = () => document.getElementById("loadingOverlay").style.display = "none";
-
-                // Initialize Bootstrap tooltips
-                var tooltipTriggerList = [].slice.call(document.querySelectorAll('[data-bs-toggle="tooltip"]'));
-                var tooltipList = tooltipTriggerList.map(function (el) { return new bootstrap.Tooltip(el); });
-
-                const updateHistoryWithPredictions = (predictions) => {
-                    const container = document.getElementById("dns-history-container");
-                    const historyItems = Array.from(document.querySelectorAll(".dns-history-item"));
-
-                    // Update prediction badges
-                    historyItems.forEach((div) => {
-                        const domain = div.dataset.query.toLowerCase();
-                        const match = predictions.find(item => item.domain.toLowerCase() === domain);
-                        if (match) {
-                            const predBadge = div.querySelector(".prediction-badge");
-                            if (predBadge) {
-                                predBadge.textContent = match.probability.toFixed(4);
-                                predBadge.classList.remove("bg-danger", "bg-warning", "bg-success", "bg-secondary");
-                                if (match.probability > 0.95) predBadge.classList.add("bg-danger");
-                                else if (match.probability > 0.75) predBadge.classList.add("bg-warning");
-                                else if (match.probability < 0.25) predBadge.classList.add("bg-success");
-                                else predBadge.classList.add("bg-secondary");
-                            }
-                        }
-                    });
-
-                    // Sort history items by probability descending
-                    historyItems.sort((a, b) => {
-                        const domainA = a.dataset.query.toLowerCase();
-                        const domainB = b.dataset.query.toLowerCase();
-                        const probA = predictions.find(p => p.domain.toLowerCase() === domainA)?.probability || 0;
-                        const probB = predictions.find(p => p.domain.toLowerCase() === domainB)?.probability || 0;
-                        return probB - probA; // descending
-                    });
-
-                    // Re-attach sorted items to container
-                    historyItems.forEach(div => container.appendChild(div));
-                };
-
-
-                const updateCount = (containerId, count) => {
-                    document.getElementById(containerId + "Count").textContent = count;
-                }
-
-                const addDomainToUI = (containerId, domain) => {
-                    const container = document.getElementById(containerId + "Container");
-                    if (container.querySelector(".no-" + containerId)) {
-                        container.querySelector(".no-" + containerId).remove();
-                    }
-
-                    const div = document.createElement("div");
-                    div.className = `d-flex align-items-center justify-content-between bg-light border-bottom px-3 py-2 mb-2 ${containerId}-item`;
-                    div.setAttribute("data-domain", domain);
-
-                    const span = document.createElement("span");
-                    span.className = "text-truncate me-2";
-                    span.style.maxWidth = "calc(100% - 40px)";
-                    span.textContent = domain;
-
-                    // Match the existing remove button style exactly
-                    const btn = document.createElement("button");
-                    btn.className = `btn btn-sm btn-${containerId === "blacklist" ? "danger" : "success"} ${containerId}RemoveBtn d-flex align-items-center justify-content-between`;
-                    btn.setAttribute("data-domain", domain);
-                    btn.setAttribute("title", `Remove from ${containerId}`);
-                    btn.setAttribute("aria-label", `Remove ${domain} from ${containerId}`);
-                    btn.innerHTML = `Remove`;
-
-                    div.appendChild(span);
-                    div.appendChild(btn);
-                    container.appendChild(div);
-                };
-
-                const postDomain = (category, domain) => {
-                    return fetch("/neural_net", {
-                        method: "POST",
-                        headers: { "Content-Type": "application/json", "Authorization": `Bearer ${token}` },
-                        body: JSON.stringify({ category, type: "add", payload: domain })
-                    }).then(res => res.ok ? res.json() : Promise.reject("Server error"));
-                }
-
-                const removeDomain = (category, domain) => {
-                    return fetch("/neural_net", {
-                        method: "POST",
-                        headers: { "Content-Type": "application/json", "Authorization": `Bearer ${token}` },
-                        body: JSON.stringify({ category, type: "remove", payload: domain })
-                    }).then(res => res.ok ? res.json() : Promise.reject("Server error"));
-                }
-
-                document.getElementById("addWhitelistForm").addEventListener("submit", e => {
-                    e.preventDefault();
-                    const domain = document.getElementById("whitelistUrl").value.trim();
-                    if (!domain) return;
-                    showLoading();
-                    postDomain("whitelist", domain).then(() => {
-                        addDomainToUI("whitelist", domain);
-                        updateCount("whitelist", document.querySelectorAll(".whitelist-item").length);
-                        bootstrap.Modal.getInstance(document.getElementById("addWhitelistModal")).hide();
-                        document.getElementById("whitelistUrl").value = "";
-                    }).catch(err => alert(err)).finally(hideLoading);
-                });
-
-                document.getElementById("addBlacklistForm").addEventListener("submit", e => {
-                    e.preventDefault();
-                    const domain = document.getElementById("blacklistUrl").value.trim();
-                    if (!domain) return;
-                    showLoading();
-                    postDomain("blacklist", domain).then(() => {
-                        addDomainToUI("blacklist", domain);
-                        updateCount("blacklist", document.querySelectorAll(".blacklist-item").length);
-                        bootstrap.Modal.getInstance(document.getElementById("addBlacklistModal")).hide();
-                        document.getElementById("blacklistUrl").value = "";
-                    }).catch(err => alert(err)).finally(hideLoading);
-                });
-
-                // Remove buttons
-                document.addEventListener("click", e => {
-                    const removeClasses = ["blacklistRemoveBtn", "whitelistRemoveBtn"];
-                    removeClasses.forEach(cls => {
-                        if (e.target.classList.contains(cls) || e.target.closest("." + cls)) {
-                            const btn = e.target.classList.contains(cls) ? e.target : e.target.closest("." + cls);
-                            const domain = btn.getAttribute("data-domain");
-                            const category = cls.includes("blacklist") ? "blacklist" : "whitelist";
-                            if (confirm(`Remove ${domain} from ${category}?`)) {
-                                showLoading();
-                                removeDomain(category, domain).then(() => {
-                                    btn.parentNode.remove();
-                                    updateCount(category, document.querySelectorAll("." + category + "-item").length);
-                                }).catch(err => alert(err)).finally(hideLoading);
-                            }
-                        }
-                    });
-                });
-
-                document.addEventListener("click", e => {
-                    if (e.target.classList.contains("addToBlacklistBtn") || e.target.closest(".addToBlacklistBtn")) {
-                        const btn = e.target.classList.contains("addToBlacklistBtn") ? e.target : e.target.closest(".addToBlacklistBtn");
-                        const domain = btn.dataset.domain;
-                        showLoading();
-                        postDomain("blacklist", domain)
-                            .then(() => {
-                                addDomainToUI("blacklist", domain);
-                                updateCount("blacklist", document.querySelectorAll(".blacklist-item").length);
-                            })
-                            .catch(err => alert(err))
-                            .finally(hideLoading);
-                    }
-
-                    if (e.target.classList.contains("addToWhitelistBtn") || e.target.closest(".addToWhitelistBtn")) {
-                        const btn = e.target.classList.contains("addToWhitelistBtn") ? e.target : e.target.closest(".addToWhitelistBtn");
-                        const domain = btn.dataset.domain;
-                        showLoading();
-                        postDomain("whitelist", domain)
-                            .then(() => {
-                                addDomainToUI("whitelist", domain);
-                                updateCount("whitelist", document.querySelectorAll(".whitelist-item").length);
-                            })
-                            .catch(err => alert(err))
-                            .finally(hideLoading);
-                    }
-                });
-
-                // Actions buttons
-                const makeApiRequest = (action, payload) => {
-                    showLoading();
-                    return fetch("/neural_net", {
-                        method: "POST",
-                        headers: { "Content-Type": "application/json", "Authorization": `Bearer ${token}` },
-                        body: JSON.stringify({ "type": action, "payload": payload })
-                    })
-                        .then(res => {
-                            if (!res.ok) throw new Error("Server error");
-                            return res.json();
-                        })
-                        .then(jsonRes => {
-                            if (!jsonRes.success) throw new Error(jsonRes.error || "Unknown error");
-                            console.log(`action:${action} Success:`, jsonRes.payload);
-                            return jsonRes.payload;
-                        })
-                        .catch(err => {
-                            console.error(`action:${action} Error:`, err);
-                            throw err;
-                        })
-                        .finally(hideLoading);
-                }
-
-                document.getElementById("getModelTimestampBtn").addEventListener("click", () => {
-                    makeApiRequest("get-model-timestamp", null)
-                        .then(resPayload => {
-                            if (resPayload?.timestamp) {
-                                model_age = resPayload.timestamp;
-                                console.log("get-model-timestamp", model_age)
-                                document.getElementById("modelTimestampDisplay").textContent = model_age;
-                            } else { console.error("get-model-timestamp", model_age) }
-                        })
-                        .catch(() => alert("Failed to get model timestamp"));
-                });
-                document.getElementById("trainModelBtn").addEventListener("click", () => {
-                    if (!confirm("Train a new model?")) return;
-
-                    const statusBadge = document.getElementById("modelTrainingStatus");
-                    statusBadge.textContent = "Starting...";
-
-                    fetch("/neural_net", {
-                        method: "POST",
-                        headers: {
-                            "Content-Type": "application/json",
-                            "Authorization": `Bearer ${token}`
-                        },
-                        body: JSON.stringify({ type: "train-new-model" })
-                    }).then(async (res) => {
-                        if (!res.ok) throw new Error("Failed to start training");
-
-                        const reader = res.body.getReader();
-                        const decoder = new TextDecoder("utf-8");
-
-                        let buffer = "";
-                        while (true) {
-                            const { done, value } = await reader.read();
-                            if (done) break;
-                            buffer += decoder.decode(value, { stream: true });
-
-                            let lines = buffer.split("\n");
-                            buffer = lines.pop();
-
-                            for (let line of lines) {
-                                if (!line.trim()) continue;
-                                try {
-                                    const json = JSON.parse(line);
-                                    console.info('received:', json);
-                                    const payload = json.payload || {};
-                                    const status = payload.status || json.status || "Unknown";
-                                    const progress = payload.progress !== undefined ? payload.progress * 100 : null;
-                                    const payloadPayload = payload.payload
-                                    let extra = "";
-                                    if (payloadPayload.avg_loss !== undefined) extra = ` Loss: ${payloadPayload.avg_loss.toFixed(3)}`;
-                                    if (payloadPayload.accuracy !== undefined) extra = ` Acc: ${payloadPayload.accuracy.toFixed(3)}`;
-                                    statusBadge.textContent = `${status} ${progress.toFixed(1)}% ${extra}`;
-                                } catch (err) {
-                                    console.error("Failed to parse JSON line:", line, err);
-                                }
-                            }
-                        }
-
-                        statusBadge.textContent = "Training complete!";
-                    }).catch(err => {
-                        console.error("Training failed:", err);
-                        statusBadge.textContent = "Training failed";
-                    });
-                });
-                document.getElementById("predictResultsBtn").addEventListener("click", () => {
-                    makeApiRequest("predict", dnsHistory)
-                        .then(resPayload => {
-                            const predictions = resPayload?.predictions || [];
-                            model_predictions = predictions;
-                            document.getElementById("modelPredictionsDisplay").textContent =
-                                `${predictions.length} predictions`;
-                            updateHistoryWithPredictions(predictions);
-                            console.log("Predictions:", predictions);
-                        })
-                        .catch(() => alert("Failed to generate predictions"));
-                });
-                document.getElementById("clearHistoryBtn").addEventListener("click", () => {
-                    if (!confirm("Are you sure you want to clear DNS query history?")) return;
-                    makeApiRequest("clear-dns-history", null)
-                        .then(() => {
-                            console.log("dns-history cleared")
-                            window.location.href = window.location.href;
-                            console.log("dns-history page reloaded")
-                        })
-                        .catch(() => alert("Failed to clear DNS history"));
-                });
-            });
-        </script>
     </div>
+    <script id="config" type="application/json">{{ config | tojson | safe }}</script>
+    <script id="dns-history" type="application/json">{{ dns_history | tojson | safe }}</script>
+    <script id="blacklists" type="application/json">{{ blacklist | tojson | safe }}</script>
+    <script id="whitelists" type="application/json">{{ whitelist | tojson | safe }}</script>
+    <script>
+        const token = "{{ bearer_token_hash }}";
+        const config = JSON.parse(document.getElementById('config').textContent);
+        const initialBlacklists = JSON.parse(document.getElementById('blacklists').textContent);
+        const initialWhitelists = JSON.parse(document.getElementById('whitelists').textContent);
+        const dnsHistory = JSON.parse(document.getElementById('dns-history').textContent);
+        const dnsHistoryUrlList = dnsHistory.map(item => item.query)
+    </script>
+    <script type="text/babel" src="{{ url_for('static', filename='js/components/neural-net/Specs.jsx') }}"></script>
+    <script type="text/babel">
+        ReactDOM.createRoot(document.getElementById("react-app-specs")).render(<Specs config={config} />);
+    </script>
+    <script type="text/babel" src="{{ url_for('static', filename='js/components/neural-net/Actions.jsx') }}"></script>
+    <script type="text/babel">
+        ReactDOM.createRoot(document.getElementById("react-app-model-actions"))
+            .render(<Actions token={token} dnsHistory={dnsHistoryUrlList} />);
+    </script>
+    <script type="text/babel"
+        src="{{ url_for('static', filename='js/components/neural-net/Blacklists.jsx') }}"></script>
+    <script type="text/babel">
+        ReactDOM.createRoot(document.getElementById("react-app-blacklist"))
+            .render(<Blacklists token={token} initialBlacklists={initialBlacklists} />);
+    </script>
+    <script type="text/babel"
+        src="{{ url_for('static', filename='js/components/neural-net/Whitelists.jsx') }}"></script>
+    <script type="text/babel">
+        ReactDOM.createRoot(document.getElementById("react-app-whitelist"))
+            .render(<Whitelists token={token} initialWhitelists={initialWhitelists} />);
+    </script>
+    <script type="text/babel"
+        src="{{ url_for('static', filename='js/components/neural-net/DnsHistory.jsx') }}"></script>
+    <script type="text/babel">
+        ReactDOM.createRoot(document.getElementById("react-app-dnsHistory"))
+            .render(<HistoryDomains token={token} dnsHistory={dnsHistory} />);
+    </script>
 </body>
 
 </html>

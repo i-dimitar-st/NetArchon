@@ -3,7 +3,6 @@ from json import dump, load
 from os import getloadavg
 from pathlib import Path
 from platform import machine, node, processor, release, system
-from secrets import token_hex
 from socket import AF_INET, AF_PACKET, SOCK_STREAM, socket
 from sqlite3 import Cursor, connect
 from threading import RLock
@@ -28,6 +27,7 @@ from psutil import (
 from psutil._common import shwtemp, snetio
 
 from app.config.config import config
+from app.services.gui.metrics import gui_metrics
 from app.services.dhcp.metrics import dhcp_metrics
 from app.services.dhcp.server import DHCPServer
 from app.services.dns.dns import DNSServer
@@ -602,6 +602,7 @@ def get_metrics() -> list[dict]:
     for server, metrics in dns_per_server_metrics.items():
         _server_metrics.append({"label": str(server), "metrics": metrics.get_stats()})
     return [
+        {"label": "gui", "metrics": gui_metrics.get_stats()},
         {"label": "dhcp", "metrics": dhcp_metrics.get_stats()},
         {"label": "dns", "metrics": dns_metrics.get_stats()},
         {
@@ -631,7 +632,3 @@ def _is_online(host: str = PING_HOST, port: int = PING_PORT, timeout: float = PI
         return True
     except Exception:
         return False
-
-
-def get_csrf_token():
-    return token_hex(16)

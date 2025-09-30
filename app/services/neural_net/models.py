@@ -21,9 +21,7 @@ class TrainingProgress:
         self.payload = payload
 
     def __repr__(self):
-        return (
-            f"(status={self.status}, progress={self.progress}, payload={self.payload})"
-        )
+        return f"(status={self.status}, progress={self.progress}, payload={self.payload})"
 
     def to_dict(self):
         """Return a dict representation for JSON serialization or yielding."""
@@ -49,9 +47,7 @@ class DomainDataset(Dataset):
             raise TypeError("domains must be a list of str")
         if not domains:
             raise ValueError("domains must not be empty")
-        if not isinstance(labels, list) or not all(
-            isinstance(_label, int) for _label in labels
-        ):
+        if not isinstance(labels, list) or not all(isinstance(_label, int) for _label in labels):
             raise TypeError("labels must be a list of int")
         if len(domains) != len(labels):
             raise ValueError("domains and labels must have the same length")
@@ -103,8 +99,8 @@ class DomainClassifier(Module):
         hidden_size: int,
         num_layers: int,
         dropout_rate: float,
-        device: str = 'cpu',
-        bidirectional: bool = True,
+        device: str,
+        bidirectional: bool,
     ):
         super().__init__()
         self._config = {
@@ -179,10 +175,11 @@ class DomainClassifier(Module):
             raise ValueError("num_layers > 0")
         if not (0.0 <= self._config["dropout_rate"] < 1.0):
             raise ValueError("dropout_rate must be between 0.0 and 1.0")
-        if self._config["pad_char"] not in self._config["char2idx"].values():
-            raise ValueError("pad_char index not found in char2idx")
-        if self._config["vocab_size"] != len(self._config["char2idx"]):
-            raise ValueError("vocab_size does not match length of char2idx")
+        if self._config["pad_char"] != 0:
+            raise ValueError("pad_char must be 0")
+        if self._config["vocab_size"] != len(self._config["char2idx"]) + 1:
+            print(self._config["vocab_size"], len(self._config["char2idx"]) + 1)
+            raise ValueError("vocab_size does not match length of char2idx + 1 for padding")
         if self._config["device"] not in get_allowed_devices():
             raise ValueError(f"Invalid device: {self._config['device']}")
 
@@ -210,9 +207,7 @@ class DomainClassifier(Module):
         _lstm_out, (_hidden_states, cell_states) = self._lstm(_embedded)
         _sequence_representation: Tensor = _hidden_states[-1]
         if self._config["bidirectional"]:
-            _sequence_representation = cat(
-                (_hidden_states[-2], _hidden_states[-1]), dim=1
-            )
+            _sequence_representation = cat((_hidden_states[-2], _hidden_states[-1]), dim=1)
         _dropped: Tensor = self._dropout(_sequence_representation)
         output_raw: Tensor = self._output_layer(_dropped)
         return sigmoid(output_raw)
@@ -238,9 +233,9 @@ class DomainClassifier(Module):
             torch.Tensor: Probabilities for each domain, shape [batch_size, output_dim].
         """
         self.eval()
-        _vectorised_domains: Tensor = self.convert_domains_to_tensor(
-            domains=domains
-        ).to(self._config["device"])
+        _vectorised_domains: Tensor = self.convert_domains_to_tensor(domains=domains).to(
+            self._config["device"]
+        )
         with no_grad():
             return self.forward(_vectorised_domains)
 
@@ -312,9 +307,7 @@ class DomainClassifier(Module):
         return "".join([_char for _char in domain if _char in allowed_chars])
 
     @staticmethod
-    def _pad_domain(
-        domain_indices: list[int], max_domain_length: int, pad_char: int
-    ) -> list[int]:
+    def _pad_domain(domain_indices: list[int], max_domain_length: int, pad_char: int) -> list[int]:
         """
         Pad or truncate a list of integer indices to a fixed length.
         Args:

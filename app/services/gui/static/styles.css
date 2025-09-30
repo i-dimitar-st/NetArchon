@@ -1,27 +1,26 @@
 :root {
+    --primary-color: #4361ee;
+    --secondary-color: #3f37c9;
+    --success-color: #2a9d8f;
     --accent-color: #4895ef;
     --danger-color: #e63946;
+    --warning-color: #f9c74f;
     --hover-bg: rgba(67, 97, 238, 0.05);
     --icon-brand: rgba(255, 255, 255, 0.9);
     --icon-nav: rgba(255, 255, 255, 0.8);
     --icon-primary: var(--primary-color);
     --icon-success: var(--success-color);
     --icon-warning: var(--warning-color);
-    --primary-color: #4361ee;
-    --secondary-color: #3f37c9;
-    --success-color: #2a9d8f;
     --text-primary: #6c757d;
     --text-secondary: #495057;
-    --warning-color: #f9c74f;
 }
 
 body {
-    background-color: #f0f2f5;
-    font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", "Roboto",
-        "Helvetica Neue", sans-serif;
+    background-color: white;
     margin: 0;
-    min-height: 100vh;
     padding: 0;
+    min-height: 100vh;
+    font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', 'Roboto', 'Helvetica Neue', sans-serif;
     font-weight: 400;
     text-rendering: optimizeLegibility;
     -moz-osx-font-smoothing: grayscale;
@@ -86,11 +85,7 @@ body {
 }
 
 .card-header {
-    background: linear-gradient(
-        135deg,
-        rgba(67, 97, 238, 0.05),
-        rgba(72, 149, 239, 0.05)
-    );
+    background: linear-gradient(135deg, rgba(67, 97, 238, 0.05), rgba(72, 149, 239, 0.05));
     border-bottom: 1px solid rgba(67, 97, 238, 0.1);
     border-radius: 1rem 1rem 0 0 !important;
     padding: 1.25rem 1.5rem;
@@ -133,11 +128,7 @@ body {
 
 .navbar {
     backdrop-filter: blur(12px) saturate(150%);
-    background: linear-gradient(
-        270deg,
-        var(--primary-color),
-        var(--secondary-color)
-    );
+    background: linear-gradient(270deg, var(--primary-color), var(--secondary-color));
     box-shadow: 0 4px 20px rgba(67, 97, 238, 0.2);
 }
 
