@@ -1,25 +1,6 @@
 function LoadingOverlay({ visible }) {
     if (!visible) return null;
-    return (
-        <div
-            style={{
-                position: 'absolute',
-                top: 0,
-                left: 0,
-                width: '100%',
-                height: '100%',
-                background: 'rgba(0,0,0,0.5)',
-                zIndex: 1050,
-                display: 'flex',
-                justifyContent: 'center',
-                alignItems: 'center',
-                color: 'white',
-                fontSize: '1.5rem',
-            }}
-        >
-            Loading...
-        </div>
-    );
+    return <div className="loading-overlay ">Loading...</div>;
 }
 
 function AddWhitelistModal({ show, onClose, onAdd, newDomain, setNewDomain }) {
@@ -64,9 +45,8 @@ function AddWhitelistModal({ show, onClose, onAdd, newDomain, setNewDomain }) {
     return ReactDOM.createPortal(modalContent, document.getElementById('modal-root'));
 }
 
-function Whitelists({ token, initialWhitelists }) {
+function Whitelists({ token, whitelists, setWhitelists }) {
     const { useState } = React;
-    const [whitelist, setWhitelist] = useState(initialWhitelists || []);
     const [newDomain, setNewDomain] = useState('');
     const [showModal, setShowModal] = useState(false);
     const [loading, setLoading] = useState(false);
@@ -92,8 +72,8 @@ function Whitelists({ token, initialWhitelists }) {
             });
             if (!res.ok) throw new Error('Server error');
             await res.json();
-            setWhitelist((prev) => [...prev, newDomain]);
-            updateCount(whitelist.length + 1);
+            setWhitelists((prev) => [...prev, newDomain]);
+            updateCount(whitelists.length + 1);
             setNewDomain('');
             setShowModal(false);
         } catch (err) {
@@ -117,8 +97,8 @@ function Whitelists({ token, initialWhitelists }) {
             });
             if (!res.ok) throw new Error('Server error');
             await res.json();
-            setWhitelist((prev) => prev.filter((item) => item !== url));
-            updateCount(whitelist.length - 1);
+            setWhitelists((prev) => prev.filter((item) => item !== url));
+            updateCount(whitelists.length - 1);
         } catch (err) {
             alert(err);
         } finally {
@@ -126,50 +106,37 @@ function Whitelists({ token, initialWhitelists }) {
         }
     };
 
+    const Row = ({ label, onRemove }) => (
+        <div className="d-flex justify-content-between align-items-center px-4 py-3 border-bottom">
+            <span className="text-truncate">{label}</span>
+            <button className="btn btn-sm btn-primary" onClick={onRemove}>
+                Remove
+            </button>
+        </div>
+    );
+
     return (
-        <div className="card mb-4 overflow-hidden">
+        <div className="card mb-4 overflow-hidden" style={{ maxHeight: '500px' }}>
             <LoadingOverlay visible={loading} />
             <div className="card-header d-flex align-items-center justify-content-between">
                 <div className="d-flex align-items-center gap-2">
-                    <h5 className="mb-0 fw-bold" style={{ color: 'var(--text-secondary)' }}>
-                        Whitelist
-                    </h5>
-                    <span className="badge bg-success" id="whitelistCount">
-                        {whitelist.length}
+                    <h5 className="mb-0 fw-bold">Whitelist</h5>
+                    <span className="badge bg-secondary" id="whitelistCount">
+                        {whitelists.length}
                     </span>
                 </div>
-                <button className="btn btn-sm btn-success" onClick={() => setShowModal(true)}>
+                <button className="btn btn-sm btn-primary" onClick={() => setShowModal(true)}>
                     Add
                 </button>
             </div>
-            <div className="card-body p-2">
-                <div className="overflow-y-auto w-100" style={{ maxHeight: '500px' }}>
-                    {whitelist.length === 0 ? (
-                        <div className="text-muted text-center py-3 no-whitelist">
-                            <em>No whitelisted domains</em>
-                        </div>
-                    ) : (
-                        whitelist.map((url, idx) => (
-                            <div
-                                key={idx}
-                                className="d-flex align-items-center justify-content-between bg-light border-bottom px-3 py-2 mb-2 whitelist-item"
-                                data-domain={url}
-                            >
-                                <span className="text-truncate me-2" style={{ maxWidth: 'calc(100% - 60px)' }}>
-                                    {url}
-                                </span>
-                                <button
-                                    className="btn btn-sm btn-success"
-                                    onClick={() => removeDomain(url)}
-                                    title={`Remove ${url} from whitelist`}
-                                    aria-label={`Remove ${url} from whitelist`}
-                                >
-                                    Remove
-                                </button>
-                            </div>
-                        ))
-                    )}
-                </div>
+            <div className="card-body p-0 overflow-auto">
+                {whitelists.length === 0 ? (
+                    <div className="text-muted text-center py-3 no-whitelist">
+                        <em>No whitelisted domains</em>
+                    </div>
+                ) : (
+                    whitelists.map((url, idx) => <Row key={idx} label={url} onRemove={() => removeDomain(url)} />)
+                )}
             </div>
 
             <AddWhitelistModal

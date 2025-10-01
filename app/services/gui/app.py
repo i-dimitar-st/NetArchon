@@ -1,12 +1,13 @@
+import json
 from datetime import datetime
 from logging import WARNING, getLogger
 from pathlib import Path
 from threading import Event, Thread
-from concurrent.futures import ThreadPoolExecutor
+
 
 from asgiref.wsgi import WsgiToAsgi
 from flask import Flask, abort, render_template, request, session
-from uvicorn import run as runUvicorn
+from uvicorn import run
 
 from app.config.config import config
 from app.libs.libs import measure_latency_decorator
@@ -80,12 +81,13 @@ class App:
     def _work(cls):
         cls._app = Flask(__name__)
         cls._app.secret_key = BEARER_TOKEN_HASH
-        cls._app.config.update(
-            SESSION_COOKIE_HTTPONLY=True,
-            SESSION_COOKIE_SECURE=True,
-            SESSION_COOKIE_SAMESITE="Lax",
-            PERMANENT_SESSION_LIFETIME=PERMANENT_SESSION_LIFETIME_SEC,
-        )
+        cls._app.config['SESSION_COOKIE_HTTPONLY'] = True
+        cls._app.config['SESSION_COOKIE_SECURE'] = True
+        cls._app.config['SESSION_COOKIE_SAMESITE'] = "Lax"
+        cls._app.config['PERMANENT_SESSION_LIFETIME'] = PERMANENT_SESSION_LIFETIME_SEC
+
+        cls._app.jinja_env.globals['csrf_token'] = generate_csrf_token
+        cls._app_wsgi = WsgiToAsgi(cls._app)
 
         @cls._app.template_filter('datetimeformat')
         def datetimeformat(value: int, fmt='%Y-%m-%d %H:%M:%S'):
@@ -94,13 +96,10 @@ class App:
             except (ValueError, TypeError):
                 return value
 
-        cls._app.jinja_env.globals['csrf_token'] = generate_csrf_token
-        cls._app_wsgi: WsgiToAsgi = WsgiToAsgi(cls._app)
-
         cls._bootstrap_loggers()
         cls._define_routes()
 
-        runUvicorn(
+        run(
             cls._app_wsgi,
             host=cls._host,
             port=cls._port,
@@ -244,10 +243,11 @@ class App:
 
             @cls._app.route("/neural_net", methods=["GET", "POST"])
             def get_neural_net():
+                print()
                 return render_template(
                     "neural_net.html",
                     active_page="net",
-                    config=dict(config.get("neural_net")),
+                    neural_net_config=dict(config.get("neural_net")),
                     dns_history=get_dns_history(),
                     blacklist=list(get_blacklist()),
                     whitelist=list(get_whitelist()),

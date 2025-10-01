@@ -1,25 +1,6 @@
 function LoadingOverlay({ visible }) {
     if (!visible) return null;
-    return (
-        <div
-            style={{
-                position: 'absolute',
-                top: 0,
-                left: 0,
-                width: '100%',
-                height: '100%',
-                background: 'rgba(0,0,0,0.5)',
-                zIndex: 1050,
-                display: 'flex',
-                justifyContent: 'center',
-                alignItems: 'center',
-                color: 'white',
-                fontSize: '1.5rem',
-            }}
-        >
-            Loading...
-        </div>
-    );
+    return <div className="loading-overlay ">Loading...</div>;
 }
 
 function AddBlacklistModal({ show, onClose, onAdd, newDomain, setNewDomain }) {
@@ -64,9 +45,8 @@ function AddBlacklistModal({ show, onClose, onAdd, newDomain, setNewDomain }) {
     return ReactDOM.createPortal(modalContent, document.getElementById('modal-root'));
 }
 
-function Blacklists({ token, initialBlacklists }) {
+function Blacklists({ token, blacklists, setBlacklists }) {
     const { useState } = React;
-    const [blacklist, setBlacklist] = useState(initialBlacklists || []);
     const [newDomain, setNewDomain] = useState('');
     const [showModal, setShowModal] = useState(false);
     const [loading, setLoading] = useState(false);
@@ -74,30 +54,23 @@ function Blacklists({ token, initialBlacklists }) {
     const showLoading = () => setLoading(true);
     const hideLoading = () => setLoading(false);
 
-    const updateCount = (count) => {
-        document.getElementById('blacklistCount').textContent = count;
-    };
-
     const addDomain = async () => {
         if (!newDomain.trim()) return;
         showLoading();
         try {
             const res = await fetch('/api', {
                 method: 'POST',
-                headers: {
-                    'Content-Type': 'application/json',
-                    Authorization: `Bearer ${token}`,
-                },
+                headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` },
                 body: JSON.stringify({ category: 'blacklist', type: 'add', payload: newDomain }),
             });
             if (!res.ok) throw new Error('Server error');
             await res.json();
-            setBlacklist((prev) => [...prev, newDomain]);
-            updateCount(blacklist.length + 1);
+            setBlacklists((prev) => [...prev, newDomain]); // <- update parent state
             setNewDomain('');
             setShowModal(false);
         } catch (err) {
-            alert(err);
+            console.error(err);
+            alert(err.message || 'Error');
         } finally {
             hideLoading();
         }
@@ -109,67 +82,51 @@ function Blacklists({ token, initialBlacklists }) {
         try {
             const res = await fetch('/api', {
                 method: 'POST',
-                headers: {
-                    'Content-Type': 'application/json',
-                    Authorization: `Bearer ${token}`,
-                },
+                headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` },
                 body: JSON.stringify({ category: 'blacklist', type: 'remove', payload: url }),
             });
             if (!res.ok) throw new Error('Server error');
             await res.json();
-            setBlacklist((prev) => prev.filter((item) => item !== url));
-            updateCount(blacklist.length - 1);
+            setBlacklists((prev) => prev.filter((item) => item !== url)); // <- update parent state
         } catch (err) {
-            alert(err);
+            console.error(err);
+            alert(err.message || 'Error');
         } finally {
             hideLoading();
         }
     };
 
+    const Row = ({ label, onRemove }) => (
+        <div className="d-flex justify-content-between align-items-center px-4 py-3 border-bottom">
+            <span className="text-truncate">{label}</span>
+            <button className="btn btn-sm btn-primary" onClick={onRemove}>
+                Remove
+            </button>
+        </div>
+    );
+
     return (
-        <div className="card mb-4 overflow-hidden position-relative">
+        <div className="card mb-4 position-relative" style={{ maxHeight: '500px' }}>
             <LoadingOverlay visible={loading} />
             <div className="card-header d-flex align-items-center justify-content-between">
                 <div className="d-flex align-items-center gap-2">
-                    <h5 className="mb-0 fw-bold" style={{ color: 'var(--text-secondary)' }}>
-                        Blacklist
-                    </h5>
-                    <span className="badge bg-danger" id="blacklistCount">
-                        {blacklist.length}
+                    <h5 className="mb-0 fw-bold">Blacklist</h5>
+                    <span className="badge bg-secondary" id="blacklistCount">
+                        {blacklists.length}
                     </span>
                 </div>
-                <button className="btn btn-sm btn-danger" onClick={() => setShowModal(true)}>
+                <button className="btn btn-sm btn-primary" onClick={() => setShowModal(true)}>
                     Add
                 </button>
             </div>
-            <div className="card-body p-2">
-                <div className="overflow-y-auto w-100" style={{ maxHeight: '500px' }}>
-                    {blacklist.length === 0 ? (
-                        <div className="text-muted text-center py-3 no-blacklist">
-                            <em>No blacklisted domains</em>
-                        </div>
-                    ) : (
-                        blacklist.map((url, idx) => (
-                            <div
-                                key={idx}
-                                className="d-flex align-items-center justify-content-between bg-light border-bottom px-3 py-2 mb-2 blacklist-item"
-                                data-domain={url}
-                            >
-                                <span className="text-truncate me-2" style={{ maxWidth: 'calc(100% - 60px)' }}>
-                                    {url}
-                                </span>
-                                <button
-                                    className="btn btn-sm btn-danger"
-                                    onClick={() => removeDomain(url)}
-                                    title={`Remove ${url} from blacklist`}
-                                    aria-label={`Remove ${url} from blacklist`}
-                                >
-                                    Remove
-                                </button>
-                            </div>
-                        ))
-                    )}
-                </div>
+            <div className="card-body p-0 overflow-auto">
+                {blacklists.length === 0 ? (
+                    <div className="text-muted text-center py-3">
+                        <em>No blacklisted domains</em>
+                    </div>
+                ) : (
+                    blacklists.map((url, idx) => <Row key={idx} label={url} onRemove={() => removeDomain(url)} />)
+                )}
             </div>
 
             <AddBlacklistModal

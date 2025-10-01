@@ -27,7 +27,6 @@ from psutil import (
 from psutil._common import shwtemp, snetio
 
 from app.config.config import config
-from app.services.gui.metrics import gui_metrics
 from app.services.dhcp.metrics import dhcp_metrics
 from app.services.dhcp.server import DHCPServer
 from app.services.dns.dns import DNSServer
@@ -36,6 +35,7 @@ from app.services.dns.metrics import (
     dns_metrics_external,
     dns_per_server_metrics,
 )
+from app.services.gui.metrics import gui_metrics
 from app.services.logger.logger import MainLogger
 from app.utils.dns_utils import DNSUtils
 
@@ -279,7 +279,7 @@ def get_dhcp_leases() -> list:
         return []
 
 
-def get_dns_history() -> list:
+def get_dns_history() -> list[dict]:
 
     try:
         with connect(DNS_HISTORY_DB, timeout=DB_TIMEOUT) as _conn:
@@ -356,7 +356,7 @@ def get_blacklist() -> set[str]:
     try:
         with open(BLACKLIST, mode="r", encoding="utf-8") as file_handle:
             urls = load(file_handle).get("payload", {}).get("urls", [])
-            return set(urls)
+            return set(url.lower() for url in urls)
     except Exception as e:
         logger.error("Failed to load blackist: %s", e)
         return set()
@@ -366,7 +366,7 @@ def get_whitelist() -> set[str]:
     try:
         with open(WHITELIST, mode="r", encoding="utf-8") as file_handle:
             urls = load(file_handle).get("payload", {}).get("urls", [])
-            return set(urls)
+            return set(url.lower() for url in urls)
     except Exception as e:
         logger.error("Failed to load whitelist: %s", e)
         return set()
