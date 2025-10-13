@@ -1,5 +1,6 @@
 from collections import OrderedDict, deque
 from functools import wraps
+from statistics import quantiles
 from threading import RLock
 from time import monotonic, time
 from typing import Any, Callable, Deque, Optional
@@ -26,10 +27,6 @@ class Metrics:
         self._samples: Deque[float] = deque(maxlen=max_size)
         self._lock = RLock()
 
-    def _get_non_zero_vals(self) -> list[float]:
-        """Return list of samples > 0.0."""
-        return [val for val in self._samples if val > 0.0]
-
     def add_sample(self, duration: float):
         """
         Add a timing sample.
@@ -38,7 +35,8 @@ class Metrics:
             duration(float): Sample size
         """
         with self._lock:
-            self._samples.append(duration * 1000)
+            if duration > 0:
+                self._samples.append(duration * 1000)
 
     def get_count(self) -> int:
         """
@@ -60,9 +58,17 @@ class Metrics:
         with self._lock:
             if not self._samples:
                 return 0.0
-            values = sorted(self._samples)
-            idx = int((percentile / 100.0) * (len(values) - 1))
-            return values[idx]
+            if len(self._samples) == 1:
+                return self._samples[0]
+            if not (0 <= percentile <= 100):
+                raise ValueError("Percentile must be between 0 and 100.")
+
+            _quantiles: list[float] = quantiles(self._samples, n=100, method="inclusive")
+            if percentile == 0:
+                return min(self._samples)
+            if percentile == 100:
+                return max(self._samples)
+            return _quantiles[int(percentile) - 1]
 
     def get_stats(self) -> dict:
         """Return count and common percentile stats."""

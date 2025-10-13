@@ -1,23 +1,31 @@
-function LoadingOverlay({ visible }) {
-    if (!visible) return null;
-    return <div className="loading-overlay ">Loading...</div>;
-}
+function AddToWhitelistModal({ showModal, onModalClose, onModalAdd, newDomain, setNewDomain }) {
+    const { useState, useEffect } = React;
+    const [isValidDomain, setIsValidDomain] = useState(false);
+    const [domainPattern, setDomainPattern] = useState('^(?:[a-zA-Z0-9\\-]+\\.)+[a-zA-Z]{2,}$');
+    const [domainRegex, setDomainRegex] = useState(new RegExp(domainPattern));
 
-function AddWhitelistModal({ show, onClose, onAdd, newDomain, setNewDomain }) {
-    if (!show) return null;
+    useEffect(() => {
+        setIsValidDomain(domainRegex.test(newDomain));
+    }, [newDomain, domainRegex]);
 
-    const modalContent = (
+    if (!showModal) return null;
+
+    const handleAdd = () => {
+        if (isValidDomain) onModalAdd(newDomain);
+    };
+
+    return ReactDOM.createPortal(
         <div
             className="modal fade show d-block"
             tabIndex="-1"
             style={{ backgroundColor: 'rgba(0,0,0,0.5)' }}
-            onClick={onClose}
+            onClick={onModalClose}
         >
-            <div className="modal-dialog modal-dialog-centered" onClick={(e) => e.stopPropagation()}>
+            <div className="modal-dialog modal-dialog-centered" onClick={(event) => event.stopPropagation()}>
                 <div className="modal-content">
                     <div className="modal-header">
-                        <h5 className="modal-title">Add Whitelist Domain</h5>
-                        <button type="button" className="btn-close" onClick={onClose}></button>
+                        <h5 className="modal-title">Whitelist Domain</h5>
+                        <button type="button" className="btn-close" onClick={onModalClose}></button>
                     </div>
                     <div className="modal-body">
                         <input
@@ -25,28 +33,32 @@ function AddWhitelistModal({ show, onClose, onAdd, newDomain, setNewDomain }) {
                             className="form-control"
                             placeholder="example.com"
                             value={newDomain}
-                            onChange={(e) => setNewDomain(e.target.value)}
+                            onChange={(e) => {
+                                setNewDomain(e.target.value);
+                                setIsValidDomain(domainRegex.test(e.target.value));
+                            }}
                             autoFocus
+                            pattern={domainPattern}
+                            title="Enter a valid domain, e.g. www.test.com"
                         />
                     </div>
                     <div className="modal-footer">
-                        <button className="btn btn-secondary" onClick={onClose}>
+                        <button className="btn btn-secondary" onClick={onModalClose}>
                             Cancel
                         </button>
-                        <button className="btn btn-primary" onClick={onAdd}>
-                            Add
+                        <button className="btn btn-success" onClick={handleAdd} disabled={!isValidDomain}>
+                            Allow
                         </button>
                     </div>
                 </div>
             </div>
-        </div>
+        </div>,
+        document.getElementById('modal-root')
     );
-
-    return ReactDOM.createPortal(modalContent, document.getElementById('modal-root'));
 }
 
 function Whitelists({ token, whitelists, setWhitelists }) {
-    const { useState } = React;
+    const { useState, useEffect } = React;
     const [newDomain, setNewDomain] = useState('');
     const [showModal, setShowModal] = useState(false);
     const [loading, setLoading] = useState(false);
@@ -54,26 +66,22 @@ function Whitelists({ token, whitelists, setWhitelists }) {
     const showLoading = () => setLoading(true);
     const hideLoading = () => setLoading(false);
 
-    const updateCount = (count) => {
-        document.getElementById('whitelistCount').textContent = count;
+    const getWhitelists = async (token) => {
+        const res = await fetcher({ token, type: 'get', category: 'whitelist' });
+        if (!res.ok) throw new Error('Server error');
+        const data = await res.json();
+        if (!data.success || !Array.isArray(data.payload)) throw new Error('Invalid response format');
+        return data.payload;
     };
 
-    const addDomain = async () => {
-        if (!newDomain.trim()) return;
+    const handleAddToWhitelist = async () => {
         showLoading();
         try {
-            const res = await fetch('/api', {
-                method: 'POST',
-                headers: {
-                    'Content-Type': 'application/json',
-                    Authorization: `Bearer ${token}`,
-                },
-                body: JSON.stringify({ category: 'whitelist', type: 'add', payload: newDomain }),
-            });
+            const res = await fetcher({ token, category: 'whitelist', type: 'add', payload: newDomain });
+            await delay();
             if (!res.ok) throw new Error('Server error');
             await res.json();
             setWhitelists((prev) => [...prev, newDomain]);
-            updateCount(whitelists.length + 1);
             setNewDomain('');
             setShowModal(false);
         } catch (err) {
@@ -83,28 +91,37 @@ function Whitelists({ token, whitelists, setWhitelists }) {
         }
     };
 
-    const removeDomain = async (url) => {
-        if (!confirm(`Remove ${url} from whitelist?`)) return;
+    const handleRemoveFromWhitelist = async (url) => {
         showLoading();
         try {
-            const res = await fetch('/api', {
-                method: 'POST',
-                headers: {
-                    'Content-Type': 'application/json',
-                    Authorization: `Bearer ${token}`,
-                },
-                body: JSON.stringify({ category: 'whitelist', type: 'remove', payload: url }),
-            });
+            const res = await fetcher({ token, category: 'whitelist', type: 'remove', payload: url });
+            await delay();
             if (!res.ok) throw new Error('Server error');
             await res.json();
             setWhitelists((prev) => prev.filter((item) => item !== url));
-            updateCount(whitelists.length - 1);
         } catch (err) {
-            alert(err);
+            console.error(err);
+            alert(err.message || 'Error');
         } finally {
             hideLoading();
         }
     };
+
+    useEffect(() => {
+        const fetchAndSetWhitelists = async () => {
+            showLoading();
+            try {
+                const data = await getWhitelists(token);
+                setWhitelists(data);
+            } catch (err) {
+                console.error(err);
+                alert(err.message || 'Error fetching blacklists');
+            } finally {
+                hideLoading();
+            }
+        };
+        fetchAndSetWhitelists();
+    }, []);
 
     const Row = ({ label, onRemove }) => (
         <div className="d-flex justify-content-between align-items-center px-4 py-3 border-bottom">
@@ -116,9 +133,9 @@ function Whitelists({ token, whitelists, setWhitelists }) {
     );
 
     return (
-        <div className="card mb-4 overflow-hidden" style={{ maxHeight: '500px' }}>
+        <div className="card">
             <LoadingOverlay visible={loading} />
-            <div className="card-header d-flex align-items-center justify-content-between">
+            <div className="card-header">
                 <div className="d-flex align-items-center gap-2">
                     <h5 className="mb-0 fw-bold">Whitelist</h5>
                     <span className="badge bg-secondary" id="whitelistCount">
@@ -129,20 +146,22 @@ function Whitelists({ token, whitelists, setWhitelists }) {
                     Add
                 </button>
             </div>
-            <div className="card-body p-0 overflow-auto">
+            <div className="card-body">
                 {whitelists.length === 0 ? (
                     <div className="text-muted text-center py-3 no-whitelist">
                         <em>No whitelisted domains</em>
                     </div>
                 ) : (
-                    whitelists.map((url, idx) => <Row key={idx} label={url} onRemove={() => removeDomain(url)} />)
+                    whitelists.map((url, idx) => (
+                        <Row key={idx} label={url} onRemove={() => handleRemoveFromWhitelist(url)} />
+                    ))
                 )}
             </div>
 
-            <AddWhitelistModal
-                show={showModal}
-                onClose={() => setShowModal(false)}
-                onAdd={addDomain}
+            <AddToWhitelistModal
+                showModal={showModal}
+                onModalClose={() => setShowModal(false)}
+                onModalAdd={handleAddToWhitelist}
                 newDomain={newDomain}
                 setNewDomain={setNewDomain}
             />

@@ -9,7 +9,6 @@ from threading import RLock
 from time import ctime, time
 from typing import Any
 
-from flask import jsonify
 from psutil import (
     Process as PsutilProcess,
     boot_time,
@@ -35,7 +34,7 @@ from app.services.dns.metrics import (
     dns_metrics_external,
     dns_per_server_metrics,
 )
-from app.services.gui.metrics import gui_metrics
+from app.services.gui.metrics import api_metrics, http_response_metrics
 from app.services.logger.logger import MainLogger
 from app.utils.dns_utils import DNSUtils
 
@@ -62,6 +61,28 @@ DB_TIMEOUT = float(GUI.get("db_read_timeout_sec"))
 
 logger = MainLogger.get_logger(service_name="GUI", log_level="debug")
 _lock = RLock()
+
+
+def generate_dashboard_cards() -> dict:
+    sys_stats = generate_system_stats()
+    cpu_temps = [
+        sensor.get("value")
+        for label, sensors in sys_stats.get("temperature", {}).items()
+        if "core" in label.lower()
+        for sensor in sensors.values()
+    ]
+    system_stats = {
+        "system_time": sys_stats.get("system", {}).get("datetime"),
+        "uptime": sys_stats.get("system", {}).get("uptime", {}),
+        "cpu_temp": {"value": max(cpu_temps), "unit": "°C"},
+        "cpu_usage": sys_stats.get("cpu", {}).get("overall", {}),
+        "mem_usage": sys_stats.get("memory", {}).get("used", {}),
+    }
+    return {
+        "system": system_stats,
+        "services": get_service_stats(),
+        "network": generate_network_stats(),
+    }
 
 
 def generate_system_stats() -> dict:
@@ -352,24 +373,24 @@ def get_control_list() -> list[str]:
     return []
 
 
-def get_blacklist() -> set[str]:
+def get_blacklist() -> list[str]:
     try:
         with open(BLACKLIST, mode="r", encoding="utf-8") as file_handle:
             urls = load(file_handle).get("payload", {}).get("urls", [])
-            return set(url.lower() for url in urls)
+            return list(set(url.lower() for url in urls))
     except Exception as e:
         logger.error("Failed to load blackist: %s", e)
-        return set()
+        return list()
 
 
-def get_whitelist() -> set[str]:
+def get_whitelist() -> list[str]:
     try:
         with open(WHITELIST, mode="r", encoding="utf-8") as file_handle:
             urls = load(file_handle).get("payload", {}).get("urls", [])
-            return set(url.lower() for url in urls)
+            return list(set(url.lower() for url in urls))
     except Exception as e:
         logger.error("Failed to load whitelist: %s", e)
-        return set()
+        return list()
 
 
 def get_system_logs() -> list:
@@ -600,27 +621,25 @@ def get_service_stats() -> dict:
 def get_metrics() -> list[dict]:
     _server_metrics = []
     for server, metrics in dns_per_server_metrics.items():
-        _server_metrics.append({"label": str(server), "metrics": metrics.get_stats()})
+        _server_metrics.append(
+            {"label": str(server), "metrics": metrics.get_stats(), "qty": metrics.get_count()}
+        )
     return [
-        {"label": "gui", "metrics": gui_metrics.get_stats()},
-        {"label": "dhcp", "metrics": dhcp_metrics.get_stats()},
-        {"label": "dns", "metrics": dns_metrics.get_stats()},
+        {"label": "api", "metrics": api_metrics.get_stats(), "qty": api_metrics.get_count()},
         {
-            "label": "dns_external",
+            "label": "http",
+            "metrics": http_response_metrics.get_stats(),
+            "qty": http_response_metrics.get_count(),
+        },
+        {"label": "dhcp", "metrics": dhcp_metrics.get_stats(), "qty": dhcp_metrics.get_count()},
+        {"label": "dns", "metrics": dns_metrics.get_stats(), "qty": dns_metrics.get_count()},
+        {
+            "label": "external",
             "metrics": dns_metrics_external.get_stats(),
+            "qty": dns_metrics_external.get_count(),
         },
         *_server_metrics,
     ]
-
-
-def make_response(success: bool, payload: Any = None, error: str | None = None) -> tuple[Any, int]:
-    """Centralized API response structure."""
-    response = {
-        "success": success,
-        "payload": payload if payload is not None else {},
-        "error": error,
-    }
-    return jsonify(response), 200 if success else 400
 
 
 def _is_online(host: str = PING_HOST, port: int = PING_PORT, timeout: float = PING_TIMEOUT) -> bool:

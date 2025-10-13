@@ -1,20 +1,15 @@
-{% from 'macros/recursive_generation.jinja2' import generate_recursive_content %}
-{% from 'macros/icons.jinja2' import icons %}
-
 <!DOCTYPE html>
 <html lang="en">
-{% include ".head.html" %}
 
-<script src="https://unpkg.com/react@18/umd/react.production.min.js" crossorigin></script>
-<script src="https://unpkg.com/react-dom@18/umd/react-dom.production.min.js" crossorigin></script>
-<script src="https://unpkg.com/@babel/standalone/babel.min.js" crossorigin></script>
+{% include ".head.html" %}
 
 <body>
     {% include ".header.html" %}
+    {% include ".scripts.html" %}
 
-    <div id="react-app"></div>
+    <div id="react-app-neural-net"></div>
     <div id="modal-root"></div>
-    <script type="text/babel" src="{{ url_for('static', filename='js/components/neural-net/Specs.jsx') }}"></script>
+
     <script type="text/babel" src="{{ url_for('static', filename='js/components/neural-net/Actions.jsx') }}"></script>
     <script type="text/babel"
         src="{{ url_for('static', filename='js/components/neural-net/Blacklists.jsx') }}"></script>
@@ -22,27 +17,44 @@
         src="{{ url_for('static', filename='js/components/neural-net/Whitelists.jsx') }}"></script>
     <script type="text/babel" src="{{ url_for('static', filename='js/components/neural-net/DnsHistory.jsx') }}">
     </script>
-    <script type="text/javascript">
-        const initialBlacklists = {{ blacklist | tojson | safe }};
-        const initialWhitelists = {{ whitelist | tojson | safe }};
-        const dnsHistory = {{ dns_history | tojson | safe }};
-        const config = {{ neural_net_config | tojson | safe }};
-    </script>
+
     <script type="text/babel">
-        const token = "{{ bearer_token_hash }}";
-        function App({ token, config }) {
-            const { useState } = React;
-            const [blacklists, setBlacklists] = useState(initialBlacklists || []);
-            const [whitelists, setWhitelists] = useState(initialWhitelists || []);
-            const [history, setHistory] = useState(dnsHistory || []);
+        const token = "{{ session['bearer_token_hash'] }}";
+        function App({ token }) {
+            const { useState, useEffect } = React;
+            const [blacklists, setBlacklists] = useState([]);
+            const [whitelists, setWhitelists] = useState([]);
+            const [history, setHistory] = useState([]);
             const [predictions, setPredictions] = useState([]);
+            const [loading, setLoading] = useState(false);
+
+            useEffect(() => {
+                const fetchDnsHistory = async () => {
+                    setLoading(true);
+                    try {
+                        const res = await fetcher({ token, category: 'dns-history', type: 'get' });
+                        if (!res.ok) throw new Error('Server error');
+                        const data = await res.json();
+                        if (!data.success || !Array.isArray(data.payload)) throw new Error('Invalid response format');
+                        setHistory(data.payload);
+                    } catch (err) {
+                        console.error(err);
+                    } finally {
+                        setLoading(false);
+                    }
+                };
+                fetchDnsHistory();
+            }, []);
             return (
                 <div className="container py-4">
-                    <div id="react-app-specs">
-                        <Specs config={config} />
-                    </div>
-                    <div id="react-app-model-actions">
-                        <Actions token={token} dnsHistory={(history || []).map((each) => each.query)} predictions={predictions} setPredictions={setPredictions} />
+                    <div className="row g-4">
+                        <div className="col-12">
+                            <Actions
+                                token={token}
+                                dnsHistory={Array.isArray(history) && history.length ? history.map(item => item.query) : []}
+                                predictions={predictions}
+                                setPredictions={setPredictions} />
+                        </div>
                     </div>
                     <div className="row g-4">
                         <div className="col-12 col-md-6">
@@ -52,6 +64,7 @@
                                 setBlacklists={setBlacklists}
                             />
                         </div>
+
                         <div className="col-12 col-md-6">
                             <Whitelists
                                 token={token}
@@ -59,24 +72,27 @@
                                 setWhitelists={setWhitelists}
                             />
                         </div>
+
                     </div>
-                    <div id="react-app-dnsHistory">
-                        <HistoryDomains token={token} dnsHistory={history} blacklists={blacklists} whitelists={whitelists} predictions={predictions} />
+                    <div className="row g-4">
+                        <div className="col-12">
+                            <HistoryDomains
+                                token={token}
+                                dnsHistory={history}
+                                blacklists={blacklists}
+                                whitelists={whitelists}
+                                predictions={predictions}
+                            />
+                        </div>
                     </div>
+
                 </div>
             );
         }
 
-        ReactDOM.createRoot(document.getElementById("react-app"))
-            .render(
-                <App
-                    token={token}
-                    config={config}
-                    initialBlacklists={initialBlacklists}
-                    initialWhitelists={initialWhitelists}
-                    dnsHistory={dnsHistory}
-                />
-            );
+        ReactDOM
+            .createRoot(document.getElementById("react-app-neural-net"))
+            .render(<App token={token} />);
     </script>
 </body>
 

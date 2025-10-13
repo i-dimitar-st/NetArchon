@@ -1,5 +1,8 @@
-from flask import Request, Response, session, stream_with_context
+from typing import Any
 
+from flask import Request, Response, jsonify, make_response, session, stream_with_context
+
+from app.config.config import config
 from app.services.dns.db import DnsQueryHistoryDb
 from app.services.gui.auth import decode_and_verify_bearer_token
 from app.services.gui.utils import (
@@ -7,79 +10,209 @@ from app.services.gui.utils import (
     add_to_whitelist,
     delete_from_blacklist,
     delete_from_whitelist,
-    make_response,
+    generate_dashboard_cards,
+    generate_system_stats,
+    get_blacklist,
+    get_dhcp_leases,
+    get_dhcp_statistics,
+    get_dns_history,
+    get_dns_statistics,
+    get_metrics,
+    get_network_interfaces,
+    get_system_logs,
+    get_whitelist,
 )
 from app.services.neural_net.neural_net import NNDomainClassifierService
 
 
-def api_gateway(request: Request):
-    """
-    Intercept all API calls to /api (or other API endpoints if reused).
-    Expects JSON with 'type', 'category', 'payload'.
-    """
-    auth_header = request.headers.get("Authorization", "")
-    if not auth_header.startswith("Bearer "):
-        return make_response(success=False, error="Missing or invalid Authorization header"), 401
+class ApiGateway:
+    """Central API handler class."""
 
-    if not decode_and_verify_bearer_token(auth_header[7:].strip(), session.get("_csrf_token", "")):
-        return make_response(success=False, error="Unauthorized"), 401
+    @staticmethod
+    def _make_response(
+        success: bool, status_code: int, payload: Any = None, error: str | None = None
+    ) -> Response:
+        response_body = {
+            "success": success,
+            "payload": payload if payload is not None else {},
+            "error": error,
+        }
+        return make_response(jsonify(response_body), status_code)
 
-    data = request.get_json(silent=True)
-    if not data:
-        return make_response(success=False, error="Empty or invalid JSON")
+    @classmethod
+    def handle_request(cls, request: Request) -> Response:
 
-    action = data.get("type")
-    category = data.get("category")
-    payload = data.get("payload")
+        auth_header = request.headers.get("Authorization", "")
+        if not auth_header.startswith("Bearer "):
+            return cls._make_response(
+                success=False, error="Missing or invalid Authorization header", status_code=401
+            )
 
-    # Blacklist
-    if category == "blacklist":
-        if action == "add":
-            success = add_to_blacklist(payload)
-            return make_response(success=success)
-        if action == "remove":
-            success = delete_from_blacklist(payload)
-            return make_response(success=success)
+        if not decode_and_verify_bearer_token(
+            token=auth_header[7:].strip(), csrf_token=session.get("_csrf_token", "")
+        ):
+            return cls._make_response(success=False, error="Unauthorized", status_code=401)
 
-    # Whitelist
-    if category == "whitelist":
-        if action == "add":
-            success = add_to_whitelist(payload)
-            return make_response(success=success)
-        if action == "remove":
-            success = delete_from_whitelist(payload)
-            return make_response(success=success)
+        _req_data: Any | None = request.get_json(silent=True)
+        if not _req_data:
+            return cls._make_response(success=False, error="Empty or invalid JSON", status_code=400)
 
-    # DNS history clear
-    if action == "clear-dns-history":
-        success = DnsQueryHistoryDb.clear_history()
-        return make_response(success=success)
+        _type = _req_data.get("type")
+        _category = _req_data.get("category")
+        _payload = _req_data.get("payload")
 
-    # Model timestamp
-    if action == "get-model-age":
-        timestamp = NNDomainClassifierService.get_model_age()
-        return make_response(success=True, payload={"timestamp": timestamp})
+        # Dispatch by category
+        handler_name = f"_handle_{_category.replace('-', '_')}" if _category else ""
+        handler = getattr(cls, handler_name, None)
+        if handler:
+            return handler(_type, _payload)
 
-    # Train new model (streaming)
-    if action == "train-new-model":
+        # Actions not bound to a category
+        action_name = f"_action_{_type.replace('-', '_')}" if _type else ""
+        action = getattr(cls, action_name, None)
+        if action:
+            return action(_payload)
 
-        def stream_training():
-            try:
-                for status in NNDomainClassifierService.train_new_model():
-                    res, _ = make_response(success=True, payload=status.to_dict())
+        return cls._make_response(
+            success=False,
+            error=f"Invalid action: {_type} or category: {_category}",
+            status_code=500,
+        )
+
+    # --- Category handlers ---
+    @classmethod
+    def _handle_blacklist(cls, _type: str, _payload: Any):
+        if _type == "add":
+            add_to_blacklist(_payload)
+            return cls._make_response(success=True, status_code=200)
+        if _type == "remove":
+            delete_from_blacklist(_payload)
+            return cls._make_response(success=True, status_code=200)
+        if _type == "get":
+            return cls._make_response(success=True, payload=get_blacklist(), status_code=200)
+        return cls._make_response(
+            success=False, error=f"Invalid blacklist action '{_type}'", status_code=400
+        )
+
+    @classmethod
+    def _handle_whitelist(cls, _type: str, _payload: Any):
+        if _type == "add":
+            add_to_whitelist(_payload)
+            return cls._make_response(success=True, status_code=200)
+        if _type == "remove":
+            delete_from_whitelist(_payload)
+            return cls._make_response(success=True, status_code=200)
+        if _type == "get":
+            return cls._make_response(success=True, payload=get_whitelist(), status_code=200)
+        return cls._make_response(
+            success=False, error=f"Invalid whitelist action '{_type}'", status_code=400
+        )
+
+    @classmethod
+    def _handle_dns_history(cls, _type: str, _payload: Any):
+        if _type == "get":
+            return cls._make_response(success=True, payload=get_dns_history(), status_code=200)
+        if _type == "get-stats":
+            return cls._make_response(success=True, payload=get_dns_statistics(), status_code=200)
+        if _type == "clear":
+            DnsQueryHistoryDb.clear_history()
+            return cls._make_response(success=True, status_code=200)
+        return cls._make_response(
+            success=False, error=f"Invalid DNS history action '{_type}'", status_code=400
+        )
+
+    @classmethod
+    def _handle_dhcp_leases(cls, _type: str, _payload: Any):
+        if _type == "get":
+            return cls._make_response(success=True, payload=get_dhcp_leases(), status_code=200)
+        if _type == "get-stats":
+            return cls._make_response(success=True, payload=get_dhcp_statistics(), status_code=200)
+        return cls._make_response(
+            success=False, error=f"Invalid DHCP leases action '{_type}'", status_code=400
+        )
+
+    @classmethod
+    def _handle_metrics(cls, _type: str, _payload: Any):
+        if _type == "get":
+            return cls._make_response(success=True, payload=get_metrics(), status_code=200)
+        return cls._make_response(
+            success=False, error=f"Invalid metrics action '{_type}'", status_code=400
+        )
+
+    @classmethod
+    def _handle_config(cls, _type: str, _payload: Any):
+        if _type == "get":
+            return cls._make_response(
+                success=True,
+                payload={
+                    "network": dict(config.get("network").get("interface")),
+                    "dns": dict(config.get("dns")),
+                    "dhcp": dict(config.get("dhcp")),
+                },
+                status_code=400,
+            )
+        return cls._make_response(
+            success=False, error=f"Invalid config action '{_type}'", status_code=200
+        )
+
+    @classmethod
+    def _handle_logs(cls, _type: str, _payload: Any):
+        if _type == "get":
+            return cls._make_response(success=True, payload=get_system_logs(), status_code=200)
+        return cls._make_response(
+            success=False, error=f"Invalid logs action '{_type}'", status_code=400
+        )
+
+    @classmethod
+    def _handle_stats(cls, _type: str, _payload: Any):
+        if _type == "get-system":
+            return cls._make_response(
+                success=True, payload=generate_system_stats(), status_code=200
+            )
+        return cls._make_response(
+            success=False, error=f"Invalid stats action '{_type}'", status_code=200
+        )
+
+    @classmethod
+    def _handle_neural_net(cls, type: str, payload: Any):
+
+        if type == 'get-model-age':
+            return cls._make_response(
+                success=True,
+                payload={"timestamp": NNDomainClassifierService.get_model_age()},
+                status_code=200,
+            )
+
+        if type == 'train-new-model':
+
+            def stream_training():
+                try:
+                    for training_progress in NNDomainClassifierService.train_new_model():
+                        res = cls._make_response(
+                            success=True, payload=training_progress.to_dict(), status_code=200
+                        )
+                        yield res.get_data(as_text=True) + "\n"
+                except RuntimeError as e:
+                    res = cls._make_response(
+                        success=False, payload={"error": str(e)}, status_code=400
+                    )
                     yield res.get_data(as_text=True) + "\n"
-            except RuntimeError as e:
-                res, _ = make_response(success=False, payload={"error": str(e)})
-                yield res.get_data(as_text=True) + "\n"
 
-        return Response(stream_with_context(stream_training()), mimetype="application/x-ndjson")
+            return Response(stream_with_context(stream_training()), mimetype="application/x-ndjson")
 
-    # Predictions
-    if action == "predict":
-        try:
-            predictions = NNDomainClassifierService.predict_from_domains(domains=payload)
-            return make_response(success=True, payload={"predictions": predictions})
-        except Exception as e:
-            return make_response(success=False, error=str(e))
+        if type == 'predict':
+            try:
+                predictions = NNDomainClassifierService.predict_from_domains(domains=payload)
+                return cls._make_response(
+                    success=True, payload={"predictions": predictions}, status_code=200
+                )
+            except Exception as err:
+                return cls._make_response(success=False, error=str(err), status_code=400)
 
-    return make_response(success=False, error=f"Invalid action '{action}' or category '{category}'")
+    @classmethod
+    def _action_get_network_interfaces(cls, _payload: Any):
+        return cls._make_response(success=True, payload=get_network_interfaces(), status_code=200)
+
+    @classmethod
+    def _action_get_dashboard_cards(cls, _payload: Any):
+        return cls._make_response(success=True, payload=generate_dashboard_cards(), status_code=200)

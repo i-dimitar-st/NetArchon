@@ -1,158 +1,37 @@
-{% from 'macros/icons.jinja2' import icons %}
 <!DOCTYPE html>
 <html lang="en">
+
 {% include ".head.html" %}
 
 <body>
     {% include ".header.html" %}
-    <div class="container py-4">
-        <div class="row g-4">
-            <div class="col-md-4">
-                <div class="card h-100">
-                    <div class="card-header d-flex justify-content-between align-items-center">
-                        <h5 class="mb-0 fw-bold text-capitalize" style="color:var(--text-secondary)">statistics</h5>
-                        <span style="color:var(--primary-color)">{{ icons("stats") }}</span>
-                    </div>
-                    <div class="card-body" style="overflow-y:auto;max-height:500px;">
-                        {% for key, value in dhcp_statistics.items() %}
-                        {% if value and 'id' not in key %}
-                        <div class="d-flex justify-content-between align-items-center mb-1">
-                            <span class="text-muted text-uppercase small fw-medium">{{ key | replace('_',' ') }}</span>
-                            <span class="fw-semibold small">
-                                {% if key == 'start_time' or key == 'last_updated' %}
-                                {{ value | int | datetimeformat }}
-                                {% else %}
-                                {{ value }}
-                                {% endif %}
-                            </span>
+    {% include ".scripts.html" %}
+
+    <div id="react-dhcp-app"></div>
+
+    <script type="text/babel" src="{{ url_for('static', filename='js/components/dhcp/Stats.jsx') }}"></script>
+    <script type="text/babel" src="{{ url_for('static', filename='js/components/dhcp/DhcpLeases.jsx') }}"></script>
+
+    <script type="text/babel">
+        const token = "{{ session['bearer_token_hash'] }}";
+        function App({ token }) {
+            return (
+                <div className="container py-4">
+                    <div className="row g-4">
+                        <div className="col-md-4">
+                            <Stats token={token} />
                         </div>
-                        {% endif %}
-                        {% endfor %}
+                        <div className="col-md-8">
+                            <DhcpLeases token={token} />
+                        </div>
+
                     </div>
                 </div>
-            </div>
-
-            <div class="col-md-8">
-                <div class="card">
-                    <div class="card-header d-flex justify-content-between align-items-center">
-                        <h5 class="mb-0 fw-bold text-capitalize" style="color:var(--text-secondary)">
-                            Leases
-                            <span class="badge badge-index">{{ dhcp_leases | length }}</span>
-                        </h5>
-                        <span style="color:var(--primary-color)">{{ icons("list") }}</span>
-                    </div>
-                    <div class="card-body p-0">
-                        <div class="table-responsive h-100">
-                            <table class="table table-sm table-hover align-middle text-nowrap text-center"
-                                id="table-dhcp-leases">
-                                <thead class="table-light">
-                                    <tr>
-                                        <th id="macHeader" style="cursor:pointer;color:var(--text-secondary)">
-                                            MAC{{icons("sort")}}</th>
-                                        <th id="ipHeader" style="cursor:pointer;color:var(--text-secondary)">
-                                            IP{{icons("sort")}}</th>
-                                        <th id="hostnameHeader" style="cursor:pointer;color:var(--text-secondary)">
-                                            Hostname{{icons("sort")}}</th>
-                                        <th id="typeHeader" style="cursor:pointer;color:var(--text-secondary)">
-                                            Type{{icons("sort")}}</th>
-                                        <th id="leaseTimeHeader" style="cursor:pointer;color:var(--text-secondary)">
-                                            Leased{{icons("sort")}}</th>
-                                        <th id="expiryTimeHeader" style="cursor:pointer;color:var(--text-secondary)">
-                                            Expiry{{icons("sort")}}</th>
-                                    </tr>
-                                </thead>
-                                <tbody>
-                                    {% for lease in dhcp_leases %}
-                                    <tr>
-                                        <td class="px-2">{{ lease.mac }}</td>
-                                        <td class="px-2">{{ lease.ip }}</td>
-                                        <td class="px-2">{{ lease.hostname }}</td>
-                                        <td class="px-2">
-                                            <span class="badge
-                                                {% if lease.type == 'static' %} badge-dhcp-static
-                                                {% elif lease.type == 'manual' %} badge-dhcp-manual
-                                                {% else %} badge-dhcp-dynamic {% endif %}">
-                                                {{ lease.type if lease.type else 'manual' }}
-                                            </span>
-                                        </td>
-                                        <td id="{{ lease.mac }}_lease_start" data-timestamp="{{ lease.timestamp }}">
-                                        </td>
-                                        <td id="{{ lease.mac }}_lease_expiry" data-timestamp="{{ lease.expiry_time }}">
-                                        </td>
-                                    </tr>
-                                    {% endfor %}
-                                </tbody>
-                            </table>
-                        </div>
-                    </div>
-                </div>
-            </div>
-        </div>
-    </div>
-    <script>
-        document.addEventListener("DOMContentLoaded", function () {
-            const tooltipTriggerList = [].slice.call(document.querySelectorAll('[data-bs-toggle="tooltip"]'));
-            tooltipTriggerList.map(el => new bootstrap.Tooltip(el));
-
-            let tableSortState = { column: "mac", direction: "asc" };
-            const table = document.getElementById("table-dhcp-leases");
-            const tbody = table.querySelector("tbody");
-            const rows = Array.from(tbody.querySelectorAll("tr"));
-
-            function sortTable(column, type = "text") {
-                const direction = tableSortState.column === column && tableSortState.direction === "asc" ? "desc" : "asc";
-                tableSortState = { column, direction };
-
-                document.querySelectorAll("th i.fas").forEach(icon => icon.className = "fas fa-sort");
-                const header = document.getElementById(`${column}Header`);
-                if (header) header.querySelector("i").className = `fas fa-sort-${direction === "asc" ? "up" : "down"}`;
-
-                rows.sort((a, b) => {
-                    let valA, valB;
-                    switch (column) {
-                        case "mac": valA = a.cells[0].innerText.trim(); valB = b.cells[0].innerText.trim(); break;
-                        case "ip": valA = a.cells[1].innerText.trim(); valB = b.cells[1].innerText.trim(); break;
-                        case "hostname": valA = a.cells[2].innerText.trim(); valB = b.cells[2].innerText.trim(); break;
-                        case "type": valA = a.cells[3].innerText.trim(); valB = b.cells[3].innerText.trim(); break;
-                        case "leaseTime": valA = a.cells[4].getAttribute("data-timestamp"); valB = b.cells[4].getAttribute("data-timestamp"); break;
-                        case "expiryTime": valA = a.cells[5].getAttribute("data-timestamp"); valB = b.cells[5].getAttribute("data-timestamp"); break;
-                    }
-                    if (type === "number") { valA = parseFloat(valA) || 0; valB = parseFloat(valB) || 0; }
-                    else if (type === "ip") { valA = ipToNumber(valA); valB = ipToNumber(valB); }
-                    if (valA < valB) return direction === "asc" ? -1 : 1;
-                    if (valA > valB) return direction === "asc" ? 1 : -1;
-                    return 0;
-                });
-                rows.forEach(r => tbody.appendChild(r));
-            }
-
-            function ipToNumber(ip) {
-                const parts = ip.split(".");
-                if (parts.length !== 4) return 0;
-                return parts.reduce((acc, part, i) => acc + parseInt(part) * Math.pow(256, 3 - i), 0);
-            }
-
-            function formatLeasesTimestamps() {
-                const elements = [...document.querySelectorAll("[id$='_lease_start']"), ...document.querySelectorAll("[id$='_lease_expiry']")];
-                elements.forEach(el => {
-                    const ts = el.getAttribute("data-timestamp") * 1000;
-                    if (!isNaN(ts)) {
-                        const date = new Date(ts);
-                        el.textContent = date.toLocaleString("en-GB", { month: "short", day: "numeric", hour: "2-digit", minute: "2-digit" });
-                        el.setAttribute("data-bs-toggle", "tooltip");
-                        el.setAttribute("data-bs-placement", "top");
-                        el.setAttribute("title", date.toLocaleString("en-GB", { year: "numeric", month: "2-digit", day: "2-digit", hour: "2-digit", minute: "2-digit", second: "2-digit", timeZoneName: "short" }));
-                    }
-                });
-            }
-
-            ["mac", "ip", "hostname", "type", "leaseTime", "expiryTime"].forEach(col => {
-                document.getElementById(`${col}Header`).addEventListener("click", () => sortTable(col, col === "ip" ? "ip" : col === "leaseTime" || col === "expiryTime" ? "number" : "text"));
-            });
-
-            formatLeasesTimestamps();
-            sortTable("mac", "text");
-        });
+            );
+        }
+        ReactDOM
+            .createRoot(document.getElementById('react-dhcp-app'))
+            .render(<App token={token} />);
     </script>
 </body>
 

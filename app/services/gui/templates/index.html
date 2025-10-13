@@ -1,44 +1,27 @@
-{% from 'macros/icons.jinja2' import icons %}
-
 <!DOCTYPE html>
 <html lang="en">
 {% include ".head.html" %}
 
 <body>
     {% include ".header.html" %}
-    <div class="container py-4">
-        <div class="row g-4">
-            {% for card_key, card_value in cards.items() %}
-            <div class="col-md-4">
-                <div class="card h-100">
-                    <div class="card-header d-flex justify-content-between align-items-center">
-                        <h5 class="mb-0 fw-bold text-capitalize" style="color:var(--text-secondary)">
-                            {{ card_key }}
-                        </h5>
-                        <span style="color:var(--primary-color)">
-                            {{ icons(card_key) }}
-                        </span>
-                    </div>
-                    <div class="card-body">
-                        {% for key, value in card_value.items() %}
-                        <div class="d-flex justify-content-between align-items-center mb-1">
-                            <span class="text-muted text-uppercase small fw-medium">{{ key | replace('_',' ') }}</span>
-                            <div class="fw-semibold small">
-                                {{ value.value if value.value is not none else "n/a" }}
-                                {% if value.unit %}
-                                <small class="text-muted text-uppercase small">
-                                    {{ value.unit }}
-                                </small>
-                                {% endif %}
-                            </div>
-                        </div>
-                        {% endfor %}
+    {% include ".scripts.html" %}
+
+    <div id="react-dashboard-app"></div>
+
+    <script type="text/babel" src="{{ url_for('static', filename='js/components/dashboard/Dashboard.jsx') }}"></script>
+    <script type="text/babel">
+        const token = "{{ session['bearer_token_hash'] }}";
+        function App({ token }) {
+            return (
+                <div className="container py-4">
+                    <div className="row g-4">
+                        <Dashboard token={token} />
                     </div>
                 </div>
-            </div>
-            {% endfor %}
-        </div>
-    </div>
+            );
+        }
+        ReactDOM.createRoot(document.getElementById('react-dashboard-app')).render(<App token={token} />);
+    </script>
 </body>
 
 </html>

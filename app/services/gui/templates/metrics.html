@@ -2,52 +2,28 @@
 
 <!DOCTYPE html>
 <html lang="en">
-
 {% include ".head.html" %}
 
 <body>
-    {% set max_value = 1000 %}
     {% include ".header.html" %}
+    {% include ".scripts.html" %}
 
-    <div class="container py-4">
-        <div class="row g-4">
-            {% for item in metrics %}
-            <div class="col-md-4">
-                <div class="card h-100">
-                    <div class="card-header d-flex justify-content-between align-items-center">
-                        <h5 class="mb-0 fw-bold text-capitalize" style="color:var(--text-secondary)">
-                            {{ item.label | replace("_", " ") }}
-                        </h5>
-                        <span style="color:var(--primary-color)">
-                            {{ icons("globe") }}
-                        </span>
-                    </div>
-                    <div class="card-body">
-                        {% for key, value in item.metrics.items() %}
-                        <div class="stats-item d-flex justify-content-between p-2">
-                            <span class="text-muted text-uppercase small fw-medium">{{ key }}</span>
-                            <span class="fw-semibold small">
-                                {{ '%.2f' | format(value) }}
-                                <small class="text-muted text-uppercase small ms-1">ms</small>
-                            </span>
-                        </div>
-                        {% set width_percent = (value | int) / max_value * 100 %}
-                        {% if width_percent > 100 %}
-                        {% set width_percent = 100 %}
-                        {% endif %}
-                        <div class="progress" style="height:6px">
-                            <div class="progress-bar" role="progressbar"
-                                style="color:var(--text-primary);width:{{ width_percent }}%"
-                                aria-valuenow="{{ value|int }}" aria-valuemin="0" aria-valuemax="{{max_value}}">
-                            </div>
-                        </div>
-                        {% endfor %}
-                    </div>
+    <div id="react-app-metrics"></div>
+
+    <script type="text/babel" src="{{ url_for('static', filename='js/components/metrics/Metrics.jsx') }}"></script>
+    <script type="text/babel">
+        const token = "{{ session['bearer_token_hash'] }}";
+        function App({ token }) {
+            return (
+                <div className="container py-4">
+                    <Metrics token={token} />
                 </div>
-            </div>
-            {% endfor %}
-        </div>
-    </div>
+            )
+        }
+        ReactDOM
+            .createRoot(document.getElementById("react-app-metrics"))
+            .render(<App token={token} />);
+    </script>
 </body>
 
 </html>

@@ -1,55 +1,53 @@
+const ActionRow = ({ label, onClick, status }) => (
+    <div className="d-flex justify-content-between align-items-center px-4 py-3 border-bottom">
+        <button className="btn btn-primary btn-sm" onClick={onClick}>
+            {label}
+        </button>
+        <span className="badge bg-secondary">{status}</span>
+    </div>
+);
+
 function Actions({ token, dnsHistory = [], predictions, setPredictions }) {
     const { useState } = React;
     const [trainingStatus, setTrainingStatus] = useState('Idle');
     const [lastUpdated, setLastUpdated] = useState('');
 
-    const ActionRow = ({ label, onClick, status }) => (
-        <div className="d-flex justify-content-between align-items-center px-4 py-3 border-bottom">
-            <button className="btn btn-primary btn-sm" onClick={onClick}>
-                {label}
-            </button>
-            <span className="badge bg-secondary">{status}</span>
-        </div>
-    );
-
-    const fetchData = async (body) => {
+    const handleFetchTimestamp = async () => {
         try {
-            const res = await fetch('/api', {
-                method: 'POST',
-                headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` },
-                body: JSON.stringify(body),
-            });
-            if (!res.ok) throw new Error(`Request failed: ${res.status}`);
-            return await res.json();
+            const res = await fetcher({ token, category: 'neural-net', type: 'get-model-age' });
+            if (!res.ok) throw new Error('Server error');
+            const data = await res.json();
+            if (data?.payload?.timestamp) setLastUpdated(data.payload.timestamp);
         } catch (err) {
             console.error(err);
-            return null;
         }
     };
-
-    const handleFetchTimestamp = async () => {
-        const data = await fetchData({ type: 'get-model-age' });
-        if (data?.payload?.timestamp) setLastUpdated(data.payload.timestamp);
-    };
-
     const handlePredict = async () => {
         if (!dnsHistory?.length) {
-            setPredictions([]);
+            setPredictions(['No DNS History']);
             return;
         }
+
         setPredictions(['Predicting...']);
-        const data = await fetchData({ type: 'predict', payload: dnsHistory });
-        setPredictions(data?.payload?.predictions || []);
+        try {
+            const res = await fetcher({ token, category: 'neural_net', type: 'predict', payload: dnsHistory });
+            if (!res.ok) throw new Error('Server error');
+            const data = await res.json();
+            if (!data.success || !data.payload?.predictions) {
+                console.error('Invalid response:', data);
+                setPredictions([]);
+                return;
+            }
+            setPredictions(data.payload.predictions);
+        } catch (err) {
+            console.error(err);
+        }
     };
 
     const handleTrainModel = async () => {
         setTrainingStatus('Starting...');
         try {
-            const res = await fetch('/api', {
-                method: 'POST',
-                headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` },
-                body: JSON.stringify({ type: 'train-new-model' }),
-            });
+            const res = await fetcher({ token, category: 'neural_net', type: 'train-new-model', timeout: 600 * 1000 });
             if (!res.ok) throw new Error('Failed to start training');
 
             const reader = res.body.getReader();
@@ -91,22 +89,22 @@ function Actions({ token, dnsHistory = [], predictions, setPredictions }) {
     };
 
     return (
-        <div className="mb-4">
-            <div className="card w-100">
-                <div className="card-header fw-bold text-uppercase">Actions Dashboard</div>
-                <div className="card-body p-0">
-                    <ActionRow label="Train" onClick={handleTrainModel} status={trainingStatus} />
-                    <ActionRow
-                        label="Trained at"
-                        onClick={handleFetchTimestamp}
-                        status={lastUpdated ? `${Math.floor(lastUpdated / 60)} min ago` : 'No timestamp yet'}
-                    />
-                    <ActionRow
-                        label="Predict"
-                        onClick={handlePredict}
-                        status={Array.isArray(predictions) ? `${predictions.length} Predictions` : '0 Predictions'}
-                    />
-                </div>
+        <div className="card p-0 mb-4">
+            <div className="card-header">
+                <h5 className="mb-0 fw-bold">Actions</h5>
+            </div>
+            <div className="card-body p-0">
+                <ActionRow label="Train" onClick={handleTrainModel} status={trainingStatus} />
+                <ActionRow
+                    label="Trained at"
+                    onClick={handleFetchTimestamp}
+                    status={lastUpdated ? `${Math.floor(lastUpdated / 60)} min ago` : 'No timestamp yet'}
+                />
+                <ActionRow
+                    label="Predict"
+                    onClick={handlePredict}
+                    status={Array.isArray(predictions) ? `${predictions.length} Predictions` : '0 Predictions'}
+                />
             </div>
         </div>
     );

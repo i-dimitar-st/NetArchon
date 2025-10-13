@@ -1,34 +1,30 @@
-{% from 'macros/recursive_generation.jinja2' import generate_recursive_content %}
-{% from 'macros/icons.jinja2' import icons %}
-
 <!DOCTYPE html>
 <html lang="en">
 {% include ".head.html" %}
 
 <body>
     {% include ".header.html" %}
-    <div class="container py-4">
-        <div class="row g-4">
-            {% for name, values in config.items() %}
-            <div class="col-md-4">
-                <div class="card h-100">
-                    <div class="card-header d-flex justify-content-between align-items-center">
-                        <span style="color:var(--primary-color)">
-                            {{ icons(name) }}
-                        </span>
-                        <h5 class="mb-0 fw-bold text-capitalize" style="color:var(--text-secondary)">
-                            {{ name }}
-                        </h5>
-                    </div>
-                    <div class="card-body">
-                        {{ generate_recursive_content(values) }}
+    {% include ".scripts.html" %}
+
+    <div id="react-config-app"></div>
+
+    <script type="text/babel" src="{{ url_for('static', filename='js/components/config/Config.jsx') }}"></script>
+    <script type="text/babel">
+        const token = "{{ session['bearer_token_hash'] }}";
+        function App({ token }) {
+            return (
+                <div className="container py-4">
+                    <div className="row g-4">
+                        <Config token={token} />
                     </div>
                 </div>
-            </div>
-            {% endfor %}
-        </div>
-    </div>
-    <script></script>
+            );
+        }
+        ReactDOM
+            .createRoot(document.getElementById("react-config-app"))
+            .render(<App token={token} />);
+    </script>
+
 </body>
 
 </html>

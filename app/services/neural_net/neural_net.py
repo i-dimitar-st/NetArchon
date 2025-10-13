@@ -213,7 +213,7 @@ class NNDomainClassifierService:
                 clean_device_cache()
                 collect()
                 cls.busy = False
-                neural_net_logger.info(f"Training completed")
+                neural_net_logger.info("Training completed")
                 yield TrainingProgress(status="done", progress=1.0)
 
     @classmethod
@@ -245,7 +245,7 @@ class NNDomainClassifierService:
                 clean_device_cache()
                 collect()
                 cls.busy = False
-                neural_net_logger.info(f"Prediction completed")
+                neural_net_logger.info("Prediction completed")
 
     @classmethod
     def stop(cls):
