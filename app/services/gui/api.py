@@ -144,15 +144,11 @@ class ApiGateway:
         if _type == "get":
             return cls._make_response(
                 success=True,
-                payload={
-                    "network": dict(config.get("network").get("interface")),
-                    "dns": dict(config.get("dns")),
-                    "dhcp": dict(config.get("dhcp")),
-                },
-                status_code=400,
+                payload=dict(config.get_config()),
+                status_code=200,
             )
         return cls._make_response(
-            success=False, error=f"Invalid config action '{_type}'", status_code=200
+            success=False, error=f"Invalid config action '{_type}'", status_code=400
         )
 
     @classmethod

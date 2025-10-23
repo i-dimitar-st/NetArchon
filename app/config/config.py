@@ -34,9 +34,7 @@ dns_blacklists = Config(path=DNS_BLACKLIST_FILEPATH)
 dhcp_static_config = Config(path=DHCP_STATIC_CONFIG)
 
 
-def _start_file_watcher(
-    file_path: Path, reload_delay: float, reload_function
-) -> BaseObserver:
+def _start_file_watcher(file_path: Path, reload_delay: float, reload_function) -> BaseObserver:
     observer: BaseObserver = Observer()
     observer.schedule(
         event_handler=OnFileChangeConfigHandler(

@@ -23,7 +23,8 @@ from app.services.dhcp.models import (
 from app.services.dhcp.reservation_cache import LeaseReservationCache
 from app.services.dhcp.utils import extract_dhcp_type_from_packet, is_ip_in_subnet
 
-DHCP_CONFIG = config.get("dhcp")
+DHCP = config.get("dhcp")
+DHCP_CONFIG = DHCP.get("config")
 INTERFACE = str(DHCP_CONFIG.get("interface"))
 SERVER_IP = str(DHCP_CONFIG.get("ip"))
 LEASE_TIME = int(DHCP_CONFIG.get("lease_time_seconds"))

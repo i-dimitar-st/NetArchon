@@ -1,5 +1,3 @@
-{% from 'macros/icons.jinja2' import icons %}
-
 <nav class="navbar navbar-expand-lg navbar-dark">
     <div class="container">
         <a class="navbar-brand d-flex align-items-center fw-semibold" href="/">
@@ -13,56 +11,56 @@
                 <li class="nav-item">
                     <a class="nav-link px-3 py-2 mx-1 rounded-3 nav-link-enhanced {% if active_page == 'dashboard' %}active{% endif %}"
                         href="/">
-                        {{ icons("dashboard",7) }}
+                        <i class="fas fa-tachometer-alt me-2"></i>
                         Dashboard
                     </a>
                 </li>
                 <li class="nav-item">
                     <a class="nav-link px-3 py-2 mx-1 rounded-3 nav-link-enhanced {% if active_page == 'info' %}active{% endif %}"
                         href="/info">
-                        {{ icons("info",7) }}
+                        <i class="fas fa-info-circle me-2"></i>
                         Info
                     </a>
                 </li>
                 <li class="nav-item">
                     <a class="nav-link px-3 py-2 mx-1 rounded-3 nav-link-enhanced {% if active_page == 'config' %}active{% endif %}"
                         href="/config">
-                        {{ icons("config",7) }}
+                        <i class="fas fa-cogs me-2"></i>
                         Config
                     </a>
                 </li>
                 <li class="nav-item">
                     <a class="nav-link px-3 py-2 mx-1 rounded-3 nav-link-enhanced {% if active_page == 'dhcp' %}active{% endif %}"
                         href="/dhcp">
-                        {{ icons("dhcp",7) }}
+                        <i class="fas fa-network-wired me-2"></i>
                         DHCP
                     </a>
                 </li>
                 <li class="nav-item">
                     <a class="nav-link px-3 py-2 mx-1 rounded-3 nav-link-enhanced {% if active_page == 'dns' %}active{% endif %}"
                         href="/dns">
-                        {{ icons("dns",7) }}
+                        <i class="fas fa-database me-2"></i>
                         DNS
                     </a>
                 </li>
                 <li class="nav-item">
                     <a class="nav-link px-3 py-2 mx-1 rounded-3 nav-link-enhanced {% if active_page == 'net' %}active{% endif %}"
                         href="/neural_net">
-                        {{ icons("neural_net",7) }}
-                        Neutral Net
+                        <i class="fas fa-brain me-2"></i>
+                        Neural Net
                     </a>
                 </li>
                 <li class="nav-item">
                     <a class="nav-link px-3 py-2 mx-1 rounded-3 nav-link-enhanced {% if active_page == 'metrics' %}active{% endif %}"
                         href="/metrics">
-                        {{ icons("metrics",7) }}
+                        <i class="fas fa-chart-line me-2"></i>
                         Metrics
                     </a>
                 </li>
                 <li class="nav-item">
                     <a class="nav-link px-3 py-2 mx-1 rounded-3 nav-link-enhanced {% if active_page == 'logs' %}active{% endif %}"
                         href="/logs">
-                        {{ icons("logs",7) }}
+                        <i class="fas fa-file-alt me-2"></i>
                         Logs
                     </a>
                 </li>

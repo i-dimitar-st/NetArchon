@@ -1,7 +1,10 @@
 function DashboardCard({ title, data = {} }) {
     return (
         <div className="card">
-            <h6 className="card-header fw-bold text-uppercase">{formatStatsKey(title)}</h6>
+            <div className="card-header">
+                <h6>{formatStatsKey(title)}</h6>
+            </div>
+
             <div className="card-body p-3">
                 {Object.entries(data).map(([key, value]) => {
                     return (
@@ -9,7 +12,7 @@ function DashboardCard({ title, data = {} }) {
                             <div className="text-muted text-uppercase small">{formatStatsKey(key)}</div>
                             <div className="d-flex justify-content-between align-items-end">
                                 <div className="fw-semibold">{value.value}</div>
-                                <div className="text-muted ms-3" style={{ minWidth: '40px' }}>
+                                <div className="text-muted ms-2" style={{ minWidth: '30px' }}>
                                     {value.unit}
                                 </div>
                             </div>

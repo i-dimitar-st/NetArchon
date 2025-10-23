@@ -9,13 +9,15 @@
 
     <div id="react-app-logs"></div>
 
-    <script type="text/babel" src="{{ url_for('static', filename='js/components/logs/Logs.jsx') }}"></script>
+    <script type="text/babel" src="{{ url_for('static', filename='js/components/logs/logs.jsx') }}"></script>
     <script type="text/babel">
         const token = "{{ session['bearer_token_hash'] }}";
         function App({ token }) {
             return (
                 <div className="container py-4">
-                    <Logs token={token} />
+                    <div className="row g-4">
+                        <Logs token={token} />
+                    </div>
                 </div>
             )
         }

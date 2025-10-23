@@ -19,7 +19,9 @@ from app.services.dhcp.models import DHCPMessage, DHCPResponseFactory
 from app.services.dhcp.reservation_cache import LeaseReservationCache
 from app.services.logger.logger import MainLogger
 
-DHCP_CONFIG = config.get("dhcp")
+DHCP = config.get("dhcp")
+
+DHCP_CONFIG = DHCP.get("config")
 INTERFACE = DHCP_CONFIG.get("interface")
 PORT = DHCP_CONFIG.get("port")
 SERVER_IP = DHCP_CONFIG.get("ip")
@@ -29,21 +31,22 @@ BROADCAST_MAC = DHCP_CONFIG.get("broadcast_mac")
 SUBNET_MASK = DHCP_CONFIG.get("subnet")
 ROUTER = DHCP_CONFIG.get("router_ip")
 NAME_SERVER = DHCP_CONFIG.get("ntp_server")
-
 LEASE_TIME = int(DHCP_CONFIG.get("lease_time_seconds"))
 REBINDING_TIME_RATIO = float(DHCP_CONFIG.get("rebinding_time_ratio"))
 REBINDING_TIME = int(LEASE_TIME * REBINDING_TIME_RATIO)
 RENEWAL_TIME_RATIO = float(DHCP_CONFIG.get("renewal_time_ratio"))
 RENEWAL_TIME = int(LEASE_TIME * RENEWAL_TIME_RATIO)
-
 MTU = int(DHCP_CONFIG.get("mtu"))
 
-RECEIVED_QUEUE_SIZE = int(DHCP_CONFIG.get("rcvd_queue_size"))
-INBOUND_REQ_DEQUE_SIZE = int(DHCP_CONFIG.get("deque_size"))
+RESOURCE_LIMITS = DHCP.get("resource_limits")
+RECEIVED_QUEUE_SIZE = int(RESOURCE_LIMITS.get("rcvd_queue_size"))
+INBOUND_REQ_DEQUE_SIZE = int(RESOURCE_LIMITS.get("deque_size"))
 BOOTP_FLAG_BROADCAST = 0x8000
 
-WORKERS = DHCP_CONFIG.get("workers")
-TIMEOUTS = DHCP_CONFIG.get("timeouts")
+WORKER_CONFIG = DHCP.get("worker_config")
+WORKERS = WORKER_CONFIG.get("workers")
+
+TIMEOUTS = DHCP.get("timeouts")
 WORKER_GET_TIMEOUT = float(TIMEOUTS.get("worker_get"))
 WORKER_SLEEP_TIMEOUT = float(TIMEOUTS.get("worker_sleep"))
 WORKER_JOIN_TIMEOUT = float(TIMEOUTS.get("worker_join"))

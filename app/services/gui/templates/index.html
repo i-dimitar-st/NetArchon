@@ -8,7 +8,7 @@
 
     <div id="react-dashboard-app"></div>
 
-    <script type="text/babel" src="{{ url_for('static', filename='js/components/dashboard/Dashboard.jsx') }}"></script>
+    <script type="text/babel" src="{{ url_for('static', filename='js/components/dashboard/dashboard.jsx') }}"></script>
     <script type="text/babel">
         const token = "{{ session['bearer_token_hash'] }}";
         function App({ token }) {

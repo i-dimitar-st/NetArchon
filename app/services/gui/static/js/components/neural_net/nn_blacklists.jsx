@@ -1,26 +1,30 @@
-function AddToBlacklistModal({ showModal, onModalClose, onModalAdd, newDomain, setNewDomain }) {
-    const { useState, useEffect } = React;
-    const [isValidDomain, setIsValidDomain] = useState(false);
-    const [domainPattern] = useState('^(?:[a-zA-Z0-9\\-]+\\.)+[a-zA-Z]{2,}$');
-    const [domainRegex] = useState(new RegExp(domainPattern));
+function AddToBlacklistModal({ showModal, onModalClose, handleAddToBlacklist, newDomain, setNewDomain }) {
+    const { useState, useEffect, useRef } = React;
+    const [isValid, setIsValid] = useState(false);
+    const inputRef = useRef(null);
+
+    const domainPattern = '^(?:[a-zA-Z0-9\\-]+\\.)+[a-zA-Z]{2,}$';
+    const domainRegex = new RegExp(domainPattern);
 
     useEffect(() => {
-        setIsValidDomain(domainRegex.test(newDomain));
-    }, [newDomain, domainRegex]);
+        const trimmed = newDomain.trim().toLowerCase();
+        setIsValid(trimmed.length > 0 && domainRegex.test(trimmed));
+    }, [newDomain]);
+
+    useEffect(() => {
+        if (showModal && inputRef.current) {
+            requestAnimationFrame(() => inputRef.current.focus());
+        }
+    }, [showModal]);
+
+    const handleAdd = () => {
+        if (isValid) handleAddToBlacklist(newDomain.trim());
+    };
 
     if (!showModal) return null;
 
-    const handleAdd = () => {
-        if (isValidDomain) onModalAdd(newDomain);
-    };
-
     return ReactDOM.createPortal(
-        <div
-            className="modal fade show d-block"
-            tabIndex="-1"
-            style={{ backgroundColor: 'rgba(0,0,0,0.5)' }}
-            onClick={onModalClose}
-        >
+        <div className="modal fade show d-block" style={{ backgroundColor: 'rgba(0,0,0,0.5)' }} onClick={onModalClose}>
             <div className="modal-dialog modal-dialog-centered" onClick={(e) => e.stopPropagation()}>
                 <div className="modal-content">
                     <div className="modal-header">
@@ -29,15 +33,12 @@ function AddToBlacklistModal({ showModal, onModalClose, onModalAdd, newDomain, s
                     </div>
                     <div className="modal-body">
                         <input
+                            ref={inputRef}
                             type="text"
-                            className="form-control"
+                            className={`form-control ${newDomain ? (isValid ? 'is-valid' : 'is-invalid') : ''}`}
                             placeholder="example.com"
                             value={newDomain}
-                            onChange={(e) => {
-                                setNewDomain(e.target.value);
-                                setIsValidDomain(domainRegex.test(e.target.value));
-                            }}
-                            autoFocus
+                            onChange={(e) => setNewDomain(e.target.value)}
                             pattern={domainPattern}
                             title="Enter a valid domain, e.g. www.test.com"
                         />
@@ -46,7 +47,7 @@ function AddToBlacklistModal({ showModal, onModalClose, onModalAdd, newDomain, s
                         <button className="btn btn-secondary" onClick={onModalClose}>
                             Cancel
                         </button>
-                        <button className="btn btn-danger" onClick={handleAdd} disabled={!isValidDomain}>
+                        <button className="btn btn-danger" onClick={handleAdd} disabled={!isValid}>
                             Block
                         </button>
                     </div>
@@ -124,9 +125,11 @@ function Blacklists({ token, blacklists, setBlacklists }) {
     }, [token]);
 
     const Row = ({ label, onRemove }) => (
-        <div className="d-flex justify-content-between align-items-center px-4 py-3 border-bottom">
-            <span className="text-truncate">{label}</span>
-            <button className="btn btn-sm btn-danger" onClick={onRemove}>
+        <div className="d-flex justify-content-between align-items-center px-3 py-1 border-bottom">
+            <span className="text-truncate" title={label}>
+                {label}
+            </span>
+            <button className="btn btn-sm btn-outline-danger" onClick={onRemove} disabled={loading}>
                 Remove
             </button>
         </div>
@@ -137,18 +140,16 @@ function Blacklists({ token, blacklists, setBlacklists }) {
             <LoadingOverlay visible={loading} />
             <div className="card-header">
                 <div className="d-flex align-items-center gap-2">
-                    <h5 className="mb-0 fw-bold">Blacklist</h5>
+                    <h6>Blacklist</h6>
                     <span className="badge bg-secondary">{blacklists.length}</span>
                 </div>
-                <button className="btn btn-sm btn-success" onClick={() => setShowModal(true)}>
-                    Add
+                <button className="btn btn-sm btn-primary" onClick={() => setShowModal(true)}>
+                    Add To Blacklist
                 </button>
             </div>
-            <div className="card-body">
+            <div className="card-body p-0">
                 {blacklists.length === 0 ? (
-                    <div className="text-muted text-center py-3">
-                        <em>No blacklisted domains</em>
-                    </div>
+                    <div className="text-muted text-center py-5">No blacklisted domains</div>
                 ) : (
                     blacklists.map((url, idx) => (
                         <Row key={idx} label={url} onRemove={() => handleRemoveFromBlacklist(url)} />
@@ -159,7 +160,7 @@ function Blacklists({ token, blacklists, setBlacklists }) {
             <AddToBlacklistModal
                 showModal={showModal}
                 onModalClose={() => setShowModal(false)}
-                onModalAdd={handleAddToBlacklist}
+                handleAddToBlacklist={handleAddToBlacklist}
                 newDomain={newDomain}
                 setNewDomain={setNewDomain}
             />

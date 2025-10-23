@@ -9,9 +9,9 @@ from app.config.config import config
 
 
 DHCP_CONF = config.get("dhcp")
-LEASE_RESERVATION_CACHE = DHCP_CONF.get("lease_reservation_cache")
-CACHE_SIZE = int(LEASE_RESERVATION_CACHE.get("size"))
-CACHE_TTL = int(LEASE_RESERVATION_CACHE.get("ttl"))
+RESERVATION_CACHE = DHCP_CONF.get("reservation_cache")
+CACHE_SIZE = int(RESERVATION_CACHE.get("size"))
+CACHE_TTL = int(RESERVATION_CACHE.get("ttl"))
 
 
 def is_init(func):

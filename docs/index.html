@@ -44,94 +44,37 @@
             -webkit-text-fill-color: transparent;
         }
 
-        .particles {
+        .particles-source {
             position: fixed;
             top: 0;
             left: 0;
             width: 100%;
             height: 100%;
             overflow: hidden;
-            z-index: -1;
-            pointer-events: none;
         }
 
         .particle {
             position: absolute;
-            width: 2px;
+            width: 5px;
             height: 5px;
             border-radius: 50%;
             opacity: 0.8;
             pointer-events: none;
-            animation: explode 3s ease-out forwards;
-        }
-
-        @keyframes explode {
-            0% {
-                transform: translate(0, 0) scale(1);
-                opacity: 1;
-            }
-
-            100% {
-                transform: translate(var(--dx), var(--dy)) scale(0.5);
-                opacity: 0;
-            }
+            animation: moveParticle 5s ease-out forwards;
         }
 
         .archon-core {
             position: relative;
-            top: 4rem;
-            width: 5rem;
-            height: 5rem;
-            margin-bottom: 6rem;
-        }
-
-        .btn-github {
-            background-color: var(--primary-color);
-            color: #fff;
-        }
-
-        .btn-github:hover {
-            background-color: var(--primary-color);
-            box-shadow: 0 0 10px var(--accent-color);
-            color: #fff;
-        }
-
-        .core-orb {
-            width: 5rem;
-            height: 5rem;
-            border-radius: 50%;
-            background: radial-gradient(circle at 0% 0%, var(--primary-color), var(--accent-color), var(--primary-color));
-            box-shadow: 0 0 10px var(--primary-color), 0 0 10px var(--accent-color), 0 0 10px var(--accent-color), inset 0 0 10px var(--primary-color);
-            animation: rotate 6s linear infinite;
-            position: relative;
-            z-index: 3;
-            margin: auto;
-        }
-
-        .energy-ring {
-            position: absolute;
-            border: 2px solid var(--accent-color);
-            border-radius: 45%;
-            animation: rotate 6s linear infinite;
-            box-shadow: 0 0 20px var(--accent-color);
-            top: -1rem;
-            left: -1rem;
-        }
-
-        .ring-1 {
-            width: 7rem;
-            height: 7rem;
-            animation-duration: 6s;
-        }
-
-        @keyframes rotate {
-            from {
-                transform: rotate(0deg);
-            }
-
-            to {
-                transform: rotate(360deg);
-            }
+            width: 100vw;
+            height: 0.33rem;
+            margin-bottom: 2rem;
+            background: linear-gradient(135deg, var(--primary-color), var(--accent-color));
+            box-shadow:
+                0 0 5px var(--accent-color),
+                0 0 5px var(--primary-color),
+                inset 0 2px 4px rgba(255, 255, 255, 0.3),
+                inset 0 -2px 4px rgba(0, 0, 0, 0.3);
+            border: none;
         }
 
         .feature-text {
@@ -150,61 +93,110 @@
             text-align: justify;
             line-height: 1.2;
         }
+
+        .btn-github {
+            background-color: #24292e;
+            color: white;
+            border: none;
+            transition: all 0.3s ease;
+        }
+
+        .btn-github:hover {
+            background-color: #1a1e22;
+            color: white;
+            transform: translateY(-2px);
+            box-shadow: 0 4px 8px rgba(0, 0, 0, 0.2);
+        }
+
+        @keyframes moveParticle {
+            0% {
+                transform: translate(0, 0) scale(1);
+                opacity: 1;
+            }
+
+            100% {
+                transform: translate(var(--particle-dx), var(--particle-dy)) scale(0.5);
+                opacity: 0;
+            }
+        }
     </style>
 </head>
 
 <body>
-    <div class="archon-core">
-        <div class="energy-ring ring-1"></div>
-        <div class="core-orb"></div>
-    </div>
+    <div class="particles-source"></div>
+    <div class="archon-core"></div>
     <h1 class="display-3 fw-bold mb-2 text-gradient">NetArchon</h1>
     <h2 class="fw-normal text-muted mb-4">Network Control Platform</h2>
-    <p class="fst-italic text-secondary fs-5 mb-4">"Knowledge is power." &ndash; Francis Bacon</p>
+    <p class="fst-italic text-secondary fs-5 mb-4">"Knowledge is power" by Francis Bacon</p>
     <div class="feature-text">
-        <p class="text-secondary fs-6 rounded">
+        <p class="text-secondary text-center">
             Self-hosted DNS and DHCP server featuring TTL caching, ARP conflict detection, recursive resolution,
             LSTM-based blacklist filtering, and real-time monitoring.
         </p>
-        <p class="fst-italic text-muted small mb-0">(Work in Progress)</p>
-
+        <p class="fst-italic text-muted small mb-0 text-center">
+            <i class="fas fa-cogs me-2"></i>Work in Progress<i class="fas fa-cogs ms-2"></i>
+        </p>
     </div>
     <a href="https://github.com/i-dimitar-st/NetArchon" target="_blank" rel="noopener noreferrer"
         class="btn btn-github btn-lg px-4">
-        <i class="fab fa-github me-2"></i> Visit GitHub
+        <i class="fab fa-github me-2"></i>GitHub
     </a>
     <footer class="text-center text-muted small py-4">© 2025 i-dimitar-st</footer>
-    <div class="particles"></div>
-
     <script>
         const colors = ["#4361ee", "#3f37c9", "#0077cc", "#0066aa"];
+        const redColor = "#e63946";
+
+        function trackAndRemoveParticleIfHitsWall(particle, wallY) {
+            const interval = setInterval(() => {
+                if (Math.abs(particle.getBoundingClientRect().top - wallY) < 10) {
+                    particle.remove();
+                    clearInterval(interval);
+                }
+            }, 10);
+        }
+        function generateParticleColor() {
+            return colors[Math.floor(Math.random() * colors.length)]
+        }
+        function generateParticleSize() {
+            return Math.floor(Math.random() * 8) + 2
+        }
+        function generateRedPercentage() {
+            return Boolean(Math.random() < 0.5)
+        }
         function createParticle() {
             const particle = document.createElement("div");
             particle.className = "particle";
-            particle.style.background = colors[Math.floor(Math.random() * colors.length)];
+            const randomSize = generateParticleSize();
+            particle.style.width = `${randomSize}px`;
+            particle.style.height = `${randomSize}px`;
+            const isRed = generateRedPercentage();
+            particle.style.background = isRed ? redColor : generateParticleColor();
 
-            const angle = Math.random() * 2 * Math.PI;
-            const distance = Math.random() * 200 + 50;
+            const wallElement = document.querySelector('.archon-core');
+            const wallRect = wallElement.getBoundingClientRect();
+            const wallY = wallRect.top + wallRect.height / 2;
+            const wallLeft = wallRect.left;
+            const wallRight = wallRect.right;
 
-            const dx = Math.cos(angle) * distance + "px";
-            const dy = Math.sin(angle) * distance + "px";
+            const particleDx = 0 + "px";
+            const particleDy = window.innerHeight + "px";
 
-            particle.style.setProperty("--dx", dx);
-            particle.style.setProperty("--dy", dy);
+            particle.style.setProperty("--particle-dx", particleDx);
+            particle.style.setProperty("--particle-dy", particleDy);
 
-
-            const core = document.querySelector(".archon-core");
-            const rect = core.getBoundingClientRect();
-            particle.style.left = rect.left + rect.width / 2 + "px";
-            particle.style.top = rect.top + rect.height / 2 + "px";
-
-            document.body.appendChild(particle);
-            setTimeout(() => particle.remove(), 3000);
+            const startX = Math.random() * window.innerWidth;
+            const startY = 0;
+            particle.style.left = startX + "px";
+            particle.style.top = startY + "px";
+            if (isRed) {
+                trackAndRemoveParticleIfHitsWall(particle, wallY)
+            }
+            document.querySelector('.particles-source').appendChild(particle);
+            setTimeout(() => particle.remove(), Math.random() * 2000 + 1000);
         }
-
-        setInterval(createParticle, Math.random() * 200 + 20);
+        createParticle();
+        setInterval(createParticle, Math.random() * 10 + 50);
     </script>
-
 </body>
 
 </html>

@@ -12,7 +12,7 @@ PATHS = config.get("paths")
 ROOT_PATH = Path(PATHS.get("root"))
 DB_PATH = ROOT_PATH / PATHS.get("database")
 
-DHCP_CONFIG = config.get("dhcp")
+DHCP_CONFIG = config.get("dhcp").get("config")
 DB_CONFIG = config.get("database")
 
 DEFAULT_HOSTNAME = DHCP_CONFIG.get("default_hostname")

@@ -8,15 +8,13 @@
 
     <div id="react-config-app"></div>
 
-    <script type="text/babel" src="{{ url_for('static', filename='js/components/config/Config.jsx') }}"></script>
+    <script type="text/babel" src="{{ url_for('static', filename='js/components/config/config.jsx') }}"></script>
     <script type="text/babel">
         const token = "{{ session['bearer_token_hash'] }}";
         function App({ token }) {
             return (
                 <div className="container py-4">
-                    <div className="row g-4">
-                        <Config token={token} />
-                    </div>
+                    <Config token={token} />
                 </div>
             );
         }

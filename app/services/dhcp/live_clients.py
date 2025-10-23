@@ -5,12 +5,12 @@ from threading import RLock
 from app.config.config import config
 from app.services.dhcp.models import DHCPArpClient
 
-DHCP_CONFIG = config.get("dhcp")
-CLIENT_DISCOVERY = DHCP_CONFIG.get("client_discovery")
-MIN_CTR = int(CLIENT_DISCOVERY.get("min_ctr"))
-START_CTR = int(CLIENT_DISCOVERY.get("start_ctr"))
-MAX_CTR = int(CLIENT_DISCOVERY.get("max_ctr"))
-INCREMENT = 1
+DHCP = config.get("dhcp")
+LIVE_CLIENTS_CONFIG = DHCP.get("live_clients")
+MIN_CTR = int(LIVE_CLIENTS_CONFIG.get("min_ctr"))
+START_CTR = int(LIVE_CLIENTS_CONFIG.get("start_ctr"))
+MAX_CTR = int(LIVE_CLIENTS_CONFIG.get("max_ctr"))
+INCREMENT = int(LIVE_CLIENTS_CONFIG.get("increment"))
 
 
 @dataclass

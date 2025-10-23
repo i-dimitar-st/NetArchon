@@ -11,8 +11,9 @@ from app.services.dhcp.db_dhcp_leases import DHCPStorage
 from app.services.dhcp.live_clients import LiveClients
 from app.services.dhcp.models import ClientDiscoveryConfig, DHCPArpClient
 
-DHCP_CONFIG = config.get("dhcp")
+DHCP = config.get("dhcp")
 
+DHCP_CONFIG = DHCP.get("config")
 INTERFACE = str(DHCP_CONFIG.get("interface"))
 SERVER_IP = IPv4Address(DHCP_CONFIG.get("ip"))
 SERVER_MAC = str(DHCP_CONFIG.get("mac"))
@@ -21,20 +22,20 @@ BROADCAST_MAC = str(DHCP_CONFIG.get("broadcast_mac"))
 IP_RANGE_START = IPv4Address(DHCP_CONFIG.get("ip_pool_start"))
 IP_RANGE_END = IPv4Address(DHCP_CONFIG.get("ip_pool_end"))
 CIDR = int(DHCP_CONFIG.get("cidr"))
-MIN_CIDR = 24
-MAX_CIDR = 31
+MIN_CIDR = int(DHCP_CONFIG.get("min_cidr"))
+MAX_CIDR = int(DHCP_CONFIG.get("max_cidr"))
 
-CLIENT_DISCOVERY = DHCP_CONFIG.get("client_discovery")
+CLIENT_DISCOVERY = DHCP.get("client_discovery")
 DISCOVERY_TIMEOUTS = CLIENT_DISCOVERY.get("timeouts")
 DISCOVERY_WORKERS = int(CLIENT_DISCOVERY.get("workers"))
 DISCOVERY_INTERVAL = int(CLIENT_DISCOVERY.get("interval"))
-
-TIMEOUT = float(DISCOVERY_TIMEOUTS.get("arp_discovery"))
-INTERNAL_TIMEOUT = float(DISCOVERY_TIMEOUTS.get("inter_delay"))
+ARP_DISCOVERY_TIMEOUT = float(DISCOVERY_TIMEOUTS.get("arp_discovery"))
+INTERNAL_DELAY_TIMEOUT = float(DISCOVERY_TIMEOUTS.get("inter_delay"))
 WORKER_JOIN_TIMEOUT = float(DISCOVERY_TIMEOUTS.get("worker_join"))
 
-MIN_CTR = int(CLIENT_DISCOVERY.get("min_ctr"))
-MAX_CTR = int(CLIENT_DISCOVERY.get("max_ctr"))
+LIVE_CLIENTS = DHCP.get("live_clients")
+MIN_CTR = int(LIVE_CLIENTS.get("min_ctr"))
+MAX_CTR = int(LIVE_CLIENTS.get("max_ctr"))
 
 
 def _get_network(
@@ -196,8 +197,8 @@ class ClientDiscoveryService:
                 network=_get_network(SERVER_IP, CIDR),
                 ip_range_start=IP_RANGE_START,
                 ip_range_end=IP_RANGE_END,
-                timeout=TIMEOUT,
-                inter_timeout=INTERNAL_TIMEOUT,
+                timeout=ARP_DISCOVERY_TIMEOUT,
+                inter_timeout=INTERNAL_DELAY_TIMEOUT,
                 min_counter=MIN_CTR,
                 max_counter=MAX_CTR,
                 discovery_interval=DISCOVERY_INTERVAL,

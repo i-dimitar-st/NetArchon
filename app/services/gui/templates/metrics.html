@@ -1,5 +1,3 @@
-{% from 'macros/icons.jinja2' import icons %}
-
 <!DOCTYPE html>
 <html lang="en">
 {% include ".head.html" %}
@@ -10,7 +8,7 @@
 
     <div id="react-app-metrics"></div>
 
-    <script type="text/babel" src="{{ url_for('static', filename='js/components/metrics/Metrics.jsx') }}"></script>
+    <script type="text/babel" src="{{ url_for('static', filename='js/components/metrics/metrics.jsx') }}"></script>
     <script type="text/babel">
         const token = "{{ session['bearer_token_hash'] }}";
         function App({ token }) {

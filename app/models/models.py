@@ -36,6 +36,7 @@ class OnFileChangeConfigHandler(FileSystemEventHandler):
         with self._lock:
             if self.timer and self.timer.is_alive():
                 self.timer.cancel()
+            self.timer = None
 
 
 class Config:

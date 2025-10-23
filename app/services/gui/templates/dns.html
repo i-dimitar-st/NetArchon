@@ -8,27 +8,34 @@
     {% include ".scripts.html" %}
 
     <div id="react-dns-app"></div>
-    <script type="text/babel" src="{{ url_for('static', filename='js/components/dns/DnsStats.jsx') }}"></script>
-    <script type="text/babel" src="{{ url_for('static', filename='js/components/dns/DnsHistory.jsx') }}"></script>
+    <script type="text/babel" src="{{ url_for('static', filename='js/components/dns/dns_actions.jsx') }}"></script>
+    <script type="text/babel" src="{{ url_for('static', filename='js/components/dns/dns_stats.jsx') }}"></script>
+    <script type="text/babel" src="{{ url_for('static', filename='js/components/dns/dns_history.jsx') }}"></script>
     <script type="text/babel">
         const token = "{{ session['bearer_token_hash'] }}";
-        function App({ token }) {
+        function DnsApp({ token }) {
             return (
                 <div className="container py-4">
-                    <div className="row g-4">
-                        <div className="col-md-4">
+                    <div className="row g-4 mb-4">
+                        <div className="col-md-6">
+                            <DnsActions token={token} />
+                        </div>
+                        <div className="col-md-6">
                             <DnsStats token={token} />
                         </div>
-                        <div className="col-md-8">
+                    </div>
+                    <div className="row g-4">
+                        <div className="col-12">
                             <DnsHistory token={token} />
                         </div>
                     </div>
                 </div>
+
             );
         }
         ReactDOM
             .createRoot(document.getElementById("react-dns-app"))
-            .render(<App token={token} />);
+            .render(<DnsApp token={token} />);
     </script>
 </body>
 

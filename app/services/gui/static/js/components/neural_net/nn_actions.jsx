@@ -1,15 +1,18 @@
 const ActionRow = ({ label, onClick, status }) => (
-    <div className="d-flex justify-content-between align-items-center px-4 py-3 border-bottom">
-        <button className="btn btn-primary btn-sm" onClick={onClick}>
+    <div className="d-flex justify-content-between align-items-center px-4 py-2 border-bottom">
+        <button className="btn btn-primary btn-sm" onClick={onClick} style={{ minWidth: '100px' }}>
             {label}
         </button>
-        <span className="badge bg-secondary">{status}</span>
+        <span className="badge bg-secondary" style={{ minWidth: '100px' }}>
+            {status}
+        </span>
     </div>
 );
 
 function Actions({ token, dnsHistory = [], predictions, setPredictions }) {
     const { useState } = React;
     const [trainingStatus, setTrainingStatus] = useState('Idle');
+    const [historyCleared, setHistoryCleared] = useState(false);
     const [lastUpdated, setLastUpdated] = useState('');
 
     const handleFetchTimestamp = async () => {
@@ -88,26 +91,44 @@ function Actions({ token, dnsHistory = [], predictions, setPredictions }) {
         }
     };
 
+    const handleClear = async () => {
+        if (!confirm('Are you sure you want to clear DNS query history?')) return;
+        await delay();
+        try {
+            const res = await fetcher({ token, category: 'dns-history', type: 'clear', payload: null });
+            if (!res.ok) throw new Error('Server error');
+            const jsonRes = await res.json();
+            if (!jsonRes.success) throw new Error(jsonRes.error || 'Unknown error');
+            setHistoryCleared(true);
+        } catch {
+            alert('Failed to clear DNS history');
+        }
+    };
+
     return (
-        <div className="card p-0 mb-4">
+        <div className="card">
             <div className="card-header">
-                <h5 className="mb-0 fw-bold">Actions</h5>
+                <h6>Actions</h6>
             </div>
             <div className="card-body p-0">
-                <ActionRow label="Train" onClick={handleTrainModel} status={trainingStatus} />
+                <ActionRow label="Train Model" onClick={handleTrainModel} status={trainingStatus} />
                 <ActionRow
-                    label="Trained at"
+                    label="Last Trained"
                     onClick={handleFetchTimestamp}
-                    status={lastUpdated ? `${Math.floor(lastUpdated / 60)} min ago` : 'No timestamp yet'}
+                    status={lastUpdated ? `${Math.floor(lastUpdated / 60)} min ago` : 'Not used yet'}
                 />
                 <ActionRow
-                    label="Predict"
+                    label="Rate History"
                     onClick={handlePredict}
-                    status={Array.isArray(predictions) ? `${predictions.length} Predictions` : '0 Predictions'}
+                    status={Array.isArray(predictions) ? `${predictions.length} Predictions` : 'Not used yet'}
+                />
+                <ActionRow
+                    label="Clear History"
+                    onClick={handleClear}
+                    status={historyCleared ? `Cleared` : 'Not Cleared'}
                 />
             </div>
         </div>
     );
 }
-
 window.Actions = Actions;

@@ -48,9 +48,9 @@ WORKER_JOIN_TIMEOUT = float(TIMEOUTS.get("worker_join", 1))
 DNS_STATIC_ZONES = config.get("dns").get("static_zones")
 
 RESOURCE_LIMITS = config.get("dns").get("resource_limits")
-LOC_RECV_QUEUE_SIZE = RESOURCE_LIMITS.get("queues").get("receive", 100)
-DEDUP_CACHE_SIZE = RESOURCE_LIMITS.get("caches").get("deduplication_cache_size", 100)
-REPLY_CACHE_SIZE = RESOURCE_LIMITS.get("caches").get("reply_cache_size", 100)
+LOC_RECV_QUEUE_SIZE = RESOURCE_LIMITS.get("receive_queue_size", 100)
+DEDUP_CACHE_SIZE = RESOURCE_LIMITS.get("deduplication_cache_size", 100)
+REPLY_CACHE_SIZE = RESOURCE_LIMITS.get("reply_cache_size", 100)
 
 
 class ResolverService:

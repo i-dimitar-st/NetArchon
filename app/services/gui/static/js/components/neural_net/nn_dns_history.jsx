@@ -1,32 +1,52 @@
-function DomainRow({ query, counter, timestamp, prediction = 0.5, blacklists, whitelists, onWhitelist, onBlacklist }) {
+function generateDomainPredictionsMap(predictions = []) {
+    const predictionsMapping = {};
+
+    predictions.forEach((each) => {
+        if (each.domain) {
+            const domainLowerCase = each.domain.toLowerCase();
+            predictionsMapping[domainLowerCase] = each.probability;
+        }
+    });
+
+    return predictionsMapping;
+}
+
+function DomainRow({
+    query,
+    counter,
+    timestamp,
+    prediction = 0.5,
+    blacklists,
+    whitelists,
+    handleAddToWhitelist,
+    handleAddToBlacklist,
+}) {
     return (
         <div
-            className={`d-flex flex-column flex-md-row justify-content-between align-items-center mb-2 p-2 rounded border-bottom ${getRowPredictionClass(
+            className={`d-flex flex-column flex-sm-row justify-content-between align-items-start align-items-sm-center px-3 border-bottom ${getRowPredictionClass(
                 query,
                 blacklists,
                 whitelists
             )}`}
         >
             <span
-                className={`small me-2 text-truncate ${prediction > 0.95 ? 'text-danger' : 'text-muted'}`}
+                className={`small text-truncate w-100 ${prediction > 0.95 ? 'text-danger' : 'text-muted'}`}
+                style={{ maxWidth: '100%' }}
                 title={query}
             >
                 {query.toLowerCase()}
             </span>
 
-            <div className="d-flex align-items-center ms-auto gap-2 flex-wrap">
+            <div className="d-flex align-items-center gap-2 flex-nowrap ms-sm-auto">
                 <span className="badge bg-secondary">{counter}</span>
                 {prediction !== undefined && (
-                    <span className={getPredictionBadgeClass(prediction)}>{(prediction * 100).toFixed(1)}</span>
+                    <span className={getPredictionBadgeClass(prediction)}>{(prediction * 100).toFixed(0)}</span>
                 )}
-                <small className="text-muted text-end flex-shrink-0" style={{ minWidth: '100px' }}>
-                    {timestamp}
-                </small>
-                <button className="btn btn-sm btn-success" onClick={() => onWhitelist(query)}>
-                    Allow
+                <button className="btn btn-sm btn-success" onClick={() => handleAddToWhitelist(query)}>
+                    <span className="">Allow</span>
                 </button>
-                <button className="btn btn-sm btn-danger" onClick={() => onBlacklist(query)}>
-                    Block
+                <button className="btn btn-sm btn-danger" onClick={() => handleAddToBlacklist(query)}>
+                    <span className="">Block</span>
                 </button>
             </div>
         </div>
@@ -39,10 +59,11 @@ function HistoryDomains({ token, blacklists = [], whitelists = [], predictions =
     const [loading, setLoading] = useState(false);
     const [defaultPrediction, setDefaultPrediction] = useState(0.5);
 
-    const domainPredictionsMap = useMemo(() => getDomainPredictionsMap(predictions), [predictions]);
+    const domainPredictionsMap = useMemo(() => generateDomainPredictionsMap(predictions), [predictions]);
 
-    const showLoading = () => setLoading(true);
-    const hideLoading = () => setLoading(false);
+    useEffect(() => {
+        console.log('Predictions updated');
+    }, [domainPredictionsMap]);
 
     const sortedHistory = useMemo(() => {
         return [...history].sort((a, b) => {
@@ -52,86 +73,62 @@ function HistoryDomains({ token, blacklists = [], whitelists = [], predictions =
         });
     }, [history, domainPredictionsMap]);
 
-    // Handlers
-    const handleClear = async () => {
-        if (!confirm('Are you sure you want to clear DNS query history?')) return;
-        showLoading();
-        await delay();
-        try {
-            const res = await fetcher({ token, category: 'dns-history', type: 'clear', payload: null });
-            if (!res.ok) throw new Error('Server error');
-            const jsonRes = await res.json();
-            if (!jsonRes.success) throw new Error(jsonRes.error || 'Unknown error');
-            setHistory([]);
-        } catch {
-            alert('Failed to clear DNS history');
-        } finally {
-            hideLoading();
-        }
-    };
-
     const handleAddToWhitelist = async (domain) => {
-        showLoading();
-        await delay();
+        setLoading(true);
         try {
             const res = await fetcher({ token, category: 'whitelist', type: 'add', payload: domain });
             if (!res.ok) throw new Error('Failed to add to whitelist');
+            console.info(`${domain} added to Whitelist`);
         } catch (err) {
             console.error(err);
             alert(err.message);
         } finally {
-            hideLoading();
+            setLoading(false);
         }
     };
 
     const handleAddToBlacklist = async (domain) => {
-        showLoading();
-        await delay();
+        setLoading(true);
         try {
             const res = await fetcher({ token, category: 'blacklist', type: 'add', payload: domain });
             if (!res.ok) throw new Error('Failed to add to blacklist');
+            console.info(`${domain} added to Blacklist`);
         } catch (err) {
             console.error(err);
             alert(err.message);
         } finally {
-            hideLoading();
+            setLoading(false);
         }
     };
 
-    // Fetch DNS history on mount
     useEffect(() => {
-        const fetchAndSetDnsHistory = async () => {
-            showLoading();
-            await delay();
+        setLoading(true);
+        (async () => {
             try {
                 const res = await fetcher({ token, category: 'dns-history', type: 'get' });
                 if (!res.ok) throw new Error('Server error');
                 const data = await res.json();
                 if (!data.success || !Array.isArray(data.payload)) throw new Error('Invalid response');
                 setHistory(data.payload);
+                console.info('DNS History loaded');
             } catch (err) {
-                console.error(err);
-                alert(err.message || 'Error fetching DNS History');
+                console.error('Error Fetchin DNS History', err);
             } finally {
-                hideLoading();
+                setLoading(false);
             }
-        };
-        fetchAndSetDnsHistory();
+        })();
     }, [token]);
 
     return (
-        <div className="card p-0">
+        <div className="card">
             <LoadingOverlay visible={loading} />
-            <div className="card-header d-flex align-items-center justify-content-between">
+            <div className="card-header">
                 <div className="d-flex align-items-center gap-2">
-                    <h5 className="mb-0 fw-bold">DNS Query History</h5>
-                    <span className="badge bg-primary">{history.length}</span>
+                    <h6 className="">DNS Query History</h6>
+                    <span className="badge bg-secondary">{history.length}</span>
                 </div>
-                <button className="btn btn-sm btn-danger" onClick={handleClear}>
-                    Clear
-                </button>
             </div>
-            <div className="card-body p-2 overflow-auto">
+            <div className="card-body p-0">
                 {sortedHistory.length === 0 ? (
                     <div className="text-muted text-center py-3">
                         <em>No history</em>
@@ -140,14 +137,14 @@ function HistoryDomains({ token, blacklists = [], whitelists = [], predictions =
                     sortedHistory.map((item, idx) => (
                         <DomainRow
                             key={idx}
-                            query={item?.query || '(unknown)'}
+                            query={item?.query || 'unknown'}
                             counter={item?.query_counter || 0}
                             timestamp={formatTimestamp(item?.created)}
                             prediction={domainPredictionsMap[item?.query?.toLowerCase()] || defaultPrediction}
                             blacklists={blacklists}
                             whitelists={whitelists}
-                            onWhitelist={handleAddToWhitelist}
-                            onBlacklist={handleAddToBlacklist}
+                            handleAddToWhitelist={handleAddToWhitelist}
+                            handleAddToBlacklist={handleAddToBlacklist}
                         />
                     ))
                 )}
