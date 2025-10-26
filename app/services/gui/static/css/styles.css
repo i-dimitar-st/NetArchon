@@ -3,7 +3,7 @@
     --primary-color-rgb: 67, 97, 238;
     --secondary-color: #3f37c9;
     --success-color: #2a9d8f;
-    --card-background-rgb: 255, 255, 255;
+    --card-background-rgb: 248, 249, 250;
     --accent-color: #4895ef;
     --danger-color: #e63946;
     --warning-color: #f9c74f;
@@ -29,6 +29,88 @@ body {
     -webkit-font-smoothing: antialiased;
 }
 
+*:focus-visible {
+    outline: 2px solid var(--primary-color);
+    outline-offset: 2px;
+}
+
+.nav-link-enhanced {
+    font-weight: 500;
+    transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+}
+
+.nav-link-enhanced:hover {
+    background: rgba(255, 255, 255, 0.1);
+}
+
+.nav-link-enhanced.active {
+    background: rgba(255, 255, 255, 0.2);
+    box-shadow: 0 2px 8px rgba(0, 0, 0, 0.2);
+}
+
+.navbar {
+    backdrop-filter: blur(12px) saturate(150%);
+    background: linear-gradient(270deg, var(--primary-color), var(--secondary-color));
+    box-shadow: 0 4px 20px rgba(67, 97, 238, 0.2);
+}
+
+.navbar-brand,
+.navbar-nav .nav-link {
+    color: white;
+    text-decoration: none;
+    text-shadow: 0 1px 2px rgba(0, 0, 0, 0.3);
+    transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+}
+
+.navbar-brand:hover {
+    opacity: 0.9;
+    color: white;
+}
+
+.navbar-nav .nav-link {
+    padding: 0.5rem 1rem;
+    margin: 0 0.25rem;
+}
+
+.navbar-nav .nav-link:hover {
+    background: rgba(255, 255, 255, 0.1);
+    border-radius: 0.5rem;
+    color: white;
+}
+
+.navbar-nav .nav-link.active {
+    background: rgba(255, 255, 255, 0.2);
+    border-radius: 0.5rem;
+    font-weight: 600;
+    box-shadow: 0 2px 8px rgba(0, 0, 0, 0.15);
+}
+
+.navbar-nav .nav-link:focus-visible {
+    outline: 2px solid rgba(255, 255, 255, 0.8);
+    outline-offset: 2px;
+    border-radius: 0.5rem;
+}
+
+.navbar-toggler {
+    border: none;
+    padding: 0.5rem;
+    transition: transform 0.3s ease;
+}
+
+.navbar-toggler:hover {
+    transform: scale(1.05);
+}
+
+.navbar-toggler:active {
+    transform: scale(0.95);
+}
+
+.navbar-toggler:focus-visible {
+    outline: 2px solid white;
+    outline-offset: 2px;
+    box-shadow: none;
+}
+
 .card {
     display: flex;
     flex-direction: column;
@@ -37,7 +119,7 @@ body {
     padding: 0;
     max-height: 500px;
     backdrop-filter: blur(10px);
-    background: rgba(var(--card-background-rgb), 0.95);
+    background: rgba(var(--card-background-rgb), 1);
     border: none;
     border-radius: 1rem;
     box-shadow: 0 8px 25px rgba(0, 0, 0, 0.08);
@@ -51,14 +133,10 @@ body {
 }
 
 .card-header {
-    display: flex;
-    align-items: center;
-    justify-content: space-between;
-    background: linear-gradient(135deg, rgba(var(--primary-color-rgb), 0.1), rgba(var(--primary-color-rgb), 0.05));
-    border-bottom: 1px solid rgba(var(--primary-color-rgb), 0.1);
-    padding: 1rem;
-    margin: 0;
-    flex-shrink: 0;
+    background: linear-gradient(135deg, var(--bs-primary) 0%, rgba(var(--bs-primary-rgb), 0.75) 100%);
+    color: #fff;
+    border-bottom: 1px solid rgba(255, 255, 255, 0.15);
+    padding: 1rem 1.25rem;
 }
 
 .actions {
@@ -91,14 +169,18 @@ body {
 }
 
 .progress {
-    height: 6px;
-    border-radius: 3px;
-    background-color: rgba(var(--primary-color-rgb), 0.1);
+    height: 12px;
+    border-radius: 6px;
+    background-color: rgba(var(--primary-color-rgb), 0.08);
     overflow: hidden;
+    box-shadow: inset 0 1px 2px rgba(0, 0, 0, 0.05);
 }
+
 .progress .progress-bar {
-    background-color: var(--primary-color);
-    transition: width 0.3s ease;
+    background: linear-gradient(90deg, var(--primary-color) 0%, rgba(var(--primary-color-rgb), 0.85) 100%);
+    transition: width 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+    box-shadow: 0 0 8px rgba(var(--primary-color-rgb), 0.3);
+    position: relative;
 }
 
 #table-dhcp-leases,
@@ -107,49 +189,13 @@ body {
     font-size: 0.9rem;
 }
 
-.nav-link-enhanced {
-    font-weight: 500;
-    transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
-}
-
-.nav-link-enhanced:hover {
-    background: rgba(255, 255, 255, 0.1);
-}
-
-.nav-link-enhanced.active {
-    background: rgba(255, 255, 255, 0.2);
-    box-shadow: 0 2px 8px rgba(0, 0, 0, 0.2);
-}
-
-.navbar {
-    backdrop-filter: blur(12px) saturate(150%);
-    background: linear-gradient(270deg, var(--primary-color), var(--secondary-color));
-    box-shadow: 0 4px 20px rgba(67, 97, 238, 0.2);
-}
-
-.navbar-brand,
-.navbar-nav .nav-link {
-    color: white;
-    text-decoration: none;
-    text-shadow: 0 1px 2px rgba(0, 0, 0, 0.3);
-}
-
-.navbar-nav .nav-link.active {
-    background: rgba(255, 255, 255, 0.2);
-    border-radius: 0.5rem;
-}
-
-.navbar-toggler:focus {
-    box-shadow: none;
-}
-
 .loading-overlay {
     position: absolute;
     top: 0;
     left: 0;
     width: 100%;
     height: 100%;
-    background: rgba(0, 0, 0, 0.5);
+    background: rgba(var(--primary-color-rgb), 0.9);
     z-index: 1050;
     display: flex;
     justify-content: center;

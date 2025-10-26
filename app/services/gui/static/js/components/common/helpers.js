@@ -7,26 +7,25 @@ function formatStatsKey(key = '') {
 }
 
 function formatMetricKey(key) {
-    if (key.startsWith('p') && !isNaN(key.slice(1))) {
-        return `${key.slice(1)}th percentile`;
-    }
-    return key;
+    return key
+        .replace(/_/g, ' ')
+        .replace(/\b\w/g, (l) => l.toUpperCase());
 }
 
 
-function formatTimestamp(timestamp) {
-    if (!timestamp) return '';
-    const date = new Date(timestamp * 1000);
-    const pad = (n) => n.toString().padStart(2, '0');
-
-    const year = date.getFullYear();
-    const month = pad(date.getMonth() + 1);
-    const day = pad(date.getDate());
-    const hours = pad(date.getHours());
-    const minutes = pad(date.getMinutes());
-    const seconds = pad(date.getSeconds());
-
-    return `${year}-${month}-${day} ${hours}:${minutes}:${seconds}`;
+function formatTimestamp(input) {
+    if (!input) return '';
+    let date;
+    if (typeof input === 'number') {
+        date = new Date(input < 1e12 ? input * 1000 : input);
+    } else if (typeof input === 'string') {
+        const normalized = input.replace(' ', 'T');
+        date = new Date(normalized);
+    } else {
+        return '';
+    }
+    if (isNaN(date.getTime())) return '';
+    return date.toLocaleString('sv-SE');
 }
 
 function filterUnnendedStats(value) {

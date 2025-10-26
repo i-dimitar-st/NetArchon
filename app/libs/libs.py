@@ -73,9 +73,11 @@ class Metrics:
     def get_stats(self) -> dict:
         """Return count and common percentile stats."""
         return {
+            "p10": self.get_percentile(10),
+            "p25": self.get_percentile(25),
             "p50": self.get_percentile(50),
-            "p90": self.get_percentile(90),
-            "p99": self.get_percentile(99),
+            "p75": self.get_percentile(75),
+            "p100": self.get_percentile(100),
         }
 
     def clear(self):

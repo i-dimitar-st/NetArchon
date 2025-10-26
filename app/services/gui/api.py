@@ -199,6 +199,7 @@ class ApiGateway:
         if type == 'predict':
             try:
                 predictions = NNDomainClassifierService.predict_from_domains(domains=payload)
+                print(predictions)
                 return cls._make_response(
                     success=True, payload={"predictions": predictions}, status_code=200
                 )

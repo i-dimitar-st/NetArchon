@@ -9,22 +9,14 @@
 
     <div id="react-dhcp-app"></div>
 
-    <script type="text/babel" src="{{ url_for('static', filename='js/components/dhcp/dhcp_stats.jsx') }}"></script>
-    <script type="text/babel" src="{{ url_for('static', filename='js/components/dhcp/dhcp_leases.jsx') }}"></script>
-
+    <script type="text/babel" src="{{ url_for('static', filename='js/components/dhcp/dhcp.jsx') }}"></script>
     <script type="text/babel">
         const token = "{{ session['bearer_token_hash'] }}";
         function App({ token }) {
             return (
                 <div className="container py-4">
                     <div className="row g-4">
-                        <div className="col-md-4">
-                            <DhcpStats token={token} />
-                        </div>
-                        <div className="col-md-8">
-                            <DhcpLeases token={token} />
-                        </div>
-
+                        <Dhcp token={token} />
                     </div>
                 </div>
             );
