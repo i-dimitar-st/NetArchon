@@ -12,7 +12,7 @@ function DashboardCard({ title, data = {} }) {
                             <div className="text-muted text-uppercase small">{formatStatsKey(key)}</div>
                             <div className="d-flex justify-content-between align-items-end">
                                 <div className="fw-semibold">{value.value}</div>
-                                <div className="text-muted ms-2" style={{ minWidth: '30px' }}>
+                                <div className="text-muted text-uppercase small ms-2" style={{ minWidth: '40px' }}>
                                     {value.unit}
                                 </div>
                             </div>
@@ -36,7 +36,9 @@ function Dashboard({ token }) {
                 const res = await fetcher({ token, type: 'get-dashboard-cards' });
                 const { payload, success } = await res.json();
                 if (!success) throw new Error('Could not fetch data');
+                if (!payload) throw new Error('Data not JSON');
                 setDashboardData(payload || {});
+                console.info('Dashboard card data fetched.');
             } catch (err) {
                 console.error(err);
             } finally {

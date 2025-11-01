@@ -12,6 +12,10 @@ function formatMetricKey(key) {
         .replace(/\b\w/g, (l) => l.toUpperCase());
 }
 
+function isTimestamp(key) {
+    return ['last_updated', 'start_time'].includes(key.trim().toLowerCase());
+}
+
 
 function formatTimestamp(input) {
     if (!input) return '';

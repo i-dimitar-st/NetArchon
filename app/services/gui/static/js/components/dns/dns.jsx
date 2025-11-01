@@ -1,0 +1,251 @@
+const { useState, useEffect, useMemo } = React;
+
+function DnsActions({ token }) {
+    const [historyCleared, setHistoryCleared] = useState(false);
+    const [loading, setLoading] = useState(false);
+
+    const handleClear = async () => {
+        if (!confirm('Are you sure you want to clear DNS query history?')) return;
+        try {
+            setLoading(true);
+            const res = await fetcher({ token, category: 'dns-history', type: 'clear', payload: null });
+            if (!res.ok) throw new Error('Server error');
+            const jsonRes = await res.json();
+            if (!jsonRes.success) throw new Error(jsonRes.error || 'Unknown error');
+            setHistoryCleared(true);
+            console.info('Clearing DNS History');
+            setLoading(false);
+        } catch {
+            console.error('Failed to clear DNS History');
+        }
+    };
+    return (
+        <div className="card-body p-0">
+            <LoadingOverlay visible={loading} />
+            <ActionRow
+                label="Clear History"
+                handleClear={handleClear}
+                status={historyCleared ? `Cleared` : 'Not Cleared'}
+            />
+        </div>
+    );
+}
+
+function DnsHistory({ token }) {
+    const [history, setHistory] = useState([]);
+    const [filter, setFilter] = useState('');
+    const [sortState, setSortState] = useState({ column: 'query', direction: 'desc' });
+    const [loading, setLoading] = useState(true);
+
+    const handleSort = (column) => {
+        setSortState((prev) => ({
+            column,
+            direction: prev.column === column && prev.direction === 'asc' ? 'desc' : 'asc',
+        }));
+    };
+
+    const filteredAndSorted = useMemo(() => {
+        const lowerFilter = filter.toLowerCase();
+
+        return history
+            .filter((item) => item.query.toLowerCase().includes(lowerFilter))
+            .sort((a, b) => {
+                let valA, valB;
+                switch (sortState.column) {
+                    case 'created':
+                        valA = a.created;
+                        valB = b.created;
+                        break;
+                    case 'count':
+                        valA = a.query_counter;
+                        valB = b.query_counter;
+                        break;
+                    default:
+                        valA = a.query.toLowerCase();
+                        valB = b.query.toLowerCase();
+                }
+                if (valA < valB) return sortState.direction === 'asc' ? -1 : 1;
+                if (valA > valB) return sortState.direction === 'asc' ? 1 : -1;
+                return 0;
+            });
+    }, [history, filter, sortState]);
+
+    useEffect(() => {
+        const fetchData = async () => {
+            setLoading(true);
+            try {
+                const res = await fetcher({ token, category: 'dns-history', type: 'get' });
+                const { payload, success } = await res.json();
+                if (!success) throw new Error('Could not fetch data');
+                setHistory(payload || []);
+                console.info('DNS History Fetched');
+            } catch (err) {
+                console.error(err);
+            } finally {
+                setLoading(false);
+            }
+        };
+
+        fetchData();
+    }, [token]);
+
+    return (
+        <div className="card-body p-0">
+            <LoadingOverlay visible={loading} />
+
+            <div className="input-group py-4 px-4">
+                <input
+                    type="text"
+                    className="form-control border-0 border-top border-bottom rounded-start"
+                    placeholder="Find domain..."
+                    value={filter}
+                    onChange={(e) => setFilter(e.target.value)}
+                />
+                <button className="btn btn-primary btn-sm rounded-end" onClick={() => setFilter('')}>
+                    Clear
+                </button>
+            </div>
+
+            <div className="table-responsive">
+                <table className="table table-sm table-hover align-middle text-nowrap text-center p-0">
+                    <thead className="table-light sticky-top">
+                        <tr>
+                            <th
+                                className="small text-muted text-capitalize"
+                                onClick={() => handleSort('created')}
+                                style={{ cursor: 'pointer' }}
+                            >
+                                Created
+                                {sortState.column === 'created' ? (sortState.direction === 'asc' ? '↑' : '↓') : '↕'}
+                            </th>
+                            <th
+                                className="small text-muted text-capitalize"
+                                onClick={() => handleSort('count')}
+                                style={{ cursor: 'pointer' }}
+                            >
+                                Count {sortState.column === 'count' ? (sortState.direction === 'asc' ? '↑' : '↓') : '↕'}
+                            </th>
+                            <th
+                                className="small text-muted text-capitalize"
+                                onClick={() => handleSort('query')}
+                                style={{ cursor: 'pointer' }}
+                            >
+                                Domain
+                                {sortState.column === 'query' ? (sortState.direction === 'asc' ? '↑' : '↓') : '↕'}
+                            </th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        {filteredAndSorted.map((item, idx) => (
+                            <tr key={idx}>
+                                <td className="text-center align-middle small">{formatTimestamp(item.created)}</td>
+                                <td className="text-center align-middle small">
+                                    <span className="badge bg-secondary">{item.query_counter}</span>
+                                </td>
+                                <td
+                                    className="text-center align-middle small text-truncate"
+                                    style={{ maxWidth: '200px' }}
+                                >
+                                    {item.query.toLowerCase()}
+                                </td>
+                            </tr>
+                        ))}
+                    </tbody>
+                </table>
+            </div>
+        </div>
+    );
+}
+
+function DnsStats() {
+    const [stats, setStats] = useState({});
+    const [loading, setLoading] = useState(true);
+    const [maxValue, setMaxValue] = useState(0);
+
+    useEffect(() => {
+        const fetchStats = async () => {
+            setLoading(true);
+            try {
+                const res = await fetcher({ token, category: 'dns_history', type: 'get-stats' });
+                const { payload, success } = await res.json();
+                if (!success) throw new Error('Could not fetch DNS stats');
+                setStats(payload || {});
+                setMaxValue(payload.request_valid ?? 1);
+                console.info('DNS Stats Fetched');
+            } catch (err) {
+                console.error(err);
+            } finally {
+                setLoading(false);
+            }
+        };
+        fetchStats();
+    }, [token]);
+
+    return (
+        <div className="card-body p-3">
+            <LoadingOverlay visible={loading} />
+            {!loading &&
+                Object.entries(stats)
+                    .filter(([key, value]) => filterUnnendedStats(value))
+                    .filter(([key, value]) => filterUnnendedStats(key))
+                    .filter(([key, value]) => !isTimestamp(key))
+                    .map(([key, value]) => {
+                        const widthPercent = Math.min(parseInt((value / maxValue) * 100), 100) + '%';
+                        return (
+                            <div key={key} className="mb-2">
+                                <div className="d-flex justify-content-between align-items-center">
+                                    <div className="text-muted text-capitalize small fw-medium">
+                                        {formatStatsKey(key)}
+                                    </div>
+                                    <div>
+                                        <span title={value} className="fw-semibold small">
+                                            {parseInt((value / maxValue) * 100)}
+                                        </span>
+                                        <span className="small text-muted ms-1">%</span>
+                                    </div>
+                                </div>
+                                {maxValue > 0 && (
+                                    <div className="progress">
+                                        <div
+                                            className="progress-bar"
+                                            role="progressbar"
+                                            style={{ width: widthPercent }}
+                                            aria-valuenow={parseInt(value)}
+                                            aria-valuemin="0"
+                                            aria-valuemax={parseInt(maxValue)}
+                                        ></div>
+                                    </div>
+                                )}
+                            </div>
+                        );
+                    })}
+        </div>
+    );
+}
+
+function Dns({ token }) {
+    const [activeIndex, setActiveIndex] = useState(0);
+    const [loading, setLoading] = useState(false);
+
+    const tabs = [
+        { label: 'History', component: <DnsHistory token={token} /> },
+        { label: 'Statistics', component: <DnsStats token={token} /> },
+        { label: 'Actions', component: <DnsActions token={token} /> },
+    ];
+
+    return (
+        <div className="card">
+            <LoadingOverlay visible={loading} />
+            <div className="card-header">
+                <div className="d-flex align-items-center gap-2">
+                    <h6 className="mb-0 text-white fw-bold">DHCP</h6>
+                </div>
+                <span className="small text-white opacity-75">Dynamic Lease Serice</span>
+            </div>
+            <TabList activeIndex={activeIndex} setActiveIndex={setActiveIndex} tabs={tabs} />
+            <div className="card-body p-0">{tabs[activeIndex].component}</div>
+        </div>
+    );
+}
+
+window.Dns = Dns;

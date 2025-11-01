@@ -24,5 +24,58 @@ function NoData() {
     );
 }
 
-window.LoadingOverlay = LoadingOverlay;
-window.NoData = NoData;
+function TabBottomBorder() {
+    return (
+        <div
+            className={`position-absolute bottom-0 start-0 w-100 bg-primary`}
+            style={{ height: '3px', borderRadius: '3px 3px 0 0' }}
+        />
+    );
+}
+
+function TabList({ activeIndex, setActiveIndex, tabs }) {
+    return (
+        <div>
+            <ul role="tablist" className="nav nav-tabs border-0 px-2 pt-1">
+                {tabs.map((tab, i) => (
+                    <li key={i} role="presentation" className="nav-item">
+                        <button
+                            className={`nav-link border-0 position-relative ${i === activeIndex ? 'active' : ''}`}
+                            onClick={() => setActiveIndex(i)}
+                            type="button"
+                            role="tab"
+                            style={{
+                                color: i === activeIndex ? 'var(--bs-primary)' : 'var(--bs-secondary)',
+                                backgroundColor: 'transparent',
+                                fontWeight: i === activeIndex ? '600' : '500',
+                            }}
+                        >
+                            <span className="text-uppercase small">{tab.label.replace(/_/g, ' ')}</span>
+                            {i === activeIndex && <TabBottomBorder />}
+                        </button>
+                    </li>
+                ))}
+            </ul>
+        </div>
+    );
+}
+
+function ActionRow({ label, handleClear, status }) {
+    return (
+        <div className="d-flex justify-content-between align-items-center px-4 py-2 border-bottom bg-light">
+            <button
+                className="btn btn-primary btn-sm rounded shadow-sm"
+                onClick={handleClear}
+                style={{ minWidth: '110px', fontWeight: 500 }}
+            >
+                {label}
+            </button>
+            <span
+                className="badge rounded-pill bg-secondary text-truncate"
+                style={{ maxWidth: '120px', textAlign: 'center', fontWeight: 500 }}
+            >
+                {status}
+            </span>
+        </div>
+    );
+}

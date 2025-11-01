@@ -102,8 +102,6 @@ function NeuralNetTabContent({
     }
 }
 
-// -------------------- Actions --------------------
-
 const ActionRow = ({ label, onClick, status }) => (
     <div className="d-flex justify-content-between align-items-center px-4 py-2 border-bottom">
         <button className="btn btn-primary btn-sm" onClick={onClick} style={{ minWidth: '150px' }}>
@@ -284,7 +282,6 @@ function ActionsTab({ token, dnsHistory, predictions, setPredictions, setBlackli
     );
 }
 
-// -------------------- Modal --------------------
 function AddToDomainModal({ showModal, onClose, domain, setDomain, onAdd, title, color = 'danger' }) {
     const [isValid, setIsValid] = useState(false);
     const inputRef = useRef(null);
@@ -458,32 +455,27 @@ function WhitelistTab({ token, whitelists, setWhitelists }) {
     );
 }
 
-function HistoryTab({ predictions = [], dnsHistory = [], blacklists = [], whitelists = [] }) {
-    const [sortKey, setSortKey] = useState('created');
-    const [sortAsc, setSortAsc] = useState(false);
+function HistoryTab({
+    predictions = [],
+    dnsHistory = [],
+    blacklists = [],
+    whitelists = [],
+    token,
+    setBlacklists,
+    setWhitelists,
+}) {
     const [filterText, setFilterText] = useState('');
+    const [sortKey, setSortKey] = useState('query');
+    const [sortAsc, setSortAsc] = useState(true);
 
-    // --- Maps predictions to a fast lookup table ---
+    // Map predictions for fast lookup
     const predictionMap = useMemo(() => {
         const map = new Map();
         predictions.forEach(({ domain, probability }) => map.set(domain, probability));
         return map;
     }, [predictions]);
 
-    // --- Helper functions ---
-    const getRowClass = (domain) => {
-        if (blacklists.includes(domain)) return 'table-danger';
-        if (whitelists.includes(domain)) return 'table-success';
-        return '';
-    };
-
-    const getBadgeProps = (prediction) => {
-        if (prediction > 0.9) return { color: 'bg-danger', label: 'High' };
-        if (prediction < 0.25) return { color: 'bg-success', label: 'Low' };
-        return { color: 'bg-warning text-dark', label: 'Medium' };
-    };
-
-    // --- Transform, filter, and sort data ---
+    // Prepare displayed history: filter + map prediction
     const displayedHistory = useMemo(() => {
         let list = dnsHistory.map((item) => ({
             ...item,
@@ -496,19 +488,33 @@ function HistoryTab({ predictions = [], dnsHistory = [], blacklists = [], whitel
         }
 
         list.sort((a, b) => {
-            let aVal = a[sortKey],
-                bVal = b[sortKey];
+            let aVal = a[sortKey];
+            let bVal = b[sortKey];
+
             if (sortKey === 'prediction') {
                 aVal = parseFloat(aVal);
                 bVal = parseFloat(bVal);
             }
+
             if (aVal < bVal) return sortAsc ? -1 : 1;
             if (aVal > bVal) return sortAsc ? 1 : -1;
             return 0;
         });
 
         return list;
-    }, [dnsHistory, predictionMap, sortKey, sortAsc, filterText]);
+    }, [dnsHistory, predictionMap, filterText, sortKey, sortAsc]);
+
+    const getBadgeProps = (prediction) => {
+        if (prediction > 0.9) return { color: 'bg-danger', label: 'High' };
+        if (prediction < 0.25) return { color: 'bg-success', label: 'Low' };
+        return { color: 'bg-warning text-dark', label: 'Medium' };
+    };
+
+    const getRowClass = (domain) => {
+        if (blacklists.includes(domain)) return 'table-danger';
+        if (whitelists.includes(domain)) return 'table-success';
+        return '';
+    };
 
     const toggleSort = (key) => {
         if (sortKey === key) setSortAsc(!sortAsc);
@@ -518,22 +524,45 @@ function HistoryTab({ predictions = [], dnsHistory = [], blacklists = [], whitel
         }
     };
 
-    const SortButton = ({ field, label, align = 'start', width }) => (
-        <th scope="col" className={`text-${align}`} style={{ width }}>
-            <button
-                className="btn p-0 d-flex align-items-center justify-content-center w-100"
-                onClick={() => toggleSort(field)}
-            >
-                {label}
-                <span className="ms-1">{sortKey === field ? (sortAsc ? '↑' : '↓') : '⇅'}</span>
-            </button>
-        </th>
-    );
+    const handleAddBlacklist = async (domain) => {
+        try {
+            await fetcher({ token, category: 'blacklist', type: 'add', payload: domain });
+            setBlacklists((prev) => [...prev, domain]);
+        } catch (err) {
+            console.error(err);
+        }
+    };
 
-    // --- JSX ---
+    const handleRemoveBlacklist = async (domain) => {
+        try {
+            await fetcher({ token, category: 'blacklist', type: 'remove', payload: domain });
+            setBlacklists((prev) => prev.filter((d) => d !== domain));
+        } catch (err) {
+            console.error(err);
+        }
+    };
+
+    const handleAddWhitelist = async (domain) => {
+        try {
+            await fetcher({ token, category: 'whitelist', type: 'add', payload: domain });
+            setWhitelists((prev) => [...prev, domain]);
+        } catch (err) {
+            console.error(err);
+        }
+    };
+
+    const handleRemoveWhitelist = async (domain) => {
+        try {
+            await fetcher({ token, category: 'whitelist', type: 'remove', payload: domain });
+            setWhitelists((prev) => prev.filter((d) => d !== domain));
+        } catch (err) {
+            console.error(err);
+        }
+    };
+
     return (
         <div className="container-fluid p-0">
-            <div className="row mb-3 g-2 align-items-center">
+            <div className="row mb-3">
                 <div className="col-md-6">
                     <input
                         type="text"
@@ -543,49 +572,79 @@ function HistoryTab({ predictions = [], dnsHistory = [], blacklists = [], whitel
                         onChange={(e) => setFilterText(e.target.value)}
                     />
                 </div>
-                <div className="col-md-6">
-                    <DnsHistorySummary displayedHistory={displayedHistory} />
-                </div>
-                <DnsHistoryLegend />
             </div>
-
             <div className="table-responsive">
-                <table className="table table-hover table-striped align-middle mb-0">
+                <table className="table table-hover align-middle p-0 m-0">
                     <thead className="table-light sticky-top">
                         <tr>
-                            <SortButton field="query" label="Domain" width="40%" />
-                            <SortButton field="created" label="Timestamp" width="25%" />
-                            <SortButton field="query_counter" label="Queries" align="center" width="15%" />
-                            <SortButton field="prediction" label="Score" align="center" width="20%" />
+                            <th>
+                                <button className="btn p-0" onClick={() => toggleSort('query')}>
+                                    Domain {sortKey === 'query' ? (sortAsc ? '↑' : '↓') : '⇅'}
+                                </button>
+                            </th>
+                            <th className="text-center">
+                                <button className="btn p-0" onClick={() => toggleSort('prediction')}>
+                                    Score {sortKey === 'prediction' ? (sortAsc ? '↑' : '↓') : '⇅'}
+                                </button>
+                            </th>
+                            <th className="text-center">Actions</th>
                         </tr>
                     </thead>
                     <tbody>
                         {displayedHistory.length === 0 ? (
                             <tr>
-                                <td colSpan="4" className="text-center text-muted py-5">
+                                <td colSpan="3" className="text-center text-muted py-2">
                                     {filterText ? 'No results found' : 'No DNS history available'}
                                 </td>
                             </tr>
                         ) : (
                             displayedHistory.map((item, i) => {
                                 const { color, label } = getBadgeProps(item.prediction);
+                                const isBlacklisted = blacklists.includes(item.query);
+                                const isWhitelisted = whitelists.includes(item.query);
+
                                 return (
                                     <tr key={i} className={`${getRowClass(item.query)} cursor-pointer`}>
-                                        <td className="fw-medium">{item.query}</td>
-                                        <td className="text-muted small">{formatTimestamp(item.created)}</td>
+                                        <td>{item.query}</td>
                                         <td className="text-center">
-                                            <span className="badge bg-info text-dark">{item.query_counter ?? '-'}</span>
-                                        </td>
-                                        <td className="text-center">
-                                            <span
-                                                className={`badge ${color} px-3 py-2`}
-                                                title={`Score: ${item.prediction.toFixed?.(3) ?? item.prediction}`}
-                                            >
-                                                {label}
-                                                <small className="ms-2 opacity-75">
-                                                    ({item.prediction.toFixed?.(2) ?? item.prediction})
-                                                </small>
+                                            <span className={`badge ${color} px-1 py-1`}>
+                                                {label} {item.prediction.toFixed(2)}
                                             </span>
+                                        </td>
+                                        <td className="text-center d-flex justify-content-center gap-2">
+                                            {isBlacklisted && (
+                                                <button
+                                                    className="btn btn-sm btn-outline-danger"
+                                                    onClick={() => handleRemoveBlacklist(item.query)}
+                                                >
+                                                    De-Blacklist
+                                                </button>
+                                            )}
+
+                                            {isWhitelisted && (
+                                                <button
+                                                    className="btn btn-sm btn-outline-success"
+                                                    onClick={() => handleRemoveWhitelist(item.query)}
+                                                >
+                                                    De-Whitelist
+                                                </button>
+                                            )}
+                                            {!isBlacklisted && !isWhitelisted && (
+                                                <>
+                                                    <button
+                                                        className="btn btn-sm btn-success"
+                                                        onClick={() => handleAddWhitelist(item.query)}
+                                                    >
+                                                        Whitelist
+                                                    </button>
+                                                    <button
+                                                        className="btn btn-sm btn-danger"
+                                                        onClick={() => handleAddBlacklist(item.query)}
+                                                    >
+                                                        Blacklist
+                                                    </button>
+                                                </>
+                                            )}
                                         </td>
                                     </tr>
                                 );

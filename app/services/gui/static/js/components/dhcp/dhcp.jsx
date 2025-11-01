@@ -1,4 +1,5 @@
-// --- Helper functions ---
+const { useState, useEffect, useMemo } = React;
+
 function getLeasesTypeBadgeClass(type) {
     switch (type) {
         case 'static':
@@ -10,27 +11,7 @@ function getLeasesTypeBadgeClass(type) {
     }
 }
 
-function formatTimestamp(ts) {
-    if (!ts) return '';
-    const d = new Date(ts * 1000);
-    return d.toLocaleString();
-}
-
-function filterUnnendedStats(value) {
-    return value !== null && value !== undefined;
-}
-
-function formatStatsKey(key) {
-    return key.replaceAll('_', ' ').toUpperCase();
-}
-
-function formatMetricKey(key) {
-    return key.replaceAll('_', ' ').toUpperCase();
-}
-
-// --- DHCP Leases Table ---
 function DhcpLeases({ token }) {
-    const { useState, useEffect, useMemo } = React;
     const [leases, setLeases] = useState([]);
     const [tableHeaderNames, setTableHeaderNames] = useState([]);
     const [sortState, setSortState] = useState({ column: '', direction: 'asc' });
@@ -87,7 +68,7 @@ function DhcpLeases({ token }) {
             <LoadingOverlay visible={loading} />
             <div className="table-responsive">
                 <table className="table table-sm table-hover align-middle text-nowrap text-center p-0">
-                    <thead className="table-light">
+                    <thead className="table-light sticky-top">
                         <tr>
                             {tableHeaderNames.map((headerName) => (
                                 <th
@@ -130,9 +111,7 @@ function DhcpLeases({ token }) {
     );
 }
 
-// --- DHCP Stats ---
 function DhcpStats({ token }) {
-    const { useState, useEffect } = React;
     const [stats, setStats] = useState({});
     const [loading, setLoading] = useState(true);
     const [maxValue, setMaxValue] = useState(0);
@@ -155,15 +134,13 @@ function DhcpStats({ token }) {
         fetchStats();
     }, [token]);
 
-    const isTimestamp = (key) => ['last_updated', 'start_time'].includes(key.trim().toLowerCase());
-
     return (
         <div className="card-body p-3">
             <LoadingOverlay visible={loading} />
             {!loading &&
                 Object.entries(stats)
                     .filter(([key, value]) => filterUnnendedStats(value))
-                    .filter(([key]) => key.toLowerCase() !== 'start_time')
+                    .filter(([key, value]) => !isTimestamp(key))
                     .map(([key, value]) => {
                         const widthPercent = Math.min((value / maxValue) * 100, 100) + '%';
                         return (
@@ -200,32 +177,7 @@ function DhcpStats({ token }) {
     );
 }
 
-// --- Tabbed DHCP Container ---
-function DhcpSideBar({ tabs, activeIndex, onSelect }) {
-    return (
-        <div className="col-md-3">
-            <div className="nav flex-column nav-pills p-0 rounded-0" role="tablist">
-                {tabs.map((tab, i) => (
-                    <button
-                        key={i}
-                        className={`nav-link text-start text-uppercase rounded-0 ${i === activeIndex ? 'active' : ''}`}
-                        onClick={() => onSelect(i)}
-                    >
-                        {tab.label}
-                    </button>
-                ))}
-            </div>
-        </div>
-    );
-}
-
-function DhcpContent({ activeIndex, tabs }) {
-    const ActiveTab = tabs[activeIndex];
-    return <div className="col-md-9">{ActiveTab.component}</div>;
-}
-
 function Dhcp({ token }) {
-    const { useState } = React;
     const [activeIndex, setActiveIndex] = useState(0);
     const [loading, setLoading] = useState(false);
 
@@ -238,12 +190,13 @@ function Dhcp({ token }) {
         <div className="card">
             <LoadingOverlay visible={loading} />
             <div className="card-header">
-                <h6>DHCP</h6>
+                <div className="d-flex align-items-center gap-2">
+                    <h6 className="mb-0 text-white fw-bold">DHCP</h6>
+                </div>
+                <span className="small text-white opacity-75">Dynamic Lease Serice</span>
             </div>
-            <div className="row g-0">
-                <DhcpSideBar tabs={tabs} activeIndex={activeIndex} onSelect={setActiveIndex} />
-                <DhcpContent activeIndex={activeIndex} tabs={tabs} />
-            </div>
+            <TabList activeIndex={activeIndex} setActiveIndex={setActiveIndex} tabs={tabs} />
+            <div className="card-body p-0">{tabs[activeIndex].component}</div>
         </div>
     );
 }

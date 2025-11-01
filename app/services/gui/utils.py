@@ -394,7 +394,6 @@ def get_whitelist() -> list[str]:
 
 
 def get_system_logs() -> list:
-
     try:
         with open(LOG_FILE_PATH, mode="r", encoding="utf-8") as file_handle:
             log_entries = []
@@ -416,6 +415,17 @@ def get_system_logs() -> list:
     except Exception as e:
         logger.error(f"Failed to read {LOG_FILE_PATH} - {e}")
         return []
+
+
+def clear_system_logs() -> bool:
+    try:
+        with open(LOG_FILE_PATH, mode="w", encoding="utf-8") as file_handle:
+            file_handle.truncate(0)
+        logger.info(f"Cleared system logs.")
+        return True
+    except Exception as err:
+        logger.error(f"Failed to clear logs: {str(err)}.")
+        return False
 
 
 def add_to_whitelist(url: str) -> bool:

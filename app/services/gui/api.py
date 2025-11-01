@@ -8,6 +8,7 @@ from app.services.gui.auth import decode_and_verify_bearer_token
 from app.services.gui.utils import (
     add_to_blacklist,
     add_to_whitelist,
+    clear_system_logs,
     delete_from_blacklist,
     delete_from_whitelist,
     generate_dashboard_cards,
@@ -155,6 +156,8 @@ class ApiGateway:
     def _handle_logs(cls, _type: str, _payload: Any):
         if _type == "get":
             return cls._make_response(success=True, payload=get_system_logs(), status_code=200)
+        if _type == "clear":
+            return cls._make_response(success=clear_system_logs(), status_code=200)
         return cls._make_response(
             success=False, error=f"Invalid logs action '{_type}'", status_code=400
         )

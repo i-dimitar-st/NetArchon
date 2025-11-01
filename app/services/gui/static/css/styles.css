@@ -49,7 +49,7 @@ body {
 }
 
 .navbar {
-    backdrop-filter: blur(12px) saturate(150%);
+    backdrop-filter: blur(12px);
     background: linear-gradient(270deg, var(--primary-color), var(--secondary-color));
     box-shadow: 0 4px 20px rgba(67, 97, 238, 0.2);
 }
@@ -117,7 +117,7 @@ body {
     position: relative;
     margin: 0;
     padding: 0;
-    max-height: 500px;
+    max-height: 80vh;
     backdrop-filter: blur(10px);
     background: rgba(var(--card-background-rgb), 1);
     border: none;
@@ -133,7 +133,7 @@ body {
 }
 
 .card-header {
-    background: linear-gradient(135deg, var(--bs-primary) 0%, rgba(var(--bs-primary-rgb), 0.75) 100%);
+    background: linear-gradient(135deg, var(--primary-color) 0%, rgba(var(--bs-primary-rgb), 0.75) 100%);
     color: #fff;
     border-bottom: 1px solid rgba(255, 255, 255, 0.15);
     padding: 1rem 1.25rem;
@@ -202,4 +202,14 @@ body {
     align-items: center;
     color: white;
     font-size: 1.5rem;
+}
+
+.cockpit-panel {
+    background: radial-gradient(circle at top left, #1a1a2e, #0f0f1f);
+    box-shadow: 0 0 10px rgba(0, 255, 255, 0.1);
+    transition: all 0.3s ease;
+}
+.cockpit-panel:hover {
+    border-color: #00ffff;
+    box-shadow: 0 0 15px rgba(0, 255, 255, 0.2);
 }
