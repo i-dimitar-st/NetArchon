@@ -238,9 +238,9 @@ function Dns({ token }) {
             <LoadingOverlay visible={loading} />
             <div className="card-header">
                 <div className="d-flex align-items-center gap-2">
-                    <h6 className="mb-0 text-white fw-bold">DHCP</h6>
+                    <h6 className="mb-0 text-white fw-bold">DNS Service</h6>
                 </div>
-                <span className="small text-white opacity-75">Dynamic Lease Serice</span>
+                <span className="small text-white opacity-75">Active Domain Record History</span>
             </div>
             <TabList activeIndex={activeIndex} setActiveIndex={setActiveIndex} tabs={tabs} />
             <div className="card-body p-0">{tabs[activeIndex].component}</div>
