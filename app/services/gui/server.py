@@ -35,8 +35,19 @@ class UvicornServer:
             ssl_keyfile=key_path,
             log_level=log_level,
             timeout_keep_alive=keep_alive_timeout,
+            lifespan="off",
+            limit_concurrency=25,
+            limit_max_requests=1000,
+            timeout_graceful_shutdown=5,
+            forwarded_allow_ips="*",
+            server_header=False,
+            proxy_headers=True,
+            use_colors=False,
         )
         cls._server = uvicorn.Server(config=cls._config)
+        cls._server.force_exit = True
+        cls._server.should_exit = False
+        cls._server.started = False
         cls._kill_timeout = kill_timeout
         cls._logger.debug("GUI server initialized")
 

@@ -11,10 +11,10 @@ function estimateMean({ p10, p25, p50, p75, p100 }) {
 function MaxMetrics({ maxValue }) {
     return (
         <div className="col-md-4">
-            <div className="card border-0 bg-primary">
-                <div className="card-body text-white p-2">
-                    <span className="text-uppercase fw-semibold text-white-50 small mb-1 me-2">Max</span>
-                    <span className="fs-4 fw-bold text-white">
+            <div className="card rounded-4" style={{ backgroundColor: 'var(--warning-color)' }}>
+                <div className="card-body p-2">
+                    <span className="text-uppercase fw-semibold text-dark small m-2">Max</span>
+                    <span className="fs-4 fw-bold text-dark">
                         {parseInt(maxValue)}
                         <span className="fs-6 ms-1">ms</span>
                     </span>
@@ -27,9 +27,9 @@ function MaxMetrics({ maxValue }) {
 function AverageMetrics({ averageValue }) {
     return (
         <div className="col-md-4">
-            <div className="card border-0 bg-primary">
+            <div className="card rounded-4" style={{ backgroundColor: 'var(--primary-color)' }}>
                 <div className="card-body text-white p-2">
-                    <span className="small fw-semibold opacity-75 text-uppercase mb-1 me-2">Average</span>
+                    <span className="small fw-semibold opacity-75 text-uppercase m-2">Average</span>
                     <span className="fs-4 fw-bold">
                         {parseInt(averageValue)}
                         <span className="fs-6 ms-1">ms</span>
@@ -43,47 +43,15 @@ function AverageMetrics({ averageValue }) {
 function MinMetrics({ minValue }) {
     return (
         <div className="col-md-4">
-            <div className="card border-0 bg-primary">
+            <div className="card rounded-4" style={{ backgroundColor: 'var(--success-color)' }}>
                 <div className="card-body text-white p-2">
-                    <span className="small fw-semibold opacity-75 text-uppercase mb-1 me-2">Min</span>
+                    <span className="small fw-semibold opacity-75 text-uppercase m-2">Min</span>
                     <span className="fs-4 fw-bold">
                         {parseInt(minValue)}
                         <span className="fs-6 ms-1">ms</span>
                     </span>
                 </div>
             </div>
-        </div>
-    );
-}
-
-function MetricTabs({ metrics, activeIndex, onSelect }) {
-    return (
-        <div className="border-bottom">
-            <ul role="tablist" className="nav nav-tabs border-0 px-2 pt-1">
-                {metrics.map((item, i) => (
-                    <li key={i} role="presentation" className="nav-item">
-                        <button
-                            className={`nav-link border-0 position-relative ${i === activeIndex ? 'active' : ''}`}
-                            onClick={() => onSelect(i)}
-                            type="button"
-                            role="tab"
-                            style={{
-                                color: i === activeIndex ? 'var(--bs-primary)' : 'var(--bs-secondary)',
-                                backgroundColor: 'transparent',
-                                fontWeight: i === activeIndex ? '600' : '500',
-                            }}
-                        >
-                            <span className="text-uppercase small">{item.label.replace(/_/g, ' ')}</span>
-                            {i === activeIndex && (
-                                <div
-                                    className={`position-absolute bottom-0 start-0 w-100 bg-primary`}
-                                    style={{ height: '3px', borderRadius: '3px 3px 0 0' }}
-                                />
-                            )}
-                        </button>
-                    </li>
-                ))}
-            </ul>
         </div>
     );
 }
@@ -115,7 +83,6 @@ function MetricBar({ label, value, maxValue }) {
 }
 
 function MetricContent({ item, maxValue }) {
-    if (typeof item !== 'object') return null;
     const itemMetrics = Object.entries(item.metrics);
 
     return (
@@ -177,23 +144,13 @@ function Metrics({ token }) {
     return (
         <div className="card">
             <LoadingOverlay visible={loading} />
-            <div className="card-header">
-                <div className="d-flex align-items-center gap-2">
-                    <h6 className="mb-0 text-white fw-bold">Performance Metrics</h6>
-                </div>
-                <span className="small text-white opacity-75">Real-time performance monitoring</span>
-            </div>
-
-            {metrics.length > 0 && !loading ? (
+            <CardHeader title="Performance Metrics" subtitle="Real-time performance monitoring" />
+            {metrics && metrics.length > 0 && (
                 <>
-                    <MetricTabs metrics={metrics} activeIndex={activeIndex} onSelect={setActiveIndex} />
+                    <TabList tabs={metrics} activeIndex={activeIndex} setActiveIndex={setActiveIndex} />
                     <MetricContent item={activeItem} maxValue={maxValue} />
                 </>
-            ) : (
-                <NoData />
             )}
         </div>
     );
 }
-
-window.Metrics = Metrics;

@@ -1,27 +1,23 @@
-<!DOCTYPE html>
-<html lang="en">
-{% include ".head.html" %}
+{% extends "base.html" %}
 
-<body>
-    {% include ".header.html" %}
-    {% include ".scripts.html" %}
+{% block body %}
 
-    <div id="react-dashboard-app"></div>
 
-    <script type="text/babel" src="{{ url_for('static', filename='js/components/dashboard/dashboard.jsx') }}"></script>
-    <script type="text/babel">
-        const token = "{{ session['bearer_token_hash'] }}";
-        function App({ token }) {
-            return (
-                <div className="container py-4">
-                    <div className="row g-4">
-                        <Dashboard token={token} />
-                    </div>
+<div id="react-dashboard-app"></div>
+
+<script type="text/babel" src="{{ url_for('static', filename='jsx/components/dashboard/dashboard.jsx') }}"></script>
+<script type="text/babel">
+    const token = "{{ session['bearer_token_hash'] }}";
+    function App({ token }) {
+        return (
+            <div className="container py-4">
+                <div className="row g-4">
+                    <Dashboard token={token} />
                 </div>
-            );
-        }
-        ReactDOM.createRoot(document.getElementById('react-dashboard-app')).render(<App token={token} />);
-    </script>
-</body>
+            </div>
+        );
+    }
+    ReactDOM.createRoot(document.getElementById('react-dashboard-app')).render(<App token={token} />);
+</script>
 
-</html>
+{% endblock %}

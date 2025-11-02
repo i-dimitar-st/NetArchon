@@ -50,7 +50,7 @@ if __name__ == "__main__":
     NNDomainClassifierService.start()
 
     shutdown_event.wait()
-    logger.info("Stopping services")
+    logger.info("Stopping services.")
 
     DHCPServer.stop()
     DNSServer.stop()
@@ -58,4 +58,4 @@ if __name__ == "__main__":
     App.stop()
     NNDomainClassifierService.stop()
 
-    logger.info("Shutdown complete")
+    logger.info("Shutdown complete.")

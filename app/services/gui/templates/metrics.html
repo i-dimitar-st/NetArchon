@@ -1,27 +1,22 @@
-<!DOCTYPE html>
-<html lang="en">
-{% include ".head.html" %}
+{% extends "base.html" %}
 
-<body>
-    {% include ".header.html" %}
-    {% include ".scripts.html" %}
+{% block body %}
 
-    <div id="react-app-metrics"></div>
+<div id="react-app-metrics"></div>
 
-    <script type="text/babel" src="{{ url_for('static', filename='js/components/metrics/metrics.jsx') }}"></script>
-    <script type="text/babel">
-        const token = "{{ session['bearer_token_hash'] }}";
-        function App({ token }) {
-            return (
-                <div className="container py-4">
-                    <Metrics token={token} />
-                </div>
-            )
-        }
-        ReactDOM
-            .createRoot(document.getElementById("react-app-metrics"))
-            .render(<App token={token} />);
-    </script>
-</body>
+<script type="text/babel" src="{{ url_for('static', filename='jsx/components/metrics/metrics.jsx') }}"></script>
+<script type="text/babel">
+    const token = "{{ session['bearer_token_hash'] }}";
+    function App({ token }) {
+        return (
+            <div className="container py-4">
+                <Metrics token={token} />
+            </div>
+        )
+    }
+    ReactDOM
+        .createRoot(document.getElementById("react-app-metrics"))
+        .render(<App token={token} />);
+</script>
 
-</html>
+{% endblock %}

@@ -189,16 +189,9 @@ function Dhcp({ token }) {
     return (
         <div className="card">
             <LoadingOverlay visible={loading} />
-            <div className="card-header">
-                <div className="d-flex align-items-center gap-2">
-                    <h6 className="mb-0 text-white fw-bold">DHCP</h6>
-                </div>
-                <span className="small text-white opacity-75">Dynamic Lease Serice</span>
-            </div>
+            <CardHeader title="DHCP Service" subtitle="Dynamic Lease Serice" />
             <TabList activeIndex={activeIndex} setActiveIndex={setActiveIndex} tabs={tabs} />
-            <div className="card-body p-0">{tabs[activeIndex].component}</div>
+            <TabContent component={tabs[activeIndex].component} />
         </div>
     );
 }
-
-window.Dhcp = Dhcp;

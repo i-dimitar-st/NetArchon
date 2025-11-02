@@ -33,6 +33,17 @@ function TabBottomBorder() {
     );
 }
 
+function CardHeader({ title, subtitle }) {
+    return (
+        <div className="card-header">
+            <div className="d-flex align-items-center gap-2">
+                <h6 className="mb-0 text-white fw-bold">{title}</h6>
+            </div>
+            <span className="small text-white opacity-75">{subtitle}</span>
+        </div>
+    );
+}
+
 function TabList({ activeIndex, setActiveIndex, tabs }) {
     return (
         <div>
@@ -60,12 +71,16 @@ function TabList({ activeIndex, setActiveIndex, tabs }) {
     );
 }
 
-function ActionRow({ label, handleClear, status }) {
+function TabContent({ component }) {
+    return <div className="card-body p-0">{component}</div>;
+}
+
+function ActionRow({ label, onClick, status }) {
     return (
         <div className="d-flex justify-content-between align-items-center px-4 py-2 border-bottom bg-light">
             <button
                 className="btn btn-primary btn-sm rounded shadow-sm"
-                onClick={handleClear}
+                onClick={onClick}
                 style={{ minWidth: '110px', fontWeight: 500 }}
             >
                 {label}

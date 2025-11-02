@@ -1,28 +1,23 @@
-<!DOCTYPE html>
-<html lang="en">
-{% include ".head.html" %}
+{% extends "base.html" %}
 
-<body>
-    {% include ".header.html" %}
-    {% include ".scripts.html" %}
+{% block body %}
 
-    <div id="react-info-app"></div>
 
-    <script type="text/babel" src="{{ url_for('static', filename='js/components/info/info.jsx') }}"></script>
-    <script type="text/babel">
-        const token = "{{ session['bearer_token_hash'] }}";
-        function App({ token }) {
-            return (
-                <div className="container py-4">
-                    <Info token={token} />
-                </div>
-            );
-        }
-        ReactDOM
-            .createRoot(document.getElementById("react-info-app"))
-            .render(<App token={token} />);
-    </script>
+<div id="react-info-app"></div>
 
-</body>
+<script type="text/babel" src="{{ url_for('static', filename='jsx/components/info/info.jsx') }}"></script>
+<script type="text/babel">
+    const token = "{{ session['bearer_token_hash'] }}";
+    function App({ token }) {
+        return (
+            <div className="container py-4">
+                <Info token={token} />
+            </div>
+        );
+    }
+    ReactDOM
+        .createRoot(document.getElementById("react-info-app"))
+        .render(<App token={token} />);
+</script>
 
-</html>
+{% endblock %}

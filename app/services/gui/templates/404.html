@@ -1,29 +1,22 @@
-<!DOCTYPE html>
-<html lang="en">
+{% extends "base.html" %}
 
-{% include ".head.html" %}
+{% block body %}
 
-<body>
-    {% include ".header.html" %}
-
-    <div id="react-404-app"></div>
-    <script type="text/babel" src="{{ url_for('static', filename='js/components/404/not_found.jsx') }}"></script>
-    <script type="text/babel">
-
-        function App() {
-            return (
-                <div className="container py-4">
-                    <div className="row g-4">
-                        <NotFound />
-                    </div>
+<div id="react-404-app"></div>
+<script type="text/babel" src="{{ url_for('static', filename='jsx/components/404/not_found.jsx') }}"></script>
+<script type="text/babel">
+    function App() {
+        return (
+            <div className="container py-4">
+                <div className="row g-4">
+                    <NotFound />
                 </div>
-            );
-        }
-        ReactDOM
-            .createRoot(document.getElementById("react-404-app"))
-            .render(<App />);
-    </script>
+            </div>
+        );
+    }
+    ReactDOM
+        .createRoot(document.getElementById("react-404-app"))
+        .render(<App />);
+</script>
 
-</body>
-
-</html>
+{% endblock %}

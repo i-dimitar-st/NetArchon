@@ -59,5 +59,3 @@ function Dashboard({ token }) {
         </>
     );
 }
-
-window.Dashboard = Dashboard;

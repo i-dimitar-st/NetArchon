@@ -109,9 +109,9 @@ function getSystemStats(data) {
 function StatCard({ label, value, unit = '' }) {
     return (
         <div className="col-md-4">
-            <div className="card border-0 bg-primary">
+            <div className="card rounded-4" style={{ backgroundColor: 'var(--primary-color)' }}>
                 <div className="card-body text-white p-2">
-                    <span className="small fw-semibold opacity-75 text-uppercase mb-1 me-2">{label}</span>
+                    <span className="small fw-semibold opacity-75 text-uppercase m-2">{label}</span>
                     <span className="fs-4 fw-bold">
                         {value}
                         {unit && <span className="fs-6 ms-1">{unit}</span>}
@@ -169,7 +169,7 @@ function ActiveContent({ data, activeTabName }) {
     const stats = getStatsFromActiveTabName({ activeTabName, data });
     return (
         <div className="mt-3">
-            <div className="row g-3 mb-4">
+            <div className="row g-2 mb-3">
                 <StatCard label={stats.min.label} value={stats.min.value} unit={stats.min.unit} />
                 <StatCard label={stats.avg.label} value={stats.avg.value} unit={stats.avg.unit} />
                 <StatCard label={stats.max.label} value={stats.max.value} unit={stats.max.unit} />
@@ -262,12 +262,7 @@ function Info({ token }) {
     return (
         <div className="card">
             <LoadingOverlay visible={loading} />
-            <div className="card-header">
-                <div className="d-flex align-items-center gap-2">
-                    <h6 className="mb-0 text-white fw-bold">System Info</h6>
-                </div>
-                <span className="small text-white opacity-75">Detailed System Information</span>
-            </div>
+            <CardHeader title="System Info" subtitle="Detailed System Information" />
             <div className="card-body">
                 <ActiveTabs keys={keys} activeIndex={activeIndex} setActiveIndex={setActiveIndex} />
                 <ActiveContent data={data[keys[activeIndex]]} activeTabName={activeTabName} />
@@ -275,5 +270,3 @@ function Info({ token }) {
         </div>
     );
 }
-
-window.Info = Info;

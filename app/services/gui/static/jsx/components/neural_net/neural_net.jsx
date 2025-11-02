@@ -1,118 +1,5 @@
 const { useState, useEffect, useRef, useMemo } = React;
 
-function DnsHistoryLegend() {
-    return (
-        <div className="col-12 mt-2">
-            <div className="p-3 bg-light rounded">
-                <div className="d-flex flex-wrap gap-3 align-items-center">
-                    <span className="fw-bold text-muted small">Legend:</span>
-                    <span className="badge bg-danger opacity-75">Blacklisted</span>
-                    <span className="badge bg-success opacity-75">Whitelisted</span>
-                    <span>
-                        <span className="badge bg-danger me-1">High</span>
-                        <small className="text-muted">Score &gt; 0.9</small>
-                    </span>
-                    <span>
-                        <span className="badge bg-warning text-dark me-1">Medium</span>
-                        <small className="text-muted">0.25-0.9</small>
-                    </span>
-                    <span>
-                        <span className="badge bg-success me-1">Low</span>
-                        <small className="text-muted">&lt; 0.25</small>
-                    </span>
-                </div>
-            </div>
-        </div>
-    );
-}
-
-function DnsHistorySummary({ displayedHistory }) {
-    return (
-        <div className="d-flex gap-1 align-items-center justify-content-md-end h-100">
-            <span className="badge bg-primary fs-6 py-2 px-3">Total: {displayedHistory.length}</span>
-            <span className="badge bg-danger fs-6 py-2 px-3">
-                High: {displayedHistory.filter((item) => item.prediction > 0.9).length}
-            </span>
-            <span className="badge bg-warning text-dark fs-6 py-2 px-3">
-                Medium:
-                {displayedHistory.filter((item) => item.prediction >= 0.25 && item.prediction <= 0.9).length}
-            </span>
-            <span className="badge bg-success fs-6 py-2 px-3">
-                Low: {displayedHistory.filter((item) => item.prediction < 0.25).length}
-            </span>
-        </div>
-    );
-}
-
-function NeuralNetTabs({ tabs, activeTab, onSelect }) {
-    return (
-        <div className="border-bottom">
-            <ul role="tablist" className="nav nav-tabs border-0 px-3 pt-2">
-                {tabs.map((tab) => (
-                    <li key={tab.id} role="presentation" className="nav-item">
-                        <button
-                            className={`nav-link border-0 position-relative ${activeTab === tab.id ? 'active' : ''}`}
-                            onClick={() => onSelect(tab.id)}
-                            type="button"
-                            role="tab"
-                            style={{
-                                color: activeTab === tab.id ? 'var(--bs-primary)' : 'var(--bs-secondary)',
-                                backgroundColor: 'transparent',
-                                fontWeight: activeTab === tab.id ? '600' : '500',
-                            }}
-                        >
-                            <span className="text-uppercase small">{tab.label}</span>
-                            {activeTab === tab.id && (
-                                <div
-                                    className="position-absolute bottom-0 start-0 w-100 bg-primary"
-                                    style={{ height: '3px', borderRadius: '3px 3px 0 0' }}
-                                />
-                            )}
-                        </button>
-                    </li>
-                ))}
-            </ul>
-        </div>
-    );
-}
-
-function NeuralNetTabContent({
-    activeTab,
-    token,
-    blacklists,
-    setBlacklists,
-    whitelists,
-    setWhitelists,
-    predictions,
-    setPredictions,
-}) {
-    switch (activeTab) {
-        case 'actions':
-            return (
-                <ActionsTab token={token} dnsHistory={[]} predictions={predictions} setPredictions={setPredictions} />
-            );
-        case 'history':
-            return <HistoryTab token={token} predictions={predictions} />;
-        case 'blacklist':
-            return <BlacklistTab token={token} blacklists={blacklists} setBlacklists={setBlacklists} />;
-        case 'whitelist':
-            return <WhitelistTab token={token} whitelists={whitelists} setWhitelists={setWhitelists} />;
-        default:
-            return null;
-    }
-}
-
-const ActionRow = ({ label, onClick, status }) => (
-    <div className="d-flex justify-content-between align-items-center px-4 py-2 border-bottom">
-        <button className="btn btn-primary btn-sm" onClick={onClick} style={{ minWidth: '150px' }}>
-            {label}
-        </button>
-        <span className="badge bg-secondary" style={{ minWidth: '120px', textAlign: 'center' }}>
-            {status}
-        </span>
-    </div>
-);
-
 function ActionsTab({ token, dnsHistory, predictions, setPredictions, setBlacklists, setWhitelists }) {
     const [trainingStatus, setTrainingStatus] = useState('Idle');
     const [historyCleared, setHistoryCleared] = useState(false);
@@ -123,7 +10,6 @@ function ActionsTab({ token, dnsHistory, predictions, setPredictions, setBlackli
     const [modalType, setModalType] = useState('blacklist');
     const [loading, setLoading] = useState(false);
 
-    // ---------------- Handlers ----------------
     const handleTrainModel = async () => {
         setTrainingStatus('Starting...');
         try {
@@ -233,7 +119,6 @@ function ActionsTab({ token, dnsHistory, predictions, setPredictions, setBlackli
         }
     };
 
-    // ---------------- JSX ----------------
     return (
         <div className="p-0">
             <ActionRow label="Train Model" onClick={handleTrainModel} status={trainingStatus} />
@@ -659,7 +544,7 @@ function HistoryTab({
 
 function NeuralNet({ token }) {
     const [loading, setLoading] = useState(false);
-    const [activeTab, setActiveTab] = useState('actions');
+    const [activeIndex, setActiveIndex] = useState(0);
     const [blacklists, setBlacklists] = useState([]);
     const [whitelists, setWhitelists] = useState([]);
     const [predictions, setPredictions] = useState([]);
@@ -729,55 +614,52 @@ function NeuralNet({ token }) {
     }, [token]);
 
     const tabs = [
-        { id: 'actions', label: 'Actions' },
-        { id: 'history', label: 'DNS History' },
-        { id: 'blacklist', label: 'Blacklist' },
-        { id: 'whitelist', label: 'Whitelist' },
+        {
+            label: 'Actions',
+            component: (
+                <ActionsTab
+                    token={token}
+                    dnsHistory={dnsHistory}
+                    predictions={predictions}
+                    setPredictions={setPredictions}
+                    blacklists={blacklists}
+                    setBlacklists={setBlacklists}
+                    whitelists={whitelists}
+                    setWhitelists={setWhitelists}
+                />
+            ),
+        },
+        {
+            label: 'DNS History',
+            component: (
+                <HistoryTab
+                    token={token}
+                    predictions={predictions}
+                    dnsHistory={dnsHistory}
+                    blacklists={blacklists}
+                    whitelists={whitelists}
+                />
+            ),
+        },
+        {
+            label: 'Blacklist',
+            component: <BlacklistTab token={token} blacklists={blacklists} setBlacklists={setBlacklists} />,
+        },
+        {
+            label: 'Whitelist',
+            component: <WhitelistTab token={token} whitelists={whitelists} setWhitelists={setWhitelists} />,
+        },
     ];
 
     return (
         <div className="container py-4">
             <div className="card">
-                <div className="card-header">
-                    <h6 className="text-white fw-bold">Neural Net</h6>
-                    <span className="small text-white opacity-75">Neural Net powered threat detection</span>
-                </div>
-
-                <NeuralNetTabs tabs={tabs} activeTab={activeTab} onSelect={setActiveTab} />
-                <div className="card-body p-0">
-                    {activeTab === 'actions' && (
-                        <ActionsTab
-                            token={token}
-                            dnsHistory={dnsHistory}
-                            predictions={predictions}
-                            setPredictions={setPredictions}
-                            blacklists={blacklists}
-                            setBlacklists={setBlacklists}
-                            whitelists={whitelists}
-                            setWhitelists={setWhitelists}
-                        />
-                    )}
-                    {activeTab === 'history' && (
-                        <HistoryTab
-                            token={token}
-                            predictions={predictions}
-                            dnsHistory={dnsHistory}
-                            blacklists={blacklists}
-                            whitelists={whitelists}
-                        />
-                    )}
-                    {activeTab === 'blacklist' && (
-                        <BlacklistTab token={token} blacklists={blacklists} setBlacklists={setBlacklists} />
-                    )}
-                    {activeTab === 'whitelist' && (
-                        <WhitelistTab token={token} whitelists={whitelists} setWhitelists={setWhitelists} />
-                    )}
-                </div>
+                <CardHeader title="Neural Net" subtitle="Neural Net powered threat detection" />
+                <TabList tabs={tabs} activeIndex={activeIndex} setActiveIndex={setActiveIndex} />
+                <TabContent component={tabs[activeIndex].component} />
             </div>
 
             <div id="modal-root"></div>
         </div>
     );
 }
-
-window.NeuralNet = NeuralNet;

@@ -1,34 +1,26 @@
-<!DOCTYPE html>
-<html lang="en">
+{% extends "base.html" %}
 
-{% include ".head.html" %}
+{% block body %}
 
-<body>
-    {% include ".header.html" %}
-    {% include ".scripts.html" %}
+<div id="react-app-neural-net"></div>
 
-    <div id="react-app-neural-net"></div>
+<script type="text/babel" src="{{ url_for('static', filename='jsx/components/neural_net/neural_net.jsx') }}"></script>
+</script>
 
-    <script type="text/babel"
-        src="{{ url_for('static', filename='js/components/neural_net/neural_net.jsx') }}"></script>
-    </script>
-
-    <script type="text/babel">
-        const token = "{{ session['bearer_token_hash'] }}";
-        function App({ token }) {
-            return (
-                <div className="container py-4">
-                    <div className="row g-4">
-                        <NeuralNet token={token} />
-                    </div>
+<script type="text/babel">
+    const token = "{{ session['bearer_token_hash'] }}";
+    function App({ token }) {
+        return (
+            <div className="container py-4">
+                <div className="row g-4">
+                    <NeuralNet token={token} />
                 </div>
-            );
-        }
+            </div>
+        );
+    }
 
-        ReactDOM
-            .createRoot(document.getElementById("react-app-neural-net"))
-            .render(<App token={token} />);
-    </script>
-</body>
-
-</html>
+    ReactDOM
+        .createRoot(document.getElementById("react-app-neural-net"))
+        .render(<App token={token} />);
+</script>
+{% endblock %}

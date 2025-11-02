@@ -24,7 +24,7 @@ function DnsActions({ token }) {
             <LoadingOverlay visible={loading} />
             <ActionRow
                 label="Clear History"
-                handleClear={handleClear}
+                onClick={handleClear}
                 status={historyCleared ? `Cleared` : 'Not Cleared'}
             />
         </div>
@@ -236,16 +236,9 @@ function Dns({ token }) {
     return (
         <div className="card">
             <LoadingOverlay visible={loading} />
-            <div className="card-header">
-                <div className="d-flex align-items-center gap-2">
-                    <h6 className="mb-0 text-white fw-bold">DNS Service</h6>
-                </div>
-                <span className="small text-white opacity-75">Active Domain Record History</span>
-            </div>
+            <CardHeader title="DNS Service" subtitle="Active Domain Record History" />
             <TabList activeIndex={activeIndex} setActiveIndex={setActiveIndex} tabs={tabs} />
-            <div className="card-body p-0">{tabs[activeIndex].component}</div>
+            <TabContent component={tabs[activeIndex].component} />
         </div>
     );
 }
-
-window.Dns = Dns;

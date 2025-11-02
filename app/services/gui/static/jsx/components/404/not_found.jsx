@@ -7,7 +7,7 @@ function NotFound() {
 
     return (
         <div className="card">
-            <h6 className="card-header fw-bold text-uppercase">{title}</h6>
+            <CardHeader title="404" subtitle="Page Not Found" />
             <div className="card-body text-center p-3">
                 <div className="fs-1 text-danger mb-3">404</div>
                 <p className="text-muted mb-3">Sorry, the page you are looking for does not exist.</p>
@@ -23,5 +23,3 @@ function NotFound() {
         </div>
     );
 }
-
-window.NotFound = NotFound;

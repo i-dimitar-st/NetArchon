@@ -1,29 +1,22 @@
-<!DOCTYPE html>
-<html lang="en">
+{% extends "base.html" %}
 
-{% include ".head.html" %}
+{% block body %}
+<div id="react-dns-app"></div>
 
-<body>
-    {% include ".header.html" %}
-    {% include ".scripts.html" %}
+<script type="text/babel" src="{{ url_for('static', filename='jsx/components/dns/dns.jsx') }}"></script>
 
-    <div id="react-dns-app"></div>
+<script type="text/babel">
+    const token = "{{ session['bearer_token_hash'] }}";
+    function App({ token }) {
+        return (
+            <div className="container py-4">
+                <Dns token={token} />
+            </div>
+        );
+    }
+    ReactDOM
+        .createRoot(document.getElementById("react-dns-app"))
+        .render(<App token={token} />);
+</script>
 
-    <script type="text/babel" src="{{ url_for('static', filename='js/components/dns/dns.jsx') }}"></script>
-
-    <script type="text/babel">
-        const token = "{{ session['bearer_token_hash'] }}";
-        function App({ token }) {
-            return (
-                <div className="container py-4">
-                    <Dns token={token} />
-                </div>
-            );
-        }
-        ReactDOM
-            .createRoot(document.getElementById("react-dns-app"))
-            .render(<App token={token} />);
-    </script>
-</body>
-
-</html>
+{% endblock %}
