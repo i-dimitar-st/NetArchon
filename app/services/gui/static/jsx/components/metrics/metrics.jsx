@@ -13,7 +13,7 @@ function MaxMetrics({ maxValue }) {
         <div className="col-md-4">
             <div className="card rounded-4" style={{ backgroundColor: 'var(--warning-color)' }}>
                 <div className="card-body p-2">
-                    <span className="text-uppercase fw-semibold text-dark small m-2">Max</span>
+                    <span className="text-uppercase fw-semibold opacity-75 text-dark small m-2">Max</span>
                     <span className="fs-4 fw-bold text-dark">
                         {parseInt(maxValue)}
                         <span className="fs-6 ms-1">ms</span>
@@ -57,7 +57,7 @@ function MinMetrics({ minValue }) {
 }
 
 function MetricBar({ label, value, maxValue }) {
-    const percentage = Math.min((value / maxValue) * 100, 100);
+    const percentage = parseInt(Math.min((value / maxValue) * 100, 100));
 
     return (
         <div className="mb-2">
@@ -73,10 +73,12 @@ function MetricBar({ label, value, maxValue }) {
                     className="progress-bar"
                     role="progressbar"
                     style={{ width: `${percentage}%` }}
-                    aria-valuenow={value}
+                    aria-valuenow={percentage}
                     aria-valuemin="0"
                     aria-valuemax={maxValue}
-                />
+                >
+                    {percentage}%
+                </div>
             </div>
         </div>
     );
@@ -116,7 +118,7 @@ function Metrics({ token }) {
     const [loading, setLoading] = useState(true);
 
     useEffect(() => {
-        (async () => {
+        const getMetrics = async () => {
             setLoading(true);
             try {
                 const res = await fetcher({ token, category: 'metrics', type: 'get' });
@@ -125,18 +127,19 @@ function Metrics({ token }) {
                 if (!json.success) throw new Error('Could not fetch metrics');
                 if (!json.payload) throw new Error('Payload missing');
 
-                const data = json.payload || [];
-                setMetrics(data);
+                setMetrics(json.payload);
 
-                const allValues = data.flatMap((item) => Object.values(item.metrics));
+                const allValues = json.payload.flatMap((item) => Object.values(item.metrics));
                 const calculatedMax = allValues.length > 0 ? parseInt(Math.max(...allValues)) : 0;
                 setMaxValue(calculatedMax);
+                console.info('Metrics fetched');
             } catch (err) {
                 console.error(err);
             } finally {
                 setLoading(false);
             }
-        })();
+        };
+        getMetrics();
     }, [token]);
 
     const activeItem = metrics[activeIndex];

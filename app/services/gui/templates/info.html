@@ -1,11 +1,11 @@
+{% from '.deps_internal_jsx.jinja2' import info_jsx %}
 {% extends "base.html" %}
 
 {% block body %}
 
+<div id="app"></div>
 
-<div id="react-info-app"></div>
-
-<script type="text/babel" src="{{ url_for('static', filename='jsx/components/info/info.jsx') }}"></script>
+<script type="text/babel" src="{{ info_jsx }}"></script>
 <script type="text/babel">
     const token = "{{ session['bearer_token_hash'] }}";
     function App({ token }) {
@@ -16,7 +16,7 @@
         );
     }
     ReactDOM
-        .createRoot(document.getElementById("react-info-app"))
+        .createRoot(document.getElementById("app"))
         .render(<App token={token} />);
 </script>
 

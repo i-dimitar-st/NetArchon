@@ -64,7 +64,7 @@ function DhcpLeases({ token }) {
     }, [leases, sortState]);
 
     return (
-        <div className="card-body p-0">
+        <div className="p-0">
             <LoadingOverlay visible={loading} />
             <div className="table-responsive">
                 <table className="table table-sm table-hover align-middle text-nowrap text-center p-0">
@@ -135,14 +135,15 @@ function DhcpStats({ token }) {
     }, [token]);
 
     return (
-        <div className="card-body p-3">
+        <div className="p-3">
             <LoadingOverlay visible={loading} />
             {!loading &&
                 Object.entries(stats)
                     .filter(([key, value]) => filterUnnendedStats(value))
+                    .filter(([key, value]) => filterUnnendedStats(key))
                     .filter(([key, value]) => !isTimestamp(key))
                     .map(([key, value]) => {
-                        const widthPercent = Math.min((value / maxValue) * 100, 100) + '%';
+                        const widthPercent = Math.min((value / maxValue) * 100, 100);
                         return (
                             <div key={key} className="mb-2">
                                 <div className="d-flex justify-content-between align-items-center">
@@ -151,11 +152,8 @@ function DhcpStats({ token }) {
                                     </div>
                                     <div>
                                         <span title={value} className="fw-semibold small">
-                                            {isTimestamp(key)
-                                                ? formatTimestamp(value)
-                                                : parseInt((value / maxValue) * 100)}
+                                            {isTimestamp(key) ? formatTimestamp(value) : parseInt(value)}
                                         </span>
-                                        {!isTimestamp(key) && <span className="small text-muted ms-1">%</span>}
                                     </div>
                                 </div>
                                 {!isTimestamp(key) && maxValue > 0 && (
@@ -163,11 +161,13 @@ function DhcpStats({ token }) {
                                         <div
                                             className="progress-bar"
                                             role="progressbar"
-                                            style={{ width: widthPercent }}
+                                            style={{ width: `${widthPercent}%` }}
                                             aria-valuenow={parseInt(value)}
                                             aria-valuemin="0"
                                             aria-valuemax={parseInt(maxValue)}
-                                        ></div>
+                                        >
+                                            {parseInt(widthPercent)}%
+                                        </div>
                                     </div>
                                 )}
                             </div>

@@ -1,0 +1,11 @@
+{% from '.global_versions.jinja2' import int_live_ver %}
+
+{% set dashboard_jsx    = url_for('static_files', filename='jsx/components/dashboard/dashboard.jsx', v=int_live_ver) %}
+{% set config_jsx       = url_for('static_files', filename='jsx/components/config/config.jsx', v=int_live_ver) %}
+{% set info_jsx         = url_for('static_files', filename='jsx/components/info/info.jsx', v=int_live_ver) %}
+{% set dns_jsx          = url_for('static_files', filename='jsx/components/dns/dns.jsx', v=int_live_ver) %}
+{% set dhcp_jsx         = url_for('static_files', filename='jsx/components/dhcp/dhcp.jsx', v=int_live_ver) %}
+{% set neural_net_jsx   = url_for('static_files', filename='jsx/components/neural_net/neural_net.jsx', v=int_live_ver) %}
+{% set metrics_jsx      = url_for('static_files', filename='jsx/components/metrics/metrics.jsx', v=int_live_ver) %}
+{% set logs_jsx         = url_for('static_files', filename='jsx/components/logs/logs.jsx', v=int_live_ver) %}
+{% set not_found_jsx    = url_for('static_files', filename='jsx/components/404/not_found.jsx', v=int_live_ver) %}

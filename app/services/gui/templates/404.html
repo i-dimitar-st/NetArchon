@@ -1,9 +1,11 @@
+{% from '.deps_internal_jsx.jinja2' import not_found_jsx %}
 {% extends "base.html" %}
 
 {% block body %}
 
-<div id="react-404-app"></div>
-<script type="text/babel" src="{{ url_for('static', filename='jsx/components/404/not_found.jsx') }}"></script>
+<div id="app"></div>
+
+<script type="text/babel" src="{{ not_found_jsx }}"></script>
 <script type="text/babel">
     function App() {
         return (
@@ -15,7 +17,7 @@
         );
     }
     ReactDOM
-        .createRoot(document.getElementById("react-404-app"))
+        .createRoot(document.getElementById("app"))
         .render(<App />);
 </script>
 

@@ -6,8 +6,8 @@ function LoadingOverlay({ visible }) {
             style={{ zIndex: 10 }}
         >
             <div className="text-center">
-                <div className="spinner-border text-primary mb-2" role="status" />
-                <div className="small text-muted">Loading...</div>
+                <div className="spinner-border text-primary" role="status" />
+                <div className="fs-6 text-muted">Loading...</div>
             </div>
         </div>
     );
@@ -35,33 +35,31 @@ function TabBottomBorder() {
 
 function CardHeader({ title, subtitle }) {
     return (
-        <div className="card-header">
+        <div className="card-header px-4 py-2">
             <div className="d-flex align-items-center gap-2">
-                <h6 className="mb-0 text-white fw-bold">{title}</h6>
+                <h6 className="m-0 p-0 text-white fw-bold text-capitalize">{title}</h6>
             </div>
-            <span className="small text-white opacity-75">{subtitle}</span>
+            <span className="m-0 p-0 small text-white opacity-75 text-capitalize">{subtitle}</span>
         </div>
     );
 }
 
 function TabList({ activeIndex, setActiveIndex, tabs }) {
     return (
-        <div>
-            <ul role="tablist" className="nav nav-tabs border-0 px-2 pt-1">
+        <div className="card-tabs">
+            <ul role="tablist" className="nav nav-tabs">
                 {tabs.map((tab, i) => (
                     <li key={i} role="presentation" className="nav-item">
                         <button
-                            className={`nav-link border-0 position-relative ${i === activeIndex ? 'active' : ''}`}
+                            className={`nav-link border-0 position-relative fw-semibold ${
+                                i === activeIndex ? 'active' : ''
+                            }`}
                             onClick={() => setActiveIndex(i)}
                             type="button"
                             role="tab"
-                            style={{
-                                color: i === activeIndex ? 'var(--bs-primary)' : 'var(--bs-secondary)',
-                                backgroundColor: 'transparent',
-                                fontWeight: i === activeIndex ? '600' : '500',
-                            }}
+                            style={{ color: i === activeIndex ? 'var(--bs-primary)' : 'var(--bs-secondary)' }}
                         >
-                            <span className="text-uppercase small">{tab.label.replace(/_/g, ' ')}</span>
+                            <span className="text-uppercase small">{tab.label.replaceAll('_', ' ')}</span>
                             {i === activeIndex && <TabBottomBorder />}
                         </button>
                     </li>
@@ -77,7 +75,7 @@ function TabContent({ component }) {
 
 function ActionRow({ label, onClick, status }) {
     return (
-        <div className="d-flex justify-content-between align-items-center px-4 py-2 border-bottom bg-light">
+        <div className="d-flex justify-content-between align-items-center px-4 py-2 border-bottom">
             <button
                 className="btn btn-primary btn-sm rounded shadow-sm"
                 onClick={onClick}

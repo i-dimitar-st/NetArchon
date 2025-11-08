@@ -1,11 +1,12 @@
-from os.path import join
 from logging import WARNING, Logger, getLogger
+from os.path import join
 from pathlib import Path
 
 from asgiref.wsgi import WsgiToAsgi
 from flask import (
     Flask,
     Response,
+    make_response,
     render_template,
     request,
     send_from_directory,
@@ -39,12 +40,20 @@ APP_LOG_LEVEL = str(APP_CONFIG.get("log_level"))
 PERMANENT_SESSION_LIFETIME_SEC = int(APP_CONFIG.get("permanent_session_livetime_sec"))
 
 CACHED_JS_FILES = [
-    "bootstrap.bundle.min.js",
-    "react.production.min.js",
-    "react-dom.production.min.js",
-    "babel.min.js",
+    "bootstrap.bundle.min.v5.3.0.js",
+    "react.production.min.18.2.0.js",
+    "react-dom.production.min.v18.2.0.js",
+    "babel.min.v7.23.9.js",
 ]
-CACHED_CSS_FILES = ["all.min.css", "bootstrap.min.css"]
+CACHED_CSS_FILES: list[str] = ["fontawesome.all.min.v6.4.0.css", "bootstrap.min.v5.3.0.css"]
+CACHED_WEBFONT_FILES: list[str] = [
+    "fa-solid-900.woff2",
+    "fa-regular-400.woff2",
+    "fa-brands-400.woff2",
+    "fa-solid-900.woff",
+    "fa-regular-400.woff",
+    "fa-brands-400.woff",
+]
 CACHED_HEADER_DURATION_SEC = 7 * 24 * 3600
 
 
@@ -58,7 +67,7 @@ class App:
 
     @classmethod
     def _init_app(cls):
-        cls._app = Flask(__name__, static_folder='static')
+        cls._app = Flask(__name__, static_folder=None)
         cls._app.secret_key = BEARER_TOKEN_HASH
         cls._app.config['SESSION_COOKIE_HTTPONLY'] = True
         cls._app.config['SESSION_COOKIE_SECURE'] = True
@@ -97,33 +106,19 @@ class App:
 
             @cls._app.before_request
             def require_session_and_validate():
+                if request.path.startswith("/static/"):
+                    return
                 if "_csrf_token" not in session:
                     session["_csrf_token"] = generate_csrf_token()
                 session.permanent = True
                 session.modified = True
                 session["bearer_token_hash"] = generate_bearer_token(session["_csrf_token"])
 
-            @cls._app.route("/static/js/<filename>")
-            def js_cached_files(filename):
-                if filename in CACHED_JS_FILES:
-                    response = send_from_directory(join("static", "js"), filename)
-                    response.headers["Cache-Control"] = (
-                        f"public,max-age={CACHED_HEADER_DURATION_SEC},immutable"
-                    )
-                    return response
-
-                return send_from_directory(join("static", "js"), filename)
-
-            @cls._app.route("/static/css/<filename>")
-            def css_cached_files(filename):
-                if filename in CACHED_CSS_FILES:
-                    response = send_from_directory(join("static", "css"), filename)
-                    response.headers["Cache-Control"] = (
-                        f"public,max-age={CACHED_HEADER_DURATION_SEC},immutable"
-                    )
-                    return response
-
-                return send_from_directory(join("static", "css"), filename)
+            @cls._app.route('/static/<path:filename>')
+            def static_files(filename):
+                response = make_response(send_from_directory('static', filename))
+                response.headers['Cache-Control'] = f'public,max-age={CACHED_HEADER_DURATION_SEC}'
+                return response
 
             @cls._app.route("/api", methods=["GET", "POST"])
             @measure_latency_decorator(metrics=api_metrics)

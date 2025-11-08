@@ -43,6 +43,8 @@ class UvicornServer:
             server_header=False,
             proxy_headers=True,
             use_colors=False,
+            backlog=2048,
+            workers=1,
         )
         cls._server = uvicorn.Server(config=cls._config)
         cls._server.force_exit = True

@@ -1,0 +1,8 @@
+{% import '.global_versions.jinja2' as globals %}
+
+{% set bootstrap_css = "https://cdnjs.cloudflare.com/ajax/libs/bootstrap/" ~ globals.bootstrap_ver ~ "/css/bootstrap.min.css" %}
+{% set bootstrap_js = "https://cdnjs.cloudflare.com/ajax/libs/bootstrap/" ~ globals.bootstrap_ver ~ "/js/bootstrap.bundle.min.js" %}
+{% set fontawesome_css = "https://cdnjs.cloudflare.com/ajax/libs/font-awesome/" ~ globals.font_awesome_ver ~ "/css/all.min.css" %}
+{% set babel_js = "https://unpkg.com/@babel/standalone@" ~ globals.babel_ver ~ "/babel.min.js" %}
+{% set react_js = "https://unpkg.com/react@" ~ globals.react_ver ~ "/umd/react.production.min.js" %}
+{% set react_dom_js = "https://unpkg.com/react-dom@" ~ globals.react_ver ~ "/umd/react-dom.production.min.js" %}

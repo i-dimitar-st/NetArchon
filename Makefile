@@ -12,6 +12,16 @@ SCRIPTS := $(ROOT_PATH)/scripts
 APP := $(ROOT_PATH)/app
 APP_MAIN := app.main
 APP_NEURAL_NET := app.services.neural_net.neural_net
+STATIC_DIR := $(APP)/services/gui/static
+STATIC_JS := $(STATIC_DIR)/js
+STATIC_CSS := $(STATIC_DIR)/css
+STATIC_WEBFONTS := $(STATIC_DIR)/webfonts
+
+BOOTSTRAP_VER := 5.3.0
+REACT_VER := 18.2.0
+BABEL_VER := 7.23.9
+FONTAWESOME_VER := 6.4.0
+
 
 .PHONY: set_net \
         install \
@@ -65,6 +75,27 @@ del_cache:
 
 train:
 	@PYTHONPATH=$(ROOT_PATH) ROOT_PATH=$(ROOT_PATH) $(VENV_PYTHON) -m $(APP_NEURAL_NET)
+
+download_static:
+	mkdir -p $(STATIC_JS) $(STATIC_CSS) $(STATIC_WEBFONTS)
+	# Bootstrap
+	curl -L -o $(STATIC_JS)/bootstrap.bundle.min.v$(BOOTSTRAP_VER).js https://cdnjs.cloudflare.com/ajax/libs/bootstrap/$(BOOTSTRAP_VER)/js/bootstrap.bundle.min.js
+	curl -L -o $(STATIC_CSS)/bootstrap.min.v$(BOOTSTRAP_VER).css https://cdnjs.cloudflare.com/ajax/libs/bootstrap/$(BOOTSTRAP_VER)/css/bootstrap.min.css
+
+	# React + Babel
+	curl -L -o $(STATIC_JS)/react.production.min.v$(REACT_VER).js https://unpkg.com/react@$(REACT_VER)/umd/react.production.min.js
+	curl -L -o $(STATIC_JS)/react-dom.production.min.v$(REACT_VER).js https://unpkg.com/react-dom@$(REACT_VER)/umd/react-dom.production.min.js
+	curl -L -o $(STATIC_JS)/babel.min.v$(BABEL_VER).js https://unpkg.com/@babel/standalone@$(BABEL_VER)/babel.min.js
+
+	# Font Awesome
+	curl -L -o $(STATIC_CSS)/fontawesome.all.min.v$(FONTAWESOME_VER).css https://cdnjs.cloudflare.com/ajax/libs/font-awesome/$(FONTAWESOME_VER)/css/all.min.css
+	curl -L -o $(STATIC_WEBFONTS)/fa-solid-900.woff2 https://cdnjs.cloudflare.com/ajax/libs/font-awesome/$(FONTAWESOME_VER)/webfonts/fa-solid-900.woff2
+	curl -L -o $(STATIC_WEBFONTS)/fa-regular-400.woff2 https://cdnjs.cloudflare.com/ajax/libs/font-awesome/$(FONTAWESOME_VER)/webfonts/fa-regular-400.woff2
+	curl -L -o $(STATIC_WEBFONTS)/fa-brands-400.woff2 https://cdnjs.cloudflare.com/ajax/libs/font-awesome/$(FONTAWESOME_VER)/webfonts/fa-brands-400.woff2
+	curl -L -o $(STATIC_WEBFONTS)/fa-solid-900.woff https://cdnjs.cloudflare.com/ajax/libs/font-awesome/$(FONTAWESOME_VER)/webfonts/fa-solid-900.woff
+	curl -L -o $(STATIC_WEBFONTS)/fa-regular-400.woff https://cdnjs.cloudflare.com/ajax/libs/font-awesome/$(FONTAWESOME_VER)/webfonts/fa-regular-400.woff
+	curl -L -o $(STATIC_WEBFONTS)/fa-brands-400.woff https://cdnjs.cloudflare.com/ajax/libs/font-awesome/$(FONTAWESOME_VER)/webfonts/fa-brands-400.woff
+
 
 run:
 	@echo "Not configured yet"

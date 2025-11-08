@@ -11,3 +11,4 @@ uvicorn==0.23.3
 asgiref==3.9.1
 cachetools==6.1.0
 watchdog==6.0.0
+waitress==3.0.2

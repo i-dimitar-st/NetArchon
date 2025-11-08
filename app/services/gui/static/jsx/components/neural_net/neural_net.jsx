@@ -170,10 +170,10 @@ function ActionsTab({ token, dnsHistory, predictions, setPredictions, setBlackli
 function AddToDomainModal({ showModal, onClose, domain, setDomain, onAdd, title, color = 'danger' }) {
     const [isValid, setIsValid] = useState(false);
     const inputRef = useRef(null);
-    const regex = /^(?:[a-zA-Z0-9\-]+\.)+[a-zA-Z]{2,}$/;
+    const isDomanRegex = /^(?:[a-zA-Z0-9\-]+\.)+[a-zA-Z]{2,}$/;
 
     useEffect(() => {
-        setIsValid(domain.trim().length > 0 && regex.test(domain.trim().toLowerCase()));
+        setIsValid(domain.trim().length > 0 && isDomanRegex.test(domain.trim().toLowerCase()));
     }, [domain]);
 
     useEffect(() => {
@@ -183,7 +183,7 @@ function AddToDomainModal({ showModal, onClose, domain, setDomain, onAdd, title,
     if (!showModal) return null;
 
     return (
-        <div className="modal fade show d-block" style={{ backgroundColor: 'rgba(0,0,0,0.5)' }} onClick={onClose}>
+        <div className="modal fade show d-block" style={{ backgroundColor: 'var(--hover-bg)' }} onClick={onClose}>
             <div className="modal-dialog modal-dialog-centered" onClick={(e) => e.stopPropagation()}>
                 <div className="modal-content">
                     <div className="modal-header">
@@ -222,12 +222,13 @@ function BlacklistTab({ token, blacklists, setBlacklists }) {
     const [loading, setLoading] = useState(false);
     const [search, setSearch] = useState('');
 
-    const handleRemove = async (d) => {
-        if (!confirm(`Remove ${d}?`)) return;
+    const handleRemove = async (domain) => {
+        if (!confirm(`Remove ${domain}?`)) return;
         setLoading(true);
         try {
-            await fetcher({ token, category: 'blacklist', type: 'remove', payload: d });
-            setBlacklists((prev) => prev.filter((x) => x !== d));
+            await fetcher({ token, category: 'blacklist', type: 'remove', payload: domain });
+            setBlacklists((prev) => prev.filter((x) => x !== domain));
+            console.info(`${domain} removed from blacklists`);
         } catch (err) {
             console.error(err);
         } finally {
@@ -237,15 +238,13 @@ function BlacklistTab({ token, blacklists, setBlacklists }) {
 
     const filtered = useMemo(() => {
         if (!search) return blacklists;
-        const q = search.toLowerCase();
-        return blacklists.filter((d) => d.toLowerCase().includes(q));
+        return blacklists.filter((domain) => domain.toLowerCase().includes(search.toLowerCase()));
     }, [blacklists, search]);
 
     return (
-        <div className="p-0">
+        <div>
             <LoadingOverlay visible={loading} />
-
-            <div className="input-group p-2">
+            <div className="input-group p-3">
                 <input
                     type="text"
                     className="form-control"
@@ -256,19 +255,20 @@ function BlacklistTab({ token, blacklists, setBlacklists }) {
             </div>
 
             {filtered.length === 0 ? (
-                <div className="text-muted text-center py-5">
-                    {search ? 'No matches found' : 'No blacklisted domains'}
-                </div>
+                <div className="text-muted text-center py-4">No blacklisted domains</div>
             ) : (
-                filtered.map((d, i) => (
-                    <div key={i} className="d-flex justify-content-between px-3 py-2 border-bottom align-items-center">
-                        <span title={d} className="text-truncate">
-                            {d}
+                filtered.map((domain, index) => (
+                    <div
+                        key={index}
+                        className="d-flex justify-content-between px-3 py-2 border-bottom align-items-center"
+                    >
+                        <span title={domain} className="text-truncate">
+                            {domain}
                         </span>
                         <button
                             className="btn btn-sm btn-outline-danger"
                             disabled={loading}
-                            onClick={() => handleRemove(d)}
+                            onClick={() => handleRemove(domain)}
                         >
                             Remove
                         </button>
@@ -305,8 +305,7 @@ function WhitelistTab({ token, whitelists, setWhitelists }) {
     return (
         <div className="p-0">
             <LoadingOverlay visible={loading} />
-
-            <div className="input-group p-2">
+            <div className="input-group p-3">
                 <input
                     type="text"
                     className="form-control"
@@ -353,14 +352,12 @@ function HistoryTab({
     const [sortKey, setSortKey] = useState('query');
     const [sortAsc, setSortAsc] = useState(true);
 
-    // Map predictions for fast lookup
     const predictionMap = useMemo(() => {
         const map = new Map();
         predictions.forEach(({ domain, probability }) => map.set(domain, probability));
         return map;
     }, [predictions]);
 
-    // Prepare displayed history: filter + map prediction
     const displayedHistory = useMemo(() => {
         let list = dnsHistory.map((item) => ({
             ...item,
@@ -446,21 +443,19 @@ function HistoryTab({
     };
 
     return (
-        <div className="container-fluid p-0">
-            <div className="row mb-3">
-                <div className="col-md-6">
-                    <input
-                        type="text"
-                        className="form-control mx-2"
-                        placeholder="Filter by domain..."
-                        value={filterText}
-                        onChange={(e) => setFilterText(e.target.value)}
-                    />
-                </div>
+        <div className="p-0">
+            <div className="input-group p-3">
+                <input
+                    type="text"
+                    className="form-control"
+                    placeholder="Filter by domain..."
+                    value={filterText}
+                    onChange={(e) => setFilterText(e.target.value)}
+                />
             </div>
-            <div className="table-responsive">
-                <table className="table table-hover align-middle p-0 m-0">
-                    <thead className="table-light sticky-top">
+            <div className="table-responsive m-2 p-2">
+                <table className="table table-hover align-middle">
+                    <thead className="sticky-top">
                         <tr>
                             <th>
                                 <button className="btn p-0" onClick={() => toggleSort('query')}>
@@ -478,7 +473,7 @@ function HistoryTab({
                     <tbody>
                         {displayedHistory.length === 0 ? (
                             <tr>
-                                <td colSpan="3" className="text-center text-muted py-2">
+                                <td colSpan="3" className="text-center text-muted">
                                     {filterText ? 'No results found' : 'No DNS history available'}
                                 </td>
                             </tr>
@@ -490,9 +485,9 @@ function HistoryTab({
 
                                 return (
                                     <tr key={i} className={`${getRowClass(item.query)} cursor-pointer`}>
-                                        <td>{item.query}</td>
+                                        <td className="text-start px-1 py-1">{item.query}</td>
                                         <td className="text-center">
-                                            <span className={`badge ${color} px-1 py-1`}>
+                                            <span className={`badge ${color} px-1 py-1 text-capitalize fs-6`}>
                                                 {label} {item.prediction.toFixed(2)}
                                             </span>
                                         </td>
@@ -505,7 +500,6 @@ function HistoryTab({
                                                     De-Blacklist
                                                 </button>
                                             )}
-
                                             {isWhitelisted && (
                                                 <button
                                                     className="btn btn-sm btn-outline-success"
@@ -604,6 +598,7 @@ function NeuralNet({ token }) {
 
                 const data = json.payload || [];
                 setDnsHistory(data.map((item) => ({ ...item, prediction: 0.5 })));
+                console.info('Dns history fetched');
             } catch (err) {
                 console.error(err);
             } finally {
@@ -652,14 +647,14 @@ function NeuralNet({ token }) {
     ];
 
     return (
-        <div className="container py-4">
+        <>
             <div className="card">
+                <LoadingOverlay visible={loading} />
                 <CardHeader title="Neural Net" subtitle="Neural Net powered threat detection" />
                 <TabList tabs={tabs} activeIndex={activeIndex} setActiveIndex={setActiveIndex} />
                 <TabContent component={tabs[activeIndex].component} />
             </div>
-
             <div id="modal-root"></div>
-        </div>
+        </>
     );
 }

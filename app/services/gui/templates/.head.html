@@ -1,29 +1,23 @@
+{% import '.deps_external.jinja2' as deps %}
+{% import '.deps_internal.jinja2' as deps_int %}
+
 <head>
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <meta name="description" content="NetArchon — a tool for managing your own network." />
+
     <title>{{ active_page | title }}</title>
-    <link rel="icon" href="{{ url_for('static', filename='favicon.svg') }}" type="image/svg+xml" />
-    {#
-    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/bootstrap/5.3.0/css/bootstrap.min.css" />
-    #}
 
-    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css" />
-    <link rel="stylesheet" href="{{ url_for('static', filename='css/bootstrap.min.css') }}" />
-    <link rel="stylesheet" href="{{ url_for('static', filename='css/styles.css') }}" />
+    <link rel="icon" href="{{ deps_int.favicon_url }}" type="image/svg+xml" />
+    <link rel="stylesheet" href="{{ deps_int.style_css }}" />
+    <link rel="stylesheet" href="{{ deps.bootstrap_css }}" />
+    <link rel="stylesheet" href="{{ deps.fontawesome_css }}" />
 
-    {#
-    <script src="https://cdnjs.cloudflare.com/ajax/libs/bootstrap/5.3.0/js/bootstrap.bundle.min.js"></script>
-    <script src="https://unpkg.com/react@18/umd/react.production.min.js" crossorigin></script>
-    <script src="https://unpkg.com/react-dom@18/umd/react-dom.production.min.js" crossorigin></script>
-    <script src="https://unpkg.com/@babel/standalone/babel.min.js" crossorigin></script> #}
+    <script src="{{ deps.bootstrap_js }}"></script>
+    <script src="{{ deps.babel_js }}"></script>
+    <script src="{{ deps.react_js }}"></script>
+    <script src="{{ deps.react_dom_js }}"></script>
 
-
-    <script src="{{ url_for('static', filename='js/bootstrap.bundle.min.js') }}"></script>
-    <script src="{{ url_for('static', filename='js/react.production.min.js') }}"></script>
-    <script src="{{ url_for('static', filename='js/react-dom.production.min.js') }}"></script>
-    <script src="{{ url_for('static', filename='js/babel.min.js') }}"></script>
-
-    <script type="text/babel" src="{{ url_for('static', filename='jsx/components/common/helpers.js') }}"></script>
-    <script type="text/babel" src="{{ url_for('static', filename='jsx/components/common/common.jsx') }}"></script>
-
+    <script src="{{ deps_int.helpers_js }}"></script>
+    <script type="text/babel" src="{{ deps_int.common_jsx }}"></script>
 </head>

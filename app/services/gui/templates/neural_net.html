@@ -1,26 +1,23 @@
+{% from '.deps_internal_jsx.jinja2' import neural_net_jsx %}
 {% extends "base.html" %}
 
 {% block body %}
 
-<div id="react-app-neural-net"></div>
+<div id="app"></div>
 
-<script type="text/babel" src="{{ url_for('static', filename='jsx/components/neural_net/neural_net.jsx') }}"></script>
-</script>
-
+<script type="text/babel" src="{{ neural_net_jsx }}"></script>
 <script type="text/babel">
     const token = "{{ session['bearer_token_hash'] }}";
     function App({ token }) {
         return (
             <div className="container py-4">
-                <div className="row g-4">
-                    <NeuralNet token={token} />
-                </div>
+                <NeuralNet token={token} />
             </div>
         );
     }
-
     ReactDOM
-        .createRoot(document.getElementById("react-app-neural-net"))
+        .createRoot(document.getElementById("app"))
         .render(<App token={token} />);
 </script>
+
 {% endblock %}

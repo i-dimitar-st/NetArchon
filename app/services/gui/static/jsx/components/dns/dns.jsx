@@ -90,13 +90,13 @@ function DnsHistory({ token }) {
     }, [token]);
 
     return (
-        <div className="card-body p-0">
+        <>
             <LoadingOverlay visible={loading} />
-
-            <div className="input-group py-4 px-4">
+            <div className="input-group p-3">
                 <input
+                    id="dns-history-find-domain"
                     type="text"
-                    className="form-control border-0 border-top border-bottom rounded-start"
+                    className="form-control border-top border-bottom rounded-start"
                     placeholder="Find domain..."
                     value={filter}
                     onChange={(e) => setFilter(e.target.value)}
@@ -108,7 +108,7 @@ function DnsHistory({ token }) {
 
             <div className="table-responsive">
                 <table className="table table-sm table-hover align-middle text-nowrap text-center p-0">
-                    <thead className="table-light sticky-top">
+                    <thead className="sticky-top">
                         <tr>
                             <th
                                 className="small text-muted text-capitalize"
@@ -153,7 +153,7 @@ function DnsHistory({ token }) {
                     </tbody>
                 </table>
             </div>
-        </div>
+        </>
     );
 }
 
@@ -182,7 +182,7 @@ function DnsStats() {
     }, [token]);
 
     return (
-        <div className="card-body p-3">
+        <div className="p-3">
             <LoadingOverlay visible={loading} />
             {!loading &&
                 Object.entries(stats)
@@ -190,7 +190,7 @@ function DnsStats() {
                     .filter(([key, value]) => filterUnnendedStats(key))
                     .filter(([key, value]) => !isTimestamp(key))
                     .map(([key, value]) => {
-                        const widthPercent = Math.min(parseInt((value / maxValue) * 100), 100) + '%';
+                        const widthPercent = Math.min(parseInt((value / maxValue) * 100), 100);
                         return (
                             <div key={key} className="mb-2">
                                 <div className="d-flex justify-content-between align-items-center">
@@ -198,10 +198,9 @@ function DnsStats() {
                                         {formatStatsKey(key)}
                                     </div>
                                     <div>
-                                        <span title={value} className="fw-semibold small">
-                                            {parseInt((value / maxValue) * 100)}
+                                        <span title={value} className="fw-semibold">
+                                            {parseInt(value)}
                                         </span>
-                                        <span className="small text-muted ms-1">%</span>
                                     </div>
                                 </div>
                                 {maxValue > 0 && (
@@ -209,11 +208,13 @@ function DnsStats() {
                                         <div
                                             className="progress-bar"
                                             role="progressbar"
-                                            style={{ width: widthPercent }}
+                                            style={{ width: `${widthPercent}%` }}
                                             aria-valuenow={parseInt(value)}
                                             aria-valuemin="0"
                                             aria-valuemax={parseInt(maxValue)}
-                                        ></div>
+                                        >
+                                            {parseInt(widthPercent)}%
+                                        </div>
                                     </div>
                                 )}
                             </div>

@@ -653,11 +653,21 @@ def get_metrics() -> list[dict]:
 
 
 def _is_online(host: str = PING_HOST, port: int = PING_PORT, timeout: float = PING_TIMEOUT) -> bool:
+    """
+    Check if a host is reachable on a given TCP port.
+    Attempts to establish a TCP connection to the specified host and port
+    within the given timeout.
+    Args:
+        host(str): Hostname or IP address to check. Defaults to PING_HOST.
+        port(int): TCP port to connect to. Defaults to PING_PORT.
+        timeout (float): Connection timeout in seconds. Defaults to PING_TIMEOUT.
+    Returns:
+        bool: True if the host is reachable, False otherwise.
+    """
     try:
-        _socket = socket(AF_INET, SOCK_STREAM)
-        _socket.settimeout(timeout)
-        _socket.connect((host, port))
-        _socket.close()
+        with socket(AF_INET, SOCK_STREAM) as _socket:
+            _socket.settimeout(timeout)
+            _socket.connect((host, port))
         return True
     except Exception:
         return False

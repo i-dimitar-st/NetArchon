@@ -1,23 +1,23 @@
+{% from '.deps_internal_jsx.jinja2' import dashboard_jsx %}
 {% extends "base.html" %}
 
 {% block body %}
 
+<div id="app"></div>
 
-<div id="react-dashboard-app"></div>
-
-<script type="text/babel" src="{{ url_for('static', filename='jsx/components/dashboard/dashboard.jsx') }}"></script>
+<script type="text/babel" src="{{ dashboard_jsx }}"></script>
 <script type="text/babel">
     const token = "{{ session['bearer_token_hash'] }}";
     function App({ token }) {
         return (
             <div className="container py-4">
-                <div className="row g-4">
-                    <Dashboard token={token} />
-                </div>
+                <Dashboard token={token} />
             </div>
         );
     }
-    ReactDOM.createRoot(document.getElementById('react-dashboard-app')).render(<App token={token} />);
+    ReactDOM
+        .createRoot(document.getElementById('app'))
+        .render(<App token={token} />);
 </script>
 
 {% endblock %}

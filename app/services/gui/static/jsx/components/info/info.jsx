@@ -169,7 +169,7 @@ function ActiveContent({ data, activeTabName }) {
     const stats = getStatsFromActiveTabName({ activeTabName, data });
     return (
         <div className="mt-3">
-            <div className="row g-2 mb-3">
+            <div className="row g-2 my-2">
                 <StatCard label={stats.min.label} value={stats.min.value} unit={stats.min.unit} />
                 <StatCard label={stats.avg.label} value={stats.avg.value} unit={stats.avg.unit} />
                 <StatCard label={stats.max.label} value={stats.max.value} unit={stats.max.unit} />
@@ -214,8 +214,8 @@ function ActiveTabsButton({ tabKey, index, activeIndex, setActiveIndex }) {
 function ActiveTabs({ keys, activeIndex, setActiveIndex }) {
     if (!keys.length) return null;
     return (
-        <div className="border-bottom">
-            <ul role="tablist" className="nav nav-tabs border-0 px-2 pt-1">
+        <div>
+            <ul role="tablist" className="nav nav-tabs">
                 {keys.map((tabKey, index) => (
                     <li key={tabKey} role="presentation" className="nav-item">
                         <ActiveTabsButton
@@ -263,10 +263,12 @@ function Info({ token }) {
         <div className="card">
             <LoadingOverlay visible={loading} />
             <CardHeader title="System Info" subtitle="Detailed System Information" />
-            <div className="card-body">
-                <ActiveTabs keys={keys} activeIndex={activeIndex} setActiveIndex={setActiveIndex} />
-                <ActiveContent data={data[keys[activeIndex]]} activeTabName={activeTabName} />
-            </div>
+            {keys && keys.length > 0 && (
+                <>
+                    <ActiveTabs keys={keys} activeIndex={activeIndex} setActiveIndex={setActiveIndex} />
+                    <ActiveContent data={data[keys[activeIndex]]} activeTabName={activeTabName} />
+                </>
+            )}
         </div>
     );
 }

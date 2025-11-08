@@ -1,24 +1,23 @@
+{% from '.deps_internal_jsx.jinja2' import logs_jsx %}
 {% extends "base.html" %}
 
 {% block body %}
 
+<div id="app"></div>
 
-<div id="react-app-logs"></div>
-
-<script type="text/babel" src="{{ url_for('static', filename='jsx/components/logs/logs.jsx') }}"></script>
+<script type="text/babel" src="{{ logs_jsx }}"></script>
 <script type="text/babel">
     const token = "{{ session['bearer_token_hash'] }}";
     function App({ token }) {
         return (
             <div className="container py-4">
-                <div className="row g-4">
-                    <Logs token={token} />
-                </div>
+                <Logs token={token} />
             </div>
         )
     }
     ReactDOM
-        .createRoot(document.getElementById('react-app-logs'))
+        .createRoot(document.getElementById('app'))
         .render(<Logs token={token} />);
 </script>
+
 {% endblock %}

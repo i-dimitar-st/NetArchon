@@ -1,25 +1,21 @@
-function DashboardCard({ title, data = {} }) {
-    return (
-        <div className="card">
-            <div className="card-header">
-                <h6>{formatStatsKey(title)}</h6>
-            </div>
+const { useState, useEffect } = React;
 
-            <div className="card-body p-3">
-                {Object.entries(data).map(([key, value]) => {
-                    return (
-                        <div key={key} className="d-flex justify-content-between align-items-start">
-                            <div className="text-muted text-uppercase small">{formatStatsKey(key)}</div>
-                            <div className="d-flex justify-content-between align-items-end">
-                                <div className="fw-semibold">{value.value}</div>
-                                <div className="text-muted text-uppercase small ms-2" style={{ minWidth: '40px' }}>
-                                    {value.unit}
-                                </div>
+function DashboardCard({ data = {} }) {
+    return (
+        <div className="card-body">
+            {Object.entries(data).map(([key, value]) => {
+                return (
+                    <div key={key} className="d-flex justify-content-between align-items-start">
+                        <div className="text-muted text-uppercase small">{formatStatsKey(key)}</div>
+                        <div className="d-flex justify-content-between align-items-end">
+                            <div className="fw-semibold">{value.value}</div>
+                            <div className="text-muted text-uppercase small ms-2" style={{ minWidth: '40px' }}>
+                                {value.unit}
                             </div>
                         </div>
-                    );
-                })}
-            </div>
+                    </div>
+                );
+            })}
         </div>
     );
 }
@@ -27,6 +23,7 @@ function DashboardCard({ title, data = {} }) {
 function Dashboard({ token }) {
     const { useState, useEffect } = React;
     const [dashboardData, setDashboardData] = useState({});
+    const [activeIndex, setActiveIndex] = useState(0);
     const [loading, setLoading] = useState(true);
 
     useEffect(() => {
@@ -35,8 +32,10 @@ function Dashboard({ token }) {
             try {
                 const res = await fetcher({ token, type: 'get-dashboard-cards' });
                 const { payload, success } = await res.json();
+
                 if (!success) throw new Error('Could not fetch data');
                 if (!payload) throw new Error('Data not JSON');
+
                 setDashboardData(payload || {});
                 console.info('Dashboard card data fetched.');
             } catch (err) {
@@ -48,14 +47,23 @@ function Dashboard({ token }) {
         fetchData();
     }, [token]);
 
+    const tabs = Object.entries(dashboardData || {}).map(([key, value]) => ({
+        label: key,
+        component: <DashboardCard data={value} />,
+    }));
+
+    const activeTab = tabs[activeIndex];
+
     return (
-        <>
-            {Object.entries(dashboardData).map(([title, cardData]) => (
-                <div className="col-md-6 col-lg-4" key={title}>
-                    <LoadingOverlay visible={loading} />
-                    <DashboardCard title={title} data={cardData} />
-                </div>
-            ))}
-        </>
+        <div className="card">
+            <LoadingOverlay visible={loading} />
+            <CardHeader title="Dashboard" subtitle="System Summaries" />
+            {tabs.length > 0 && (
+                <>
+                    <TabList tabs={tabs} activeIndex={activeIndex} setActiveIndex={setActiveIndex} />
+                    <TabContent component={activeTab.component} />
+                </>
+            )}
+        </div>
     );
 }
