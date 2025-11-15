@@ -1,4 +1,4 @@
-{% from '.global_versions.jinja2' import int_live_ver %}
+{% from 'macros/versions.jinja2' import int_live_ver %}
 
 {% set dashboard_jsx    = url_for('static_files', filename='jsx/components/dashboard/dashboard.jsx', v=int_live_ver) %}
 {% set config_jsx       = url_for('static_files', filename='jsx/components/config/config.jsx', v=int_live_ver) %}

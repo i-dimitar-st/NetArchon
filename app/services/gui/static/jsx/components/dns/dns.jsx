@@ -8,7 +8,8 @@ function DnsActions({ token }) {
         if (!confirm('Are you sure you want to clear DNS query history?')) return;
         try {
             setLoading(true);
-            const res = await fetcher({ token, category: 'dns-history', type: 'clear', payload: null });
+            const reqBody = { category: 'dns', type: 'clear', payload: null };
+            const res = await fetcher({ token, body: reqBody });
             if (!res.ok) throw new Error('Server error');
             const jsonRes = await res.json();
             if (!jsonRes.success) throw new Error(jsonRes.error || 'Unknown error');
@@ -74,7 +75,8 @@ function DnsHistory({ token }) {
         const fetchData = async () => {
             setLoading(true);
             try {
-                const res = await fetcher({ token, category: 'dns-history', type: 'get' });
+                const reqBody = { category: 'dns', type: 'get', resource: 'history' };
+                const res = await fetcher({ token, body: reqBody });
                 const { payload, success } = await res.json();
                 if (!success) throw new Error('Could not fetch data');
                 setHistory(payload || []);
@@ -166,7 +168,8 @@ function DnsStats() {
         const fetchStats = async () => {
             setLoading(true);
             try {
-                const res = await fetcher({ token, category: 'dns_history', type: 'get-stats' });
+                const reqBody = { category: 'dns', type: 'get', resource: 'stats' };
+                const res = await fetcher({ token, body: reqBody });
                 const { payload, success } = await res.json();
                 if (!success) throw new Error('Could not fetch DNS stats');
                 setStats(payload || {});

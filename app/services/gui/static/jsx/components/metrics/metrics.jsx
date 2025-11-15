@@ -121,7 +121,8 @@ function Metrics({ token }) {
         const getMetrics = async () => {
             setLoading(true);
             try {
-                const res = await fetcher({ token, category: 'metrics', type: 'get' });
+                const reqBody = { category: 'metrics', type: 'get' };
+                const res = await fetcher({ token, body: reqBody });
                 const json = await res.json();
 
                 if (!json.success) throw new Error('Could not fetch metrics');

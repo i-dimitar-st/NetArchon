@@ -13,7 +13,8 @@ function ActionsTab({ token, dnsHistory, predictions, setPredictions, setBlackli
     const handleTrainModel = async () => {
         setTrainingStatus('Starting...');
         try {
-            const res = await fetcher({ token, category: 'neural-net', type: 'train-new-model', timeout: 600_000 });
+            const reqBody = { category: 'neural-net', type: 'train', timeout: 600_000 };
+            const res = await fetcher({ token, body: reqBody });
             if (!res.ok) throw new Error('Failed to start training');
 
             const reader = res.body.getReader();
@@ -57,12 +58,9 @@ function ActionsTab({ token, dnsHistory, predictions, setPredictions, setBlackli
     const handlePredict = async () => {
         setPredictions(['Predicting...']);
         try {
-            const res = await fetcher({
-                token,
-                category: 'neural-net',
-                type: 'predict',
-                payload: dnsHistory.map((item) => item.query),
-            });
+            const reqBody = { category: 'neural-net', type: 'predict', payload: dnsHistory.map((item) => item.query) };
+            const res = await fetcher({ token, body: reqBody });
+
             const json = await res.json();
 
             if (!json.success) throw new Error('Could not fetch predictions');
@@ -79,7 +77,8 @@ function ActionsTab({ token, dnsHistory, predictions, setPredictions, setBlackli
     const handleClear = async () => {
         if (!confirm('Clear DNS history?')) return;
         try {
-            const res = await fetcher({ token, category: 'dns-history', type: 'clear' });
+            const reqBody = { category: 'dns', type: 'clear' };
+            const res = await fetcher({ token, body: reqBody });
             if (!res.ok) throw new Error('Server error');
             const data = await res.json();
             if (!data.success) throw new Error('Failed to clear history');
@@ -91,7 +90,8 @@ function ActionsTab({ token, dnsHistory, predictions, setPredictions, setBlackli
 
     const handleFetchTimestamp = async () => {
         try {
-            const res = await fetcher({ token, category: 'neural-net', type: 'get-model-age' });
+            const reqBody = { category: 'neural-net', type: 'get', resource: 'model-age' };
+            const res = await fetcher({ token, body: reqBody });
             if (!res.ok) throw new Error('Server error');
             const data = await res.json();
             if (data?.payload?.timestamp) setLastUpdated(data.payload.timestamp);
@@ -100,15 +100,15 @@ function ActionsTab({ token, dnsHistory, predictions, setPredictions, setBlackli
         }
     };
 
-    const handleAddDomain = async (d) => {
+    const handleAddDomain = async (domain) => {
         setLoading(true);
         try {
             if (modalType === 'blacklist') {
-                await fetcher({ token, category: 'blacklist', type: 'add', payload: d });
-                setBlacklists((prev) => [...prev, d]);
+                await fetcher({ token, body: { category: 'blacklist', type: 'add', payload: domain } });
+                setBlacklists((prev) => [...prev, domain]);
             } else {
-                await fetcher({ token, category: 'whitelist', type: 'add', payload: d });
-                setWhitelists((prev) => [...prev, d]);
+                await fetcher({ token, body: { category: 'whitelist', type: 'add', payload: domain } });
+                setWhitelists((prev) => [...prev, domain]);
             }
             setDomain('');
             setShowModal(false);
@@ -226,7 +226,8 @@ function BlacklistTab({ token, blacklists, setBlacklists }) {
         if (!confirm(`Remove ${domain}?`)) return;
         setLoading(true);
         try {
-            await fetcher({ token, category: 'blacklist', type: 'remove', payload: domain });
+            const reqBody = { category: 'blacklist', type: 'remove', payload: domain };
+            await fetcher({ token, body: reqBody });
             setBlacklists((prev) => prev.filter((x) => x !== domain));
             console.info(`${domain} removed from blacklists`);
         } catch (err) {
@@ -287,7 +288,8 @@ function WhitelistTab({ token, whitelists, setWhitelists }) {
         if (!confirm(`Remove ${d}?`)) return;
         setLoading(true);
         try {
-            await fetcher({ token, category: 'whitelist', type: 'remove', payload: d });
+            const reqBody = { category: 'whitelist', type: 'remove', payload: d };
+            await fetcher({ token, body: reqBody });
             setWhitelists((prev) => prev.filter((x) => x !== d));
         } catch (err) {
             console.error(err);
@@ -408,7 +410,8 @@ function HistoryTab({
 
     const handleAddBlacklist = async (domain) => {
         try {
-            await fetcher({ token, category: 'blacklist', type: 'add', payload: domain });
+            const reqBody = { category: 'blacklist', type: 'add', payload: domain };
+            await fetcher({ token, body: reqBody });
             setBlacklists((prev) => [...prev, domain]);
         } catch (err) {
             console.error(err);
@@ -417,7 +420,8 @@ function HistoryTab({
 
     const handleRemoveBlacklist = async (domain) => {
         try {
-            await fetcher({ token, category: 'blacklist', type: 'remove', payload: domain });
+            const reqBody = { category: 'blacklist', type: 'remove', payload: domain };
+            await fetcher({ token, body: reqBody });
             setBlacklists((prev) => prev.filter((d) => d !== domain));
         } catch (err) {
             console.error(err);
@@ -426,7 +430,8 @@ function HistoryTab({
 
     const handleAddWhitelist = async (domain) => {
         try {
-            await fetcher({ token, category: 'whitelist', type: 'add', payload: domain });
+            const reqBody = { category: 'whitelist', type: 'add', payload: domain };
+            await fetcher({ token, body: reqBody });
             setWhitelists((prev) => [...prev, domain]);
         } catch (err) {
             console.error(err);
@@ -435,7 +440,8 @@ function HistoryTab({
 
     const handleRemoveWhitelist = async (domain) => {
         try {
-            await fetcher({ token, category: 'whitelist', type: 'remove', payload: domain });
+            const reqBody = { category: 'whitelist', type: 'remove', payload: domain };
+            await fetcher({ token, body: reqBody });
             setWhitelists((prev) => prev.filter((d) => d !== domain));
         } catch (err) {
             console.error(err);
@@ -548,7 +554,8 @@ function NeuralNet({ token }) {
         const fetchBlacklists = async () => {
             setLoading(true);
             try {
-                const res = await fetcher({ token, type: 'get', category: 'blacklist' });
+                const reqBody = { category: 'blacklist', type: 'get' };
+                const res = await fetcher({ token, body: reqBody });
                 const json = await res.json();
 
                 if (!json.success) throw new Error('Could not fetch metrics');
@@ -569,10 +576,11 @@ function NeuralNet({ token }) {
         const fetchWhitelists = async () => {
             setLoading(true);
             try {
-                const res = await fetcher({ token, type: 'get', category: 'whitelist' });
+                const reqBody = { category: 'whitelist', type: 'get' };
+                const res = await fetcher({ token, body: reqBody });
                 const json = await res.json();
 
-                if (!json.success) throw new Error('Could not fetch metrics');
+                if (!json.success) throw new Error('Could not fetch whitelist');
                 if (!json.payload) throw new Error('Payload missing');
 
                 const data = json.payload || [];
@@ -590,7 +598,8 @@ function NeuralNet({ token }) {
         const fetchDnsHistory = async () => {
             setLoading(true);
             try {
-                const res = await fetcher({ token, type: 'get', category: 'dns-history' });
+                const reqBody = { category: 'dns', type: 'get', resource: 'history' };
+                const res = await fetcher({ token, body: reqBody });
                 const json = await res.json();
 
                 if (!json.success) throw new Error('Could not fetch metrics');

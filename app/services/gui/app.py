@@ -106,7 +106,7 @@ class App:
 
             @cls._app.before_request
             def require_session_and_validate():
-                if request.path.startswith("/static/"):
+                if request.path.startswith("/static"):
                     return
                 if "_csrf_token" not in session:
                     session["_csrf_token"] = generate_csrf_token()

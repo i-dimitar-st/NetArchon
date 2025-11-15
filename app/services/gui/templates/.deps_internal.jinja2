@@ -1,7 +1,0 @@
-{% from '.global_versions.jinja2' import int_static_ver, int_live_ver %}
-
-{% set favicon_url = url_for('static_files', filename='favicon.svg', v=int_static_ver) %}
-{% set style_css   = url_for('static_files', filename='css/styles.css', v=int_static_ver) %}
-
-{% set helpers_js  = url_for('static_files', filename='jsx/components/common/helpers.js', v=int_live_ver) %}
-{% set common_jsx  = url_for('static_files', filename='jsx/components/common/common.jsx', v=int_live_ver) %}

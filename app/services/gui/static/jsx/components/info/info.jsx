@@ -1,5 +1,19 @@
 const { useState, useEffect } = React;
 
+function getUnitFromLabel(label = '') {
+    label = label.toLowerCase();
+
+    if (label.includes('frequency')) return 'Hz';
+    if (label.includes('temperature') || label.includes('coretemp')) return '°C';
+    if (label.includes('memory') || label.includes('rss')) return 'MB';
+    if (label.includes('cpu')) return '%';
+    if (label.includes('load avg.core')) return '%';
+    if (label.includes('uptime')) return 'sec';
+    if (label.includes('disk') || label.includes('free') || label.includes('used')) return 'GB';
+    if (label.includes('packets') || label.includes('errors')) return 'qty';
+    return '';
+}
+
 function getStatsFromActiveTabName({ activeTabName, data }) {
     let stats;
     switch (activeTabName) {
@@ -123,22 +137,28 @@ function StatCard({ label, value, unit = '' }) {
 }
 
 function StatBar({ label, value, maxValue }) {
-    const percentage = Math.min((value / maxValue) * 100, 100);
+    console.info(label, value, maxValue);
+    const percentage = maxValue > 0 ? parseInt(Math.min((value / maxValue) * 100, 100)) : 0;
     return (
         <div className="mb-2">
             <div className="d-flex justify-content-between align-items-center">
-                <span className="text-uppercase text-muted small">{label.replaceAll('.', ' - ')}</span>
-                <span className="fs-5 fw-bold">{value}</span>
+                <span className="fw-medium text-muted small">{label}</span>
+                <div className="d-flex align-items-center gap-2">
+                    <span className="fs-5 fw-bold text-dark">{value}</span>
+                    <span className="text-muted small">{getUnitFromLabel(label)}</span>
+                </div>
             </div>
             <div className="progress">
                 <div
                     className="progress-bar"
                     role="progressbar"
                     style={{ width: `${percentage}%` }}
-                    aria-valuenow={value}
+                    aria-valuenow={percentage}
                     aria-valuemin="0"
                     aria-valuemax={maxValue}
-                />
+                >
+                    {percentage}%
+                </div>
             </div>
         </div>
     );
@@ -164,19 +184,19 @@ function flattenStats(obj, prefix = '') {
 }
 
 function ActiveContent({ data, activeTabName }) {
-    if (!data) return <div className="p-3 text-muted small">No data</div>;
+    if (!data) return <NoData />;
     const flat = flattenStats(data);
     const stats = getStatsFromActiveTabName({ activeTabName, data });
     return (
-        <div className="mt-3">
+        <div className="card-body">
             <div className="row g-2 my-2">
                 <StatCard label={stats.min.label} value={stats.min.value} unit={stats.min.unit} />
                 <StatCard label={stats.avg.label} value={stats.avg.value} unit={stats.avg.unit} />
                 <StatCard label={stats.max.label} value={stats.max.value} unit={stats.max.unit} />
             </div>
             <div>
-                {Object.entries(flat).map(([k, v], idx) => (
-                    <StatBar key={idx} label={k.replaceAll('_', ' ')} value={v} maxValue={stats.max.value} />
+                {Object.entries(flat).map(([key, value], idx) => (
+                    <StatBar key={idx} label={key.replaceAll('_', ' ')} value={value} maxValue={stats.max.value} />
                 ))}
             </div>
         </div>
@@ -241,7 +261,8 @@ function Info({ token }) {
         const fetchSystemStats = async () => {
             setLoading(true);
             try {
-                const res = await fetcher({ token, category: 'stats', type: 'get-system' });
+                const reqBody = { category: 'info', type: 'get', resource: 'system' };
+                const res = await fetcher({ token, body: reqBody });
                 const json = await res.json();
 
                 if (!json.success) throw new Error('Failed to fetch system stats');

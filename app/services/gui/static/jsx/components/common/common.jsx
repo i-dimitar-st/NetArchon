@@ -16,9 +16,7 @@ function LoadingOverlay({ visible }) {
 function NoData() {
     return (
         <div className="card-body text-center py-5">
-            <div className="text-muted mb-2">
-                <i className="bi bi-graph-up" style={{ fontSize: '3rem' }}></i>
-            </div>
+            <i className="bi bi-graph-up text-muted mb-3" style={{ fontSize: '3rem' }}></i>
             <p className="text-muted mb-0">No Data</p>
         </div>
     );
@@ -73,19 +71,15 @@ function TabContent({ component }) {
     return <div className="card-body p-0">{component}</div>;
 }
 
-function ActionRow({ label, onClick, status }) {
+function ActionRow({ label, onClick, status = 'Idle' }) {
     return (
         <div className="d-flex justify-content-between align-items-center px-4 py-2 border-bottom">
-            <button
-                className="btn btn-primary btn-sm rounded shadow-sm"
-                onClick={onClick}
-                style={{ minWidth: '110px', fontWeight: 500 }}
-            >
+            <button className="btn btn-primary btn-sm rounded-pill shadow-sm fw-medium text-nowrap" onClick={onClick}>
                 {label}
             </button>
             <span
-                className="badge rounded-pill bg-secondary text-truncate"
-                style={{ maxWidth: '120px', textAlign: 'center', fontWeight: 500 }}
+                className="badge rounded-pill bg-secondary text-truncate text-center d-inline-block"
+                style={{ maxWidth: '7.5rem' }}
             >
                 {status}
             </span>

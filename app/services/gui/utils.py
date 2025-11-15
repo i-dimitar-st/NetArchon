@@ -210,7 +210,10 @@ def generate_system_stats() -> dict:
             "name": {"value": process.name()},
             "status": {"value": process.status()},
             "started": {
-                "value": datetime.fromtimestamp(process.create_time()).strftime("%Y-%m-%d %H:%M:%S")
+                "value": datetime.fromtimestamp(process.create_time()).strftime(
+                    "%Y-%m-%d %H:%M:%S"
+                ),
+                "unit": "time",
             },
             "uptime": {"value": round(now - process.create_time(), 2), "unit": "sec"},
             "cpu": {"value": round(cpu_perc, 2), "unit": "%"},

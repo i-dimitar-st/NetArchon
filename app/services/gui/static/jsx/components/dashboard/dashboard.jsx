@@ -30,9 +30,9 @@ function Dashboard({ token }) {
         const fetchData = async () => {
             setLoading(true);
             try {
-                const res = await fetcher({ token, type: 'get-dashboard-cards' });
+                const reqBody = { type: 'get', resource: 'data', category: 'dashboard' };
+                const res = await fetcher({ token, body: reqBody });
                 const { payload, success } = await res.json();
-
                 if (!success) throw new Error('Could not fetch data');
                 if (!payload) throw new Error('Data not JSON');
 

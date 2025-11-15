@@ -28,7 +28,8 @@ function DhcpLeases({ token }) {
         const fetchLeases = async () => {
             setLoading(true);
             try {
-                const res = await fetcher({ token, category: 'dhcp_leases', type: 'get' });
+                const reqBody = { category: 'dhcp', type: 'get', resource: 'leases' };
+                const res = await fetcher({ token, body: reqBody });
                 const { payload, success } = await res.json();
                 if (!success) throw new Error('Could not fetch DHCP leases');
                 setLeases(payload || []);
@@ -120,7 +121,8 @@ function DhcpStats({ token }) {
         const fetchStats = async () => {
             setLoading(true);
             try {
-                const res = await fetcher({ token, category: 'dhcp_leases', type: 'get-stats' });
+                const reqBody = { category: 'dhcp', type: 'get', resource: 'stats' };
+                const res = await fetcher({ token, body: reqBody });
                 const { payload, success } = await res.json();
                 if (!success) throw new Error('Could not fetch DHCP stats');
                 setStats(payload || {});
