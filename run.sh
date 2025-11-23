@@ -1,11 +1,12 @@
 #!/bin/bash
 
+ # exit on error, unset var, or failed pipeline
 set -euo pipefail
 
 ROOT_PATH="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 PYTHONPATH=$ROOT_PATH
 VENV_BINARY=$ROOT_PATH/venv/bin/python
-APP_MAIN=app.main
+APP_MAIN=src.main
 
 # -B => no pyc files
 # -u => unbuffered

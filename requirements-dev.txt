@@ -1,4 +1,4 @@
-debugpy==1.8.14
-pytest == 8.4.1
-isort
-flake8
+ruff==0.14.6
+debugpy==1.8.17
+pytest==9.0.1
+objgraph==3.5.0

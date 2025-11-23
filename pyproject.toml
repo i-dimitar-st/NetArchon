@@ -1,15 +1,54 @@
-[tool.black]
-line-length = 100
-skip-string-normalization = true
-target-version = ['py312']
+[tool.ruff]
 
-[tool.isort]
-combine_as_imports = true
-force_grid_wrap = 0
-include_trailing_comma = true
-line_length = 100
-multi_line_output = 3
-profile = "black"
+exclude = [
+    ".bzr",
+    ".direnv",
+    ".eggs",
+    ".git",
+    ".git-rewrite",
+    ".hg",
+    ".ipynb_checkpoints",
+    ".mypy_cache",
+    ".nox",
+    ".pants.d",
+    ".pyenv",
+    ".pytest_cache",
+    ".pytype",
+    ".ruff_cache",
+    ".svn",
+    ".tox",
+    ".venv",
+    ".vscode",
+    "__pypackages__",
+    "_build",
+    "buck-out",
+    "build",
+    "dist",
+    "node_modules",
+    "site-packages",
+    "venv",
+]
+
+line-length = 88
+indent-width = 4
+target-version = "py311"
+
+[tool.ruff.lint]
+# Use full pycodestyle (`E`, `W`) + pyflakes (`F`) + black-compatible (`B`) + isort (`I`)
+# D = docstring checks, S = security checks
+select = ["E", "F", "B", "I", "D", "S"]
+ignore = ["D205","S608"]
+fixable = ["ALL"]
+unfixable = []
+dummy-variable-rgx = "^(_+|(_+[a-zA-Z0-9_]*[a-zA-Z0-9]+?))$"
+
+[tool.ruff.format]
+quote-style = "double"
+indent-style = "space"
+skip-magic-trailing-comma = false
+line-ending = "auto"
+docstring-code-format = true
+docstring-code-line-length = "dynamic"
 
 [tool.pytest.ini_options]
 addopts = "-ra -v"

@@ -1,14 +1,14 @@
-# Root only
-.vscode/
-venv/
-certificates/
-logs/
-db/
-config/
-models/
+.jinja_cache/
+.pytest_cache/
+.ruff_cache/
 .env
-
-app/services/neural_net/models/
+.vscode/
+config/
+certificates/
+db/
+models/
+logs/
+venv/
 
 # Anywhere
 __pycache__/

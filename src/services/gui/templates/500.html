@@ -1,0 +1,22 @@
+{% from 'macros/internal_dependencies_jsx.jinja2' import server_error_jsx %}
+{% extends "base.html" %}
+
+{% block body %}
+
+<div id="app"></div>
+
+<script type="text/babel" src="{{ server_error_jsx }}"></script>
+<script type="text/babel">
+    function App() {
+        return (
+            <div className="container py-4">
+                <ServerError />
+            </div>
+        );
+    }
+    ReactDOM
+        .createRoot(document.getElementById("app"))
+        .render(<App />);
+</script>
+
+{% endblock %}
