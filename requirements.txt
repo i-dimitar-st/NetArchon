@@ -10,3 +10,4 @@ torch==2.7.0
 requests==2.31.0
 watchdog==6.0.0
 proxy.py==2.4.10
+lupa==2.6

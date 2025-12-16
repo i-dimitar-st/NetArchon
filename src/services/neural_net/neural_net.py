@@ -79,7 +79,6 @@ neural_net_logger: Logger = MainLogger.get_logger(
     service_name="NEURAL_NET", log_level="debug"
 )
 
-
 class NNDomainClassifierService:
     _lock = RLock()
     _initialised = False

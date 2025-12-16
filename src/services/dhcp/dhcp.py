@@ -10,20 +10,13 @@ from scapy.packet import Packet
 from scapy.sendrecv import sniff
 
 from src.config.config import config
-from src.services.dhcp.client_discovery import (
-    ClientDiscoveryService,
-)
+from src.services.dhcp.client_discovery import ClientDiscoveryService
 from src.services.dhcp.db_dhcp_leases import DHCPStorage
 from src.services.dhcp.db_dhcp_stats import DHCPStats
 from src.services.dhcp.db_persistence import DbPersistanceService
 from src.services.dhcp.message_handler import DHCPMessageHandler
-from src.services.dhcp.models import (
-    DHCPMessage,
-    DHCPResponseFactory,
-)
-from src.services.dhcp.reservation_cache import (
-    LeaseReservationCache,
-)
+from src.services.dhcp.models import DHCPMessage, DHCPResponseFactory
+from src.services.dhcp.reservation_cache import LeaseReservationCache
 from src.services.logger.logger import MainLogger
 
 DHCP = config.get("dhcp")

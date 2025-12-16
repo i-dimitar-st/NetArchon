@@ -5,9 +5,6 @@ from cachetools import TTLCache
 
 from src.config.config import config
 
-# from libs.libs import TTLCache
-
-
 DHCP_CONF = config.get("dhcp")
 RESERVATION_CACHE = DHCP_CONF.get("reservation_cache")
 CACHE_SIZE = int(RESERVATION_CACHE.get("size"))

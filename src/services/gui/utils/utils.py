@@ -56,10 +56,7 @@ from src.services.dns.metrics import (
     dns_metrics_external,
     dns_per_server_metrics,
 )
-from src.services.gui.metrics import (
-    api_metrics,
-    http_response_metrics
-)
+from src.services.gui.metrics import api_metrics, http_response_metrics
 from src.services.http_proxy.metrics import http_proxy_metrics
 from src.services.logger.logger import MainLogger
 from src.utils.dns_utils import DNSUtils

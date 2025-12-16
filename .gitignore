@@ -7,6 +7,7 @@ config/
 certificates/
 db/
 models/
+misc/
 logs/
 venv/
 

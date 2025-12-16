@@ -1,4 +1,3 @@
-from fnmatch import fnmatch
 from functools import lru_cache
 from pathlib import Path
 from threading import Event, RLock, Thread
@@ -105,11 +104,17 @@ class BlacklistService:
     def is_blacklisted(query_name: str) -> bool:
         """Check if domain matches blacklist or wildcard rules.
         Uses LRU cache.
+
+        Args:
+            query_name(str): Domain query to check blocking status for.
+
+        Returns:
+            bool: True is Blacklisted False is Not Blacklisted
+
         """
-        if not query_name:
-            return False
-        if query_name in BlacklistService._blacklists["blacklist"]:
-            return True
+        return query_name in BlacklistService._blacklists["blacklist"] \
+            if query_name \
+                else False
         # for _rule in BlacklistService._blacklists["blacklist_rules"]:
         #     if fnmatch(query_name, _rule):
         #         return True

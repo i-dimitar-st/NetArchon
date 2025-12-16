@@ -1,0 +1,3 @@
+TcpConnection
+extended with close_on_error
+renamed mark_inuse to mark_not_in_use

@@ -32,8 +32,7 @@ class DbPersistanceService:
 
     @classmethod
     def start(cls):
-        """Fresh start of new background worker.
-        """
+        """Fresh start of new background worker."""
         with cls._lock:
             if not cls._interval:
                 raise RuntimeError("Not init")
@@ -58,8 +57,7 @@ class DbPersistanceService:
 
     @classmethod
     def restart(cls):
-        """Restart the flush service
-        """
+        """Restart the flush service."""
         cls.stop()
         cls.start()
 

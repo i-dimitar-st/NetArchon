@@ -11,28 +11,22 @@ from socket import (
     socket,
 )
 from threading import Event, RLock, Thread
+from time import monotonic
 from typing import Any, Optional
+
+from cachetools import TTLCache
 
 # 3rd party
 from dnslib import QTYPE, RR, A, DNSRecord
 
 # Local
 from src.config.config import config
-from src.libs.libs import (
-    MRUCache,
-    TTLCache,
-    measure_latency_decorator,
-)
+from src.libs.libs import MRUCache, measure_latency_decorator
 from src.models.models import DNSReqMessage, DNSResponseCode
 from src.services.dns.blacklist_service import BlacklistService
 from src.services.dns.db import DnsQueryHistoryDb, DnsStatsDb
-from src.services.dns.external_resolver import (
-    ExternalResolverService,
-)
-from src.services.dns.metrics import (
-    dns_metrics,
-    dns_metrics_external,
-)
+from src.services.dns.external_resolver_async import AsyncExternalResolverService
+from src.services.dns.metrics import dns_metrics
 from src.utils.dns_utils import DNSUtils
 
 PATHS = config.get("paths")
@@ -80,7 +74,8 @@ class ResolverService:
     _req_worker_threads = []
     _dns_socket_lock = RLock()
     _dedup_cache = MRUCache(max_size=DEDUP_CACHE_SIZE)
-    _dns_cache = TTLCache(max_size=REPLY_CACHE_SIZE, ttl=DNS_CACHE_TTL)
+    # _dns_cache = TTLCache(max_size=REPLY_CACHE_SIZE, ttl=DNS_CACHE_TTL)
+    _dns_cache = TTLCache(maxsize=REPLY_CACHE_SIZE, ttl=DNS_CACHE_TTL)
     _stop_event = Event()
 
     @classmethod
@@ -173,9 +168,7 @@ class ResolverService:
     def _handle_cache_hit(cls, dns_req_message: DNSReqMessage) -> bool:
         """Is DNS query result cached and send the cached reply if found.
         """
-        _cached_reply: Optional[DNSRecord] = cls._dns_cache.get(
-            dns_req_message.cache_key
-        )
+        _cached_reply: Optional[DNSRecord] = cls._dns_cache.get(dns_req_message.cache_key)
         if _cached_reply:
             cls._send_reply(dns_req_message, _cached_reply)
             return True
@@ -183,7 +176,6 @@ class ResolverService:
         return False
 
     @classmethod
-    @measure_latency_decorator(metrics=dns_metrics_external)
     def _handle_external(cls, dns_req_message: DNSReqMessage) -> bool:
         """Forward DNS query externally and send the reply if successful.
 
@@ -195,18 +187,18 @@ class ResolverService:
 
         """
         try:
-            dns_res_message: Optional[
-                DNSRecord
-            ] = ExternalResolverService.resolve_external(dns_req_message.dns_message)
+            # dns_res_message: Optional[DNSRecord] = ExternalResolverService.resolve_external(dns_req_message.dns_message)
+            dns_res_message: Optional[DNSRecord] = AsyncExternalResolverService.resolve_external(dns_req_message.dns_message)
             if dns_res_message:
-                cls._dns_cache.add(
-                    key=dns_req_message.cache_key,
-                    ttl=max(
-                        DNSUtils.extract_ttl(dns_res_message),
-                        DNS_CACHE_TTL,
-                    ),
-                    value=dns_res_message,
-                )
+                # cls._dns_cache.add(
+                #     key=dns_req_message.cache_key,
+                #     ttl=max(
+                #         DNSUtils.extract_ttl(dns_res_message),
+                #         DNS_CACHE_TTL,
+                #     ),
+                #     value=dns_res_message,
+                # )
+                cls._dns_cache[dns_req_message.cache_key] = dns_res_message
                 cls._send_reply(dns_req_message, dns_res_message)
                 return True
 
@@ -281,9 +273,7 @@ class ResolverService:
         """Worker: dequeue and process DNS requests until sentinel or stop event."""
         while not cls._stop_event.is_set():
             try:
-                _dns_req_message: DNSReqMessage | None = cls._recv_queue.get(
-                    timeout=cls._queue_get_timeout
-                )
+                _dns_req_message: DNSReqMessage | None = cls._recv_queue.get(timeout=cls._queue_get_timeout)
                 # We hit the sentinel ie the none we pushed in on shutdown
                 if _dns_req_message is None:
                     break

@@ -280,7 +280,7 @@ class DnsStatsDb:
                 f"""
                 UPDATE stats
                 SET
-                    {key} = {key} + ?,
+                    "{key}" = "{key}" + ?,
                     last_updated = ?
                 WHERE id = 1
                 """,

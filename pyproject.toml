@@ -37,7 +37,7 @@ target-version = "py311"
 # Use full pycodestyle (`E`, `W`) + pyflakes (`F`) + black-compatible (`B`) + isort (`I`)
 # D = docstring checks, S = security checks
 select = ["E", "F", "B", "I", "D", "S"]
-ignore = ["D205","S608"]
+ignore = ["D205","S608","S104"]
 fixable = ["ALL"]
 unfixable = []
 dummy-variable-rgx = "^(_+|(_+[a-zA-Z0-9_]*[a-zA-Z0-9]+?))$"

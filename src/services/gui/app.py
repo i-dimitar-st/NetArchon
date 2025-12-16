@@ -27,14 +27,14 @@ from jinja2 import FileSystemBytecodeCache
 from src.config.config import config
 from src.libs.libs import measure_latency_decorator
 from src.services.gui.api.api import ApiGateway
+from src.services.gui.metrics import (
+    api_metrics,
+    http_response_metrics,
+)
 from src.services.gui.utils.auth import (
     BEARER_TOKEN_HASH,
     generate_bearer_token,
     generate_csrf_token,
-)
-from src.services.gui.metrics import (
-    api_metrics,
-    http_response_metrics,
 )
 from src.services.gui.utils.utils import set_cache_control
 from src.services.logger.logger import MainLogger

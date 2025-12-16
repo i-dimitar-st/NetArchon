@@ -1,7 +1,7 @@
 function estimateMean(metrics) {
     const keys = Object.keys(metrics)
-        .filter((k) => k.startsWith('p'))
-        .sort((a, b) => parseInt(a.slice(1)) - parseInt(b.slice(1)));
+        .map(Number)
+        .sort((a, b) => a - b);
 
     if (!keys.length) return null;
 

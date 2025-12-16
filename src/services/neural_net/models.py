@@ -18,6 +18,7 @@ from src.services.neural_net.utils import get_allowed_devices
 
 class TrainingProgress:
     """Class representing the training progress of a neural network model."""
+
     def __init__(
         self,
         status: str = "",

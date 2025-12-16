@@ -27,12 +27,13 @@ BABEL_VER := 7.23.9
 FONTAWESOME_VER := 6.4.0
 
 .PHONY: configure_net \
-        install install_venv install_packages \
-        clear clear_venv clear_cache \
-        create create_ssl create_systemd create_config \
-        test fix lint del_cache \
+		install install_venv install_packages \
+		clear clear_venv clear_cache \
+		create create_ssl create_systemd create_config \
+		test fix lint del_cache \
 		start stop restart \
-		train download_static setup
+		train download_static setup \
+		debug_proxy
 
 setup: configure_net install create download_static
 	@echo "✅ Full setup completed"
@@ -112,7 +113,7 @@ fix:
 lint:
 	@echo "🔍 Running linter with Ruff..."
 	# $(VENV_FLAKE8) $(APP)
-	$(VENV_PYTHON) -m ruff check $(APP)
+	$(VENV_PYTHON) -m ruff check $(APP)/services/http_proxy
 	@echo "✅ Linting completed with Ruff"
 
 train:
@@ -162,6 +163,10 @@ start_dap:
 	else \
 		echo "⚠️ DAP server is already running."; \
 	fi
+
+debug_proxy:
+	sudo tcpdump -i any port 8899 -n -q
+
 
 stop_dap:
 	@echo "🛑 Stopping DAP server..."

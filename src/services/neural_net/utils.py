@@ -1,11 +1,13 @@
 import json
 import sqlite3
+from functools import lru_cache
 from pathlib import Path
 
 from torch import cuda
 from torch import load as torchLoad
 
 
+@lru_cache(maxsize=64)
 def filter_unknown_chars_from_domain(domain: str, allowed_chars: str) -> str:
     """Filter unallowed chars in domain.
 
@@ -27,7 +29,7 @@ def filter_unknown_chars_from_domain(domain: str, allowed_chars: str) -> str:
         raise ValueError("allowed_chars must not be empty")
     return "".join(_char for _char in domain if _char in allowed_chars)
 
-
+@lru_cache(maxsize=64)
 def generate_char2idx(allowed_chars: str) -> dict:
     """Generate char to index mapping."""
     if not isinstance(allowed_chars, str):

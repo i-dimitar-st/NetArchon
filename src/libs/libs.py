@@ -1,9 +1,11 @@
 from collections import OrderedDict, deque
 from functools import wraps
-from statistics import quantiles
+from pathlib import Path
 from threading import RLock
-from time import monotonic, time,perf_counter
+from time import perf_counter, time
 from typing import Any, Callable, Deque, Optional
+
+from lupa import LuaRuntime
 
 from src.config.config import config
 
@@ -12,6 +14,14 @@ MRU_MAX_SIZE = int(LIBS_CONF.get("mru_max_size"))
 TTL_MAX_SIZE = int(LIBS_CONF.get("ttl_max_size"))
 TTL_DEFAULT = int(LIBS_CONF.get("ttl_default"))
 METRICS_MAX_SIZE = int(LIBS_CONF.get("metrics_max_size"))
+DEFAULT_PERCENTILES: list[int] = [5, 25, 50, 75, 95, 99]
+
+
+lua = LuaRuntime(unpack_returned_tuples=True)
+with open(Path(__file__).parent / "libs.lua", "r") as _file_handle:
+    lua.execute(_file_handle.read())
+lub_compute_percentiles = lua.globals()["compute_percentiles"]
+lub_compute_stats = lua.globals()["compute_stats"]
 
 
 class Metrics:
@@ -66,21 +76,15 @@ class Metrics:
                 return self._samples[0]
             if not (0 <= percentile <= 100):
                 raise ValueError("Percentile must be between 0 and 100.")
+            return float(lub_compute_percentiles(lua.table_from(self._samples), [percentile]))
 
-            _quantiles: list[float] = quantiles(
-                self._samples, n=100, method="inclusive"
-            )
-            if percentile == 0:
-                return min(self._samples)
-            if percentile == 100:
-                return max(self._samples)
-            return _quantiles[int(percentile) - 1]
-
-    def get_stats(self, percentiles=None) -> dict:
+    def get_stats(self, percentiles:list[int] = DEFAULT_PERCENTILES) -> dict:
         """Return percentile stats."""
-        if percentiles is None:
-            percentiles = [5, 25, 50, 75, 95]
-        return {f"p{_percentile}": self.get_percentile(_percentile) for _percentile in percentiles}
+        with self._lock:
+            return {
+                percentile: value
+                for percentile,value in lub_compute_stats(lua.table_from(self._samples),lua.table_from(percentiles)).items()
+            }
 
     def clear(self):
         """Clear samples."""
