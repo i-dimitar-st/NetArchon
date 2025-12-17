@@ -1,6 +1,6 @@
-from http.server import HTTPServer, BaseHTTPRequestHandler
-from socketserver import ThreadingMixIn
 import threading
+from http.server import BaseHTTPRequestHandler, HTTPServer
+from socketserver import ThreadingMixIn
 
 short_body = b"A" * 1
 long_body = b"A" * 300_000
@@ -24,11 +24,11 @@ class TestHTTPHandler(BaseHTTPRequestHandler):
 
 class ThreadedHTTPServer(ThreadingMixIn, HTTPServer):
     """Handle requests in a separate thread."""
+
     daemon_threads = True  # Automatically kill threads when server shuts down
 
 def run_local_server(host="0.0.0.0", port=9000):
-    """
-    Starts a threaded local HTTP server in a background thread.
+    """Starts a threaded local HTTP server in a background thread.
     """
     server = ThreadedHTTPServer((host, port), TestHTTPHandler)
     thread = threading.Thread(target=server.serve_forever, daemon=True)

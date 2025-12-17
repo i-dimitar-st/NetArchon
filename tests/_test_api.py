@@ -1,7 +1,9 @@
 import time
+
 import pytest
 import requests
 import urllib3
+
 urllib3.disable_warnings(urllib3.exceptions.InsecureRequestWarning)
 
 BASE_URL = "https://192.168.20.100:8443"

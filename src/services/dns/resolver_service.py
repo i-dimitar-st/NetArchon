@@ -11,7 +11,6 @@ from socket import (
     socket,
 )
 from threading import Event, RLock, Thread
-from time import monotonic
 from typing import Any, Optional
 
 from cachetools import TTLCache
@@ -25,8 +24,11 @@ from src.libs.libs import MRUCache, measure_latency_decorator
 from src.models.models import DNSReqMessage, DNSResponseCode
 from src.services.dns.blacklist_service import BlacklistService
 from src.services.dns.db import DnsQueryHistoryDb, DnsStatsDb
-from src.services.dns.external_resolver_async import AsyncExternalResolverService
+from src.services.dns.external_resolver import ExternalResolverService
+
+# from src.services.dns.external_resolver_async import AsyncExternalResolverService
 from src.services.dns.metrics import dns_metrics
+from src.services.dns.utils import is_dns_query, is_valid_domain
 from src.utils.dns_utils import DNSUtils
 
 PATHS = config.get("paths")
@@ -74,7 +76,6 @@ class ResolverService:
     _req_worker_threads = []
     _dns_socket_lock = RLock()
     _dedup_cache = MRUCache(max_size=DEDUP_CACHE_SIZE)
-    # _dns_cache = TTLCache(max_size=REPLY_CACHE_SIZE, ttl=DNS_CACHE_TTL)
     _dns_cache = TTLCache(maxsize=REPLY_CACHE_SIZE, ttl=DNS_CACHE_TTL)
     _stop_event = Event()
 
@@ -187,17 +188,8 @@ class ResolverService:
 
         """
         try:
-            # dns_res_message: Optional[DNSRecord] = ExternalResolverService.resolve_external(dns_req_message.dns_message)
-            dns_res_message: Optional[DNSRecord] = AsyncExternalResolverService.resolve_external(dns_req_message.dns_message)
+            dns_res_message: Optional[DNSRecord] = ExternalResolverService.resolve_external(dns_req_message.dns_message)
             if dns_res_message:
-                # cls._dns_cache.add(
-                #     key=dns_req_message.cache_key,
-                #     ttl=max(
-                #         DNSUtils.extract_ttl(dns_res_message),
-                #         DNS_CACHE_TTL,
-                #     ),
-                #     value=dns_res_message,
-                # )
                 cls._dns_cache[dns_req_message.cache_key] = dns_res_message
                 cls._send_reply(dns_req_message, dns_res_message)
                 return True
@@ -254,15 +246,15 @@ class ResolverService:
             timeout(float): Socker timeout
 
         """
+        if cls._dns_socket is None:
+            cls.logger.error("DNS socket not init.")
+            return
+
         while not cls._stop_event.is_set():
             try:
-                # Wait socket to be readable (data ready to recv) + w  timeout
-                # OS level select()
-                if cls._dns_socket:
-                    _rlist, _wlist, _xlist = select([cls._dns_socket], [], [], timeout)
-                    if cls._dns_socket in _rlist:
-                        data, addr = cls._dns_socket.recvfrom(cls._msg_size)
-                        cls._recv_queue.put_nowait(DNSReqMessage(data, addr))
+                # Is socket ready basically
+                if cls._dns_socket in select([cls._dns_socket], [], [], timeout)[0]:  # _rlist, _wlist, _xlist = select([cls._dns_socket], [], [], timeout)
+                    cls._recv_queue.put_nowait(DNSReqMessage(*cls._dns_socket.recvfrom(cls._msg_size)))
             except Full:
                 cls.logger.warning("Receive queue full.")
             except Exception as err:
@@ -274,23 +266,23 @@ class ResolverService:
         while not cls._stop_event.is_set():
             try:
                 _dns_req_message: DNSReqMessage | None = cls._recv_queue.get(timeout=cls._queue_get_timeout)
-                # We hit the sentinel ie the none we pushed in on shutdown
-                if _dns_req_message is None:
-                    break
             except Empty:
                 continue
 
+            if _dns_req_message is None:
+                break
+
             try:
                 DnsStatsDb.increment(key="request_total")
-                if (
-                    not _dns_req_message.is_query
-                    or not _dns_req_message.is_domain_valid
-                    or cls._dedup_cache.is_present(_dns_req_message.dedup_key)
-                ):
+                if not is_dns_query(_dns_req_message.dns_message) or not is_valid_domain(_dns_req_message.domain):
+                    continue
+
+                if cls._dedup_cache.is_present(_dns_req_message.dedup_key):
                     continue
                 cls._dedup_cache.add(_dns_req_message.dedup_key)
 
                 DnsStatsDb.increment(key="request_valid")
+
                 if cls._handle_blacklist(_dns_req_message):
                     DnsStatsDb.increment(key="request_blacklisted")
                     continue
@@ -300,11 +292,12 @@ class ResolverService:
                 if cls._handle_cache_hit(_dns_req_message):
                     DnsStatsDb.increment(key="request_cache_hit")
                     continue
+
                 DnsStatsDb.increment(key="request_cache_miss")
 
-                if cls._handle_local(_dns_req_message, DNS_STATIC_ZONES):
-                    DnsStatsDb.increment(key="request_local")
-                    continue
+                # if cls._handle_local(_dns_req_message, DNS_STATIC_ZONES):
+                #     DnsStatsDb.increment(key="request_local")
+                #     continue
 
                 if cls._handle_external(_dns_req_message):
                     DnsStatsDb.increment("request_external")

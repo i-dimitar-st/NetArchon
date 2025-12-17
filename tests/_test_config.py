@@ -1,4 +1,3 @@
-from json import dumps as jsonDumps
 from pathlib import Path
 from shutil import rmtree
 from time import sleep

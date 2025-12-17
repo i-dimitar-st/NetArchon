@@ -10,7 +10,6 @@ from dnslib import QTYPE, DNSRecord
 
 root_dir = Path(__file__).parent.parent.resolve()
 sys.path.insert(0, str(root_dir))
-from services.dns.dns import DNSUtils
 
 root_dir = Path(__file__).parent.parent.resolve()
 TIMEOUT = 15
@@ -33,7 +32,7 @@ def send_dns_query(qname=DOMAIN, qtype=QTYPE, server=HOST, port=PORT, timeout=TI
         except socket.timeout:
             return None
 
-        except Exception as err:
+        except Exception:
             return None
 
 

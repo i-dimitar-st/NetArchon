@@ -3,7 +3,7 @@ import time
 from concurrent.futures import ThreadPoolExecutor
 from ipaddress import IPv4Network
 
-from scapy.all import ARP, ICMP, IP, Ether, srp
+from scapy.all import ARP, Ether, srp
 
 
 def send_arp_request(iface: str, ip: str, timeout: float) -> dict | None:

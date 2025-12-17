@@ -1,8 +1,5 @@
 # test_utils_lua.py
-import pytest
-from pathlib import Path
-from lupa import LuaRuntime
-from src.services.http_proxy.utils import extract_hostname, is_ip_address, is_in_subnet
+from src.services.http_proxy.utils import extract_hostname, is_in_subnet, is_ip_address
 
 
 def test_extract_hostname():

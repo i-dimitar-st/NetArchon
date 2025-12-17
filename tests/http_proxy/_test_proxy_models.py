@@ -1,4 +1,8 @@
-from src.services.http_proxy.models import ProxyStatsType, HttpRequestRejectedBadRequest, HttpRequestRejectedForbidden
+from src.services.http_proxy.models import (
+    HttpRequestRejectedBadRequest,
+    HttpRequestRejectedForbidden,
+    ProxyStatsType,
+)
 
 
 def test_proxy_stats_type_str_and_value():

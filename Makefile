@@ -106,14 +106,19 @@ test:
 	@echo "✅ Tests completed"
 
 fix:
-	@echo "🎨 Formatting code with Ruff..."
-	$(VENV_PYTHON) -m ruff check --fix $(APP)/services/http_proxy
-	@echo "✅ Code formatted with Ruff"
+	@echo "🎨 Formatting app with Ruff..."
+	$(VENV_PYTHON) -m ruff check --fix $(APP)/services/dns/external_resolver.py
+	@echo "✅ Sweet"
+
+fix-test:
+	@echo "🎨 Formatting test with Ruff..."
+	$(VENV_PYTHON) -m ruff check --fix $(ROOT_PATH)/tests
+	@echo "✅ Sweet"
 
 lint:
 	@echo "🔍 Running linter with Ruff..."
 	# $(VENV_FLAKE8) $(APP)
-	$(VENV_PYTHON) -m ruff check $(APP)/services/http_proxy
+	$(VENV_PYTHON) -m ruff check $(APP)/services/dns/external_resolver.py
 	@echo "✅ Linting completed with Ruff"
 
 train:

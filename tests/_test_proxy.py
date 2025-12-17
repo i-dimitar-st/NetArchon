@@ -1,10 +1,10 @@
-import time
-import pytest
-import threading
 import http.client
 import statistics
+import threading
+import time
 from queue import Queue
 
+import pytest
 
 PROXY_HOST = "0.0.0.0"
 PROXY_PORT = 8899

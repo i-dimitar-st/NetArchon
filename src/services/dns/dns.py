@@ -5,9 +5,9 @@ from time import time
 from src.services.dns.blacklist_service import BlacklistService
 from src.services.dns.db import DnsQueryHistoryDb, DnsStatsDb
 from src.services.dns.db_persistance import DbPersistanceService
+from src.services.dns.external_resolver import ExternalResolverService
 
-# from src.services.dns.external_resolver import ExternalResolverService
-from src.services.dns.external_resolver_async import AsyncExternalResolverService
+# from src.services.dns.external_resolver_async import AsyncExternalResolverService
 from src.services.dns.resolver_service import ResolverService
 
 # Local
@@ -30,8 +30,8 @@ class DNSServer:
             DnsStatsDb.init()
             DnsQueryHistoryDb.init(logger=dns_logger)
             DbPersistanceService.init(logger=dns_logger)
-            # ExternalResolverService.init(logger=dns_logger)
-            AsyncExternalResolverService.init(logger=dns_logger)
+            ExternalResolverService.init(logger=dns_logger)
+            # AsyncExternalResolverService.init(logger=dns_logger)
             BlacklistService.init(logger=dns_logger)
             ResolverService.init(logger=dns_logger)
             cls._initialised = True
@@ -43,8 +43,8 @@ class DNSServer:
         with cls._lock:
             BlacklistService.start()
             DbPersistanceService.start()
-            # ExternalResolverService.start()
             ResolverService.start()
+            ExternalResolverService.start()
             cls.running = True
             cls.timestamp = time()
             dns_logger.info("DNS server started.")
@@ -55,7 +55,7 @@ class DNSServer:
             raise RuntimeError("Server not running.")
         with cls._lock:
             DbPersistanceService.stop()
-            # ExternalResolverService.stop()
+            ExternalResolverService.stop()
             BlacklistService.stop()
             ResolverService.stop()
             dns_logger.info("Server stopped.")

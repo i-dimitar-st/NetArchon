@@ -9,7 +9,7 @@ from typing import Iterator
 from dnslib import DNSRecord
 
 from src.config.config import config
-from src.services.dns.metrics import dns_per_server_metrics,dns_metrics_external
+from src.services.dns.metrics import dns_metrics_external, dns_per_server_metrics
 
 PATHS = config.get("paths")
 ROOT_PATH = Path(PATHS.get("root"))

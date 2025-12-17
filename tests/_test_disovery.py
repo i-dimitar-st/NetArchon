@@ -4,7 +4,7 @@ from typing import Dict
 
 from scapy.layers.inet import ICMP, IP
 from scapy.layers.l2 import ARP, Ether
-from scapy.sendrecv import sr, srp
+from scapy.sendrecv import srp
 
 
 @dataclass
@@ -22,8 +22,7 @@ def discover_live_clients_icmp(
     iface: str = "enp2s0",
     verbose: bool = False,
 ):
-    """
-    Perform ping sweep over the network to discover live clients.
+    """Perform ping sweep over the network to discover live clients.
 
     Args:
         network (IPv4Network): subnet to scan.
@@ -36,6 +35,7 @@ def discover_live_clients_icmp(
     Returns:
         Dict[str, ArpClient]: Mapping of IP addresses to ArpClient instances.
                              MAC is None since ping does not discover MAC.
+
     """
     if not network:
         raise RuntimeError("Missing network")
