@@ -24,9 +24,9 @@ from src.libs.libs import MRUCache, measure_latency_decorator
 from src.models.models import DNSReqMessage, DNSResponseCode
 from src.services.dns.blacklist_service import BlacklistService
 from src.services.dns.db import DnsQueryHistoryDb, DnsStatsDb
-from src.services.dns.external_resolver import ExternalResolverService
 
 # from src.services.dns.external_resolver_async import AsyncExternalResolverService
+from src.services.dns.external_resolver import ExternalResolverService
 from src.services.dns.metrics import dns_metrics
 from src.services.dns.utils import is_dns_query, is_valid_domain
 from src.utils.dns_utils import DNSUtils
@@ -189,6 +189,7 @@ class ResolverService:
         """
         try:
             dns_res_message: Optional[DNSRecord] = ExternalResolverService.resolve_external(dns_req_message.dns_message)
+            # dns_res_message: Optional[DNSRecord] = AsyncExternalResolverService.resolve_external(dns_req_message.dns_message)
             if dns_res_message:
                 cls._dns_cache[dns_req_message.cache_key] = dns_res_message
                 cls._send_reply(dns_req_message, dns_res_message)

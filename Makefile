@@ -107,7 +107,7 @@ test:
 
 fix:
 	@echo "🎨 Formatting app with Ruff..."
-	$(VENV_PYTHON) -m ruff check --fix $(APP)/services/dns/external_resolver.py
+	$(VENV_PYTHON) -m ruff check --fix $(APP)/libs/workers.py
 	@echo "✅ Sweet"
 
 fix-test:
@@ -152,30 +152,18 @@ start:
 		echo "⚠️ Archon is already running."; \
 	fi
 
-restart: stop start
-
 stop:
 	@echo "🛑 Stopping Archon..."
-	-@screen -S archon -X quit
-	@echo "✅ Archon stopped"
-
-
-start_dap:
-	@echo "🚀 Starting DAP server..."
-	@if ! screen -list | grep -q "dap_server"; then \
-		screen -dmS dap_server bash -c "$(VENV_PYTHON) -u $(APP_PROXY_DAP) > $(ROOT_PATH)/logs/dap.log 2>&1"; \
-		echo "✅ DAP server started"; \
+	-@PID=$$(screen -ls | grep archon | awk '{print $$1}' | cut -d. -f1); \
+	if [ -n "$$PID" ]; then \
+		echo "⚡ Sending SIGTERM to PID $$PID"; \
+		kill -TERM $$PID; \
+		echo "✅ Archon stopped"; \
 	else \
-		echo "⚠️ DAP server is already running."; \
+		echo "⚠️ Archon not running"; \
 	fi
+
+restart: stop start
 
 debug_proxy:
 	sudo tcpdump -i any port 8899 -n -q
-
-
-stop_dap:
-	@echo "🛑 Stopping DAP server..."
-	-@screen -S dap_server -X quit
-	@echo "✅ DAP server stopped"
-
-restart_dap: stop_dap start_dap

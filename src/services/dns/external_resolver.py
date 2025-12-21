@@ -69,7 +69,6 @@ class ExternalResolverService:
     _max_msg_size: int
     _workers: int
     _dns_servers: list[IPv4Address]
-    # _dns_cycle: cycle
     _timeout: float
     _timeout_buffer: float
     _timeout_w_buffer: float

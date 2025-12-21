@@ -8,7 +8,6 @@ PATHS = config.get("paths")
 ROOT_PATH = Path(PATHS.get("root"))
 
 BLACKLISTS_CONFIG = config.get("dns").get("blacklists_config")
-# BLACKLIST_PATH = ROOT_PATH / BLACKLISTS_CONFIG.get("path")
 CACHE_SIZE = int(BLACKLISTS_CONFIG.get("cache_size", 100))
 LOAD_INTERVAL = int(BLACKLISTS_CONFIG.get("loading_interval", 30))
 
@@ -74,9 +73,7 @@ class BlacklistService:
         _blacklist = dns_blacklists.get_config()
         return {
             "blacklist": set(url.strip().lower() for url in _blacklist.get("urls", [])),
-            "blacklist_rules": set(
-                rule.strip().lower() for rule in _blacklist.get("rules", [])
-            ),
+            "blacklist_rules": set(rule.strip().lower() for rule in _blacklist.get("rules", [])),
         }
 
     @classmethod
@@ -85,8 +82,8 @@ class BlacklistService:
         """
         while not cls._stop_event.is_set():
             try:
-                _new_blacklists = cls._load_blacklists_from_mem()
                 with cls._lock:
+                    _new_blacklists:dict = cls._load_blacklists_from_mem()
                     if _new_blacklists != cls._blacklists:
                         cls._blacklists = _new_blacklists
                         cls.logger.info(
@@ -112,9 +109,11 @@ class BlacklistService:
             bool: True is Blacklisted False is Not Blacklisted
 
         """
-        return query_name in BlacklistService._blacklists["blacklist"] \
-            if query_name \
-                else False
+        return (
+            query_name in BlacklistService._blacklists["blacklist"]
+            if query_name
+            else False
+        )
         # for _rule in BlacklistService._blacklists["blacklist_rules"]:
         #     if fnmatch(query_name, _rule):
         #         return True

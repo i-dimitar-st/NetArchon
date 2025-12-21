@@ -1,4 +1,6 @@
 ruff==0.14.6
 debugpy==1.8.17
 pytest==9.0.1
+pytest-asyncio==1.3.0
+aiohttp
 objgraph==3.5.0

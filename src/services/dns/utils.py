@@ -1,8 +1,18 @@
 from functools import lru_cache
 from re import match
 
+from dnslib import DNSRecord
 
-def is_dns_query(dns_message) -> bool:
+
+def is_dns_query(dns_message:DNSRecord) -> bool:
+    """Is DNSRecord a DNS Query.
+
+    Args:
+        dns_message(DNSRecord): dns message
+    Returns:
+        bool
+
+    """
     return bool(dns_message and dns_message.header.qr == 0)
 
 
@@ -10,11 +20,17 @@ def is_dns_query(dns_message) -> bool:
 def is_valid_domain(domain: str) -> bool:
     """Validate domain format.
 
-    - Max length 253 chars total.
-    - Labels 1–63 chars.
-    - Labels only contain letters, digits, and hyphens.
-    - Labels cannot start or end with hyphen.
-    - No underscores allowed (strict RFC-compliant).
+    Args:
+        domain(str): domain.
+
+    Returns:
+        bool: True for
+            - Max length 253 chars total.
+            - Labels 1–63 chars.
+            - Labels only contain letters, digits, and hyphens.
+            - Labels cannot start or end with hyphen.
+            - No underscores allowed (strict RFC-compliant).
+
     """
     if not domain or len(domain) > 253:
         return False

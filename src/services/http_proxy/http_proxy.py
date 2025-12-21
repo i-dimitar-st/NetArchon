@@ -5,7 +5,7 @@ This module sets up and manages an HTTP proxy server using the proxy.py library.
 import logging
 import threading
 from ipaddress import ip_address
-from multiprocessing import Manager
+from multiprocessing import Manager,Process
 from os import cpu_count
 from pathlib import Path
 from queue import Empty, Full
@@ -124,7 +124,7 @@ class BlockSitesPlugin(HttpProxyBasePlugin):
 class HttpProxy:
     """Run proxy.py in a separate process with start/stop control."""
 
-    _proxy_worker: Optional[threading.Thread] = None
+    _proxy_worker: Optional[Process] = None
     _metrics_worker: Optional[threading.Thread] = None
     _stop_event: threading.Event = threading.Event()
 
@@ -189,6 +189,8 @@ class HttpProxy:
             item (dict): Data item to enqueue.
 
         """
+        if cls._stop_event.is_set():
+            return
         try:
             cls._data_queue.put_nowait(item)
         except Full:
@@ -257,7 +259,7 @@ class HttpProxy:
 
         cls._stop_event.clear()
 
-        cls._proxy_worker = threading.Thread(target=cls._run_proxy, daemon=True)
+        cls._proxy_worker = Process(target=cls._run_proxy, daemon=True)
         cls._proxy_worker.start()
 
         cls._metrics_worker = threading.Thread(target=cls._consume_data, daemon=True)
@@ -270,9 +272,16 @@ class HttpProxy:
         """Stop the HTTP proxy service & WPADDatServer."""
         logger.info("Stopped HTTP PROXY.")
         cls._stop_event.set()
+        cls._data_queue.join()
+
 
         if cls._proxy_worker and cls._proxy_worker.is_alive():
+            cls._proxy_worker.terminate()
             cls._proxy_worker.join(timeout=PXY_WRKR_JOIN_TIMEOUT)
+            if cls._proxy_worker.is_alive():
+                cls._proxy_worker.kill()
+                cls._proxy_worker.join()
+
 
         if cls._metrics_worker and cls._metrics_worker.is_alive():
             cls._metrics_worker.join(timeout=PXY_WRKR_JOIN_TIMEOUT)

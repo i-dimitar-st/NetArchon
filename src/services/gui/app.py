@@ -10,6 +10,7 @@ Provides a Flask application wrapper for the GUI service, including:
 """
 
 import logging
+from multiprocessing import Process
 from logging import INFO, WARNING, Logger
 from pathlib import Path
 
@@ -245,24 +246,30 @@ class App:
         ApiGateway.init()
 
     @classmethod
-    def start(cls) -> None:
-        """Start the Flask application."""
-        cls._app.run(
-            host=cls._config["host"],
-            port=cls._config["port"],
-            threaded=cls._config["threaded"],
-            debug=cls._config["debug"],
-            ssl_context=(
-                cls._config["pem_path"],
-                cls._config["key_path"]
-            ),
-        )
-        logger.info("App started")
+    def start(cls):
+        def _run():
+            cls._app.run(
+                host=cls._config["host"],
+                port=cls._config["port"],
+                threaded=cls._config["threaded"],
+                debug=cls._config["debug"],
+                ssl_context=(cls._config["pem_path"], cls._config["key_path"]),
+            )
+
+        cls._flask_proc = Process(target=_run, daemon=True)
+        cls._flask_proc.start()
+        logger.info(f"Flask app started on {cls._config['host']}:{cls._config['port']}")
 
     @classmethod
-    def stop(cls) -> None:
-        """Stop the Flask application."""
-        logger.info("App stopped")
+    def stop(cls):
+        if cls._flask_proc:
+            cls._flask_proc.terminate()
+            cls._flask_proc.join(timeout=1)
+            if cls._flask_proc.is_alive():
+                cls._flask_proc.kill()
+                cls._flask_proc.join()
+            logger.info("Flask app stopped")
+            cls._flask_proc = None
 
     @classmethod
     def restart(cls) -> None:

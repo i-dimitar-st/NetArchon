@@ -1,9 +1,10 @@
-from collections import OrderedDict, deque
+from collections import OrderedDict
 from functools import wraps
+from multiprocessing import Manager, RLock
 from pathlib import Path
 from threading import RLock
 from time import perf_counter, time
-from typing import Any, Callable, Deque, Optional
+from typing import Any, Callable, Optional
 
 from lupa import LuaRuntime
 
@@ -25,50 +26,30 @@ lub_compute_stats = lua.globals()["compute_stats"]
 
 
 class Metrics:
-    """Store timing samples and calculate percentiles."""
+    """Store timing samples and calculate percentiles (multiprocess-safe)."""
 
     def __init__(self, max_size: int = METRICS_MAX_SIZE):
-        """Initialize with max number of metrics.
-
-        Args:
-            max_size(int): Max metrics size.
-
-        """
+        """Initialize with max number of metrics."""
         self._max_size = max_size
-        self._samples: Deque[float] = deque(maxlen=max_size)
-        self._lock = RLock()
+        self._manager = Manager()
+        self._samples = self._manager.list()  # shared list across processes
+        self._lock = self._manager.RLock()    # process-safe lock
 
     def add_sample(self, duration: float) -> None:
-        """Add a timing sample.
-        Expects sec converts to msec.
-
-        Args:
-            duration(float): Sample size
-
-        """
+        """Add a timing sample in milliseconds."""
         with self._lock:
+            if len(self._samples) >= self._max_size:
+                # Remove oldest to respect max_size
+                del self._samples[0]
             self._samples.append(duration)
 
     def get_count(self) -> int:
-        """Return number of samples.
-
-        Returns:
-            int: How many metrics samples are there
-
-        """
+        """Return number of samples."""
         with self._lock:
             return len(self._samples)
 
     def get_percentile(self, percentile: float) -> float:
-        """Get duration corresponding to the given percentile.
-
-        Args:
-            percentile (float): Percentile value between 0 and 100.
-
-        Returns:
-            float: Duration at requested percentile, defaults to 0.0.
-
-        """
+        """Get duration corresponding to the given percentile."""
         with self._lock:
             if not self._samples:
                 return 0.0
@@ -76,20 +57,21 @@ class Metrics:
                 return self._samples[0]
             if not (0 <= percentile <= 100):
                 raise ValueError("Percentile must be between 0 and 100.")
-            return float(lub_compute_percentiles(lua.table_from(self._samples), [percentile]))
+            return float(lub_compute_percentiles(lua.table_from(list(self._samples)), [percentile]))
 
-    def get_stats(self, percentiles:list[int] = DEFAULT_PERCENTILES) -> dict:
+    def get_stats(self, percentiles: list[int] = DEFAULT_PERCENTILES) -> dict:
         """Return percentile stats."""
         with self._lock:
             return {
                 percentile: value
-                for percentile,value in lub_compute_stats(lua.table_from(self._samples),lua.table_from(percentiles)).items()
+                for percentile, value in lub_compute_stats(lua.table_from(list(self._samples)),
+                                                            lua.table_from(percentiles)).items()
             }
 
     def clear(self):
         """Clear samples."""
         with self._lock:
-            self._samples.clear()
+            self._samples[:] = []
 
 
 class MRUCache:

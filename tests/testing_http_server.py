@@ -1,4 +1,5 @@
 import threading
+import time
 from http.server import BaseHTTPRequestHandler, HTTPServer
 from socketserver import ThreadingMixIn
 
@@ -7,6 +8,7 @@ long_body = b"A" * 300_000
 
 class TestHTTPHandler(BaseHTTPRequestHandler):
     def do_GET(self):
+        time.sleep(0.1)
         if self.path == "/long":
             body = long_body
         else:  # /short or any other

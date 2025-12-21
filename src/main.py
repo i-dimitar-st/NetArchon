@@ -8,9 +8,8 @@ from src.services.gui.app import App
 from src.services.http_proxy.http_proxy import HttpProxy
 from src.services.logger.logger import MainLogger
 from src.services.memory.memory import MemoryManager
-from src.services.neural_net.neural_net import (
-    NNDomainClassifierService,
-)
+from src.services.neural_net.neural_net import NNDomainClassifierService
+
 
 logger: Logger = MainLogger.get_logger(service_name="MAIN")
 shutdown_event = Event()
@@ -24,7 +23,7 @@ def shutdown_handler(signum: int, frame):
         frame (frame object): Current stack frame.
 
     """
-    logger.info("Received %s.", signum)
+    logger.debug(f"Received {signum}.")
     shutdown_event.set()
 
 
@@ -40,20 +39,21 @@ if __name__ == "__main__":
     logger.info("Starting services")
     register_shutdowns()
 
-    App.init()
     MemoryManager.init()
     DNSServer.init()
     DHCPServer.init()
     HttpProxy.init()
     NNDomainClassifierService.init()
+    App.init()
 
     DHCPServer.start()
     DNSServer.start()
     MemoryManager.start()
     HttpProxy.start()
-    App.start()
     NNDomainClassifierService.start()
+    App.start()
 
+    logger.info("Services Started")
     shutdown_event.wait()
     logger.info("Stopping services.")
 
@@ -61,7 +61,7 @@ if __name__ == "__main__":
     DNSServer.stop()
     MemoryManager.stop()
     HttpProxy.stop()
-    App.stop()
     NNDomainClassifierService.stop()
+    App.stop()
 
     logger.info("Shutdown complete.")
