@@ -10,8 +10,8 @@ Provides a Flask application wrapper for the GUI service, including:
 """
 
 import logging
-from multiprocessing import Process
 from logging import INFO, WARNING, Logger
+from multiprocessing import Process
 from pathlib import Path
 
 from flask import (
@@ -26,7 +26,7 @@ from flask import (
 from jinja2 import FileSystemBytecodeCache
 
 from src.config.config import config
-from src.libs.libs import measure_latency_decorator
+from src.libs.libs import measure_duration_decorator
 from src.services.gui.api.api import ApiGateway
 from src.services.gui.metrics import (
     api_metrics,
@@ -124,7 +124,7 @@ class App:
             return ApiGateway.handle_healtz(request)
 
         @cls._app.route("/api", methods=["POST"])
-        @measure_latency_decorator(metrics=api_metrics)
+        @measure_duration_decorator(metrics=api_metrics)
         def api() -> Response:
             """Centralized API endpoint for all JSON calls."""
             return ApiGateway.handle_request(request)
@@ -132,42 +132,42 @@ class App:
         # HTML Routes
 
         @cls._app.route("/")
-        @measure_latency_decorator(metrics=http_response_metrics)
+        @measure_duration_decorator(metrics=http_response_metrics)
         def index() -> str:
             return render_template("index.html", active_page="dashboard")
 
         @cls._app.route("/info")
-        @measure_latency_decorator(metrics=http_response_metrics)
+        @measure_duration_decorator(metrics=http_response_metrics)
         def info() -> str:
             return render_template("info.html", active_page="info")
 
         @cls._app.route("/dhcp")
-        @measure_latency_decorator(metrics=http_response_metrics)
+        @measure_duration_decorator(metrics=http_response_metrics)
         def dhcp() -> str:
             return render_template("dhcp.html", active_page="dhcp")
 
         @cls._app.route("/dns")
-        @measure_latency_decorator(metrics=http_response_metrics)
+        @measure_duration_decorator(metrics=http_response_metrics)
         def dns() -> str:
             return render_template("dns.html", active_page="dns")
 
         @cls._app.route("/config")
-        @measure_latency_decorator(metrics=http_response_metrics)
+        @measure_duration_decorator(metrics=http_response_metrics)
         def get_config() -> str:
             return render_template("config.html", active_page="config")
 
         @cls._app.route("/neural_net")
-        @measure_latency_decorator(metrics=http_response_metrics)
+        @measure_duration_decorator(metrics=http_response_metrics)
         def get_neural_net() -> str:
             return render_template("neural_net.html", active_page="net")
 
         @cls._app.route("/logs")
-        @measure_latency_decorator(metrics=http_response_metrics)
+        @measure_duration_decorator(metrics=http_response_metrics)
         def logs() -> str:
             return render_template("logs.html", active_page="logs")
 
         @cls._app.route("/metrics")
-        @measure_latency_decorator(metrics=http_response_metrics)
+        @measure_duration_decorator(metrics=http_response_metrics)
         def metrics() -> str:
             return render_template("metrics.html", active_page="metrics")
 

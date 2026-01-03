@@ -7,7 +7,7 @@ from scapy.packet import Packet
 from scapy.sendrecv import sendp
 
 from src.config.config import config, dhcp_static_config
-from src.libs.libs import measure_latency_decorator
+from src.libs.libs import measure_duration_decorator
 from src.services.dhcp.client_discovery import (
     ClientDiscoveryService,
 )
@@ -64,7 +64,7 @@ class DHCPMessageHandler:
         cls.logger: Logger = logger
 
     @classmethod
-    @measure_latency_decorator(metrics=dhcp_metrics)
+    @measure_duration_decorator(metrics=dhcp_metrics)
     def handle_message(cls, dhcp_msg: DHCPMessage):
         """Process an incoming DHCP message based on its DHCP type.
 

@@ -1,5 +1,5 @@
+import signal
 from logging import Logger
-from signal import SIGABRT, SIGINT, SIGQUIT, SIGTERM, signal
 from threading import Event
 
 from src.services.dhcp.dhcp import DHCPServer
@@ -9,7 +9,6 @@ from src.services.http_proxy.http_proxy import HttpProxy
 from src.services.logger.logger import MainLogger
 from src.services.memory.memory import MemoryManager
 from src.services.neural_net.neural_net import NNDomainClassifierService
-
 
 logger: Logger = MainLogger.get_logger(service_name="MAIN")
 shutdown_event = Event()
@@ -29,10 +28,10 @@ def shutdown_handler(signum: int, frame):
 
 def register_shutdowns():
     """Registers shutdown handler for common interrupt signals"""
-    signal(SIGINT, shutdown_handler)
-    signal(SIGTERM, shutdown_handler)
-    signal(SIGQUIT, shutdown_handler)
-    signal(SIGABRT, shutdown_handler)
+    signal.signal(signal.SIGINT, shutdown_handler)
+    signal.signal(signal.SIGTERM, shutdown_handler)
+    signal.signal(signal.SIGQUIT, shutdown_handler)
+    signal.signal(signal.SIGABRT, shutdown_handler)
 
 
 if __name__ == "__main__":

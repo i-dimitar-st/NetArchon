@@ -1,4 +1,4 @@
-from threading import Event, Lock, Thread
+import threading
 from typing import Optional
 
 from src.config.config import config
@@ -7,19 +7,15 @@ from src.services.dns.db import DnsQueryHistoryDb, DnsStatsDb
 DNS_CONFIG = config.get("dns").get("config")
 DB_FLUSH_INTERVAL = int(DNS_CONFIG.get("db_flush_interval", 30))
 
-TIMEOUTS = config.get("dns").get("timeouts")
-WORKER_JOIN_TIMEOUT = float(TIMEOUTS.get("worker_join", 1))
-
-
 class DbPersistanceService:
     """Background service that periodically flushes in-memory DNS databases to disk.
     Runs as dedicated thread saving of DnsStatsDb and DnsQueryHistoryDb
         at a configured interval.
     """
 
-    _lock = Lock()
-    _stop_event = Event()
-    _worker: Optional[Thread] = None
+    _lock = threading.Lock()
+    _stop_event = threading.Event()
+    _worker: Optional[threading.Thread] = None
     _interval: Optional[int] = None
 
     @classmethod
@@ -39,9 +35,9 @@ class DbPersistanceService:
             if cls._worker and cls._worker.is_alive():
                 raise RuntimeError("Already started")
             cls._stop_event.clear()
-            cls._worker = Thread(target=cls._work, daemon=True)
+            cls._worker = threading.Thread(target=cls._run, daemon=True)
             cls._worker.start()
-            cls.logger.info("%s started.", cls.__name__)
+            cls.logger.info(f"{cls.__name__} started.")
 
     @classmethod
     def stop(cls):
@@ -50,10 +46,10 @@ class DbPersistanceService:
         """
         with cls._lock:
             cls._stop_event.set()
-            if cls._worker:
-                cls._worker.join(timeout=WORKER_JOIN_TIMEOUT)
+            if cls._worker and cls._worker.is_alive():
+                cls._worker.join(timeout=1)
                 cls._worker = None
-        cls.logger.info("%s stopped.", cls.__name__)
+        cls.logger.info(f"{cls.__name__} stopped.")
 
     @classmethod
     def restart(cls):
@@ -62,7 +58,7 @@ class DbPersistanceService:
         cls.start()
 
     @classmethod
-    def _work(cls):
+    def _run(cls):
         """Main worker.
         Periodically calls save_to_disk on DnsStatsDb and DnsQueryHistoryDb,
         catching and logging any exceptions.
@@ -71,6 +67,6 @@ class DbPersistanceService:
             try:
                 DnsStatsDb.save_to_disk()
                 DnsQueryHistoryDb.save_to_disk()
-            except Exception as _err:
-                cls.logger.warning("Persistence error: %s.", _err)
+            except Exception as err:
+                cls.logger.warning(f"DB persistence error: {str(err)}.")
             cls._stop_event.wait(cls._interval)

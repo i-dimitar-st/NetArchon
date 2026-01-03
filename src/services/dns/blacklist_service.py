@@ -3,6 +3,7 @@ from pathlib import Path
 from threading import Event, RLock, Thread
 
 from src.config.config import config, dns_blacklists
+from src.services.dns.utils import normalize_domain
 
 PATHS = config.get("paths")
 ROOT_PATH = Path(PATHS.get("root"))
@@ -67,9 +68,8 @@ class BlacklistService:
         cls.logger.info("%s restarted.", cls.__name__)
 
     @classmethod
-    def _load_blacklists_from_mem(cls):
-        """Load blacklist data from JSON file.
-        """
+    def _load_blacklists_from_mem(cls) -> dict[str, set[str]]:
+        """Load blacklist data from JSON file."""
         _blacklist = dns_blacklists.get_config()
         return {
             "blacklist": set(url.strip().lower() for url in _blacklist.get("urls", [])),
@@ -78,19 +78,14 @@ class BlacklistService:
 
     @classmethod
     def _work(cls):
-        """Background thread: reload blacklist periodically.
-        """
+        """Background thread: reload blacklist periodically."""
         while not cls._stop_event.is_set():
             try:
                 with cls._lock:
                     _new_blacklists:dict = cls._load_blacklists_from_mem()
                     if _new_blacklists != cls._blacklists:
                         cls._blacklists = _new_blacklists
-                        cls.logger.info(
-                            "blacklist:%d, blacklist_rules:%d.",
-                            len(_new_blacklists["blacklist"]),
-                            len(_new_blacklists["blacklist_rules"]),
-                        )
+                        cls.logger.info(f"blacklist:{len(_new_blacklists['blacklist'])}, blacklist_rules:{len(_new_blacklists['blacklist_rules'])}.")
                         cls.is_blacklisted.cache_clear()
             except Exception as err:
                 cls.logger.error("Failed processing control lists %s.", err)
@@ -109,12 +104,6 @@ class BlacklistService:
             bool: True is Blacklisted False is Not Blacklisted
 
         """
-        return (
-            query_name in BlacklistService._blacklists["blacklist"]
-            if query_name
-            else False
-        )
-        # for _rule in BlacklistService._blacklists["blacklist_rules"]:
-        #     if fnmatch(query_name, _rule):
-        #         return True
-        return False
+        if not query_name:
+            return False
+        return normalize_domain(query_name) in BlacklistService._blacklists["blacklist"]

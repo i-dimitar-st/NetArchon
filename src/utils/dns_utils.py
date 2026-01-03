@@ -13,8 +13,6 @@ Provides methods to:
 
 from re import match
 
-from dnslib import DNSLabel, DNSRecord
-
 
 class DNSUtils:
     """DNS utility functions."""
@@ -75,30 +73,3 @@ class DNSUtils:
 
         return True
 
-    @staticmethod
-    def extract_ttl(reply: DNSRecord) -> int:
-        """Extract TTL from Records
-        Args:
-            reply (DNSRecord): DNSRecord object.
-
-        Returns:
-                int: Minimum TTL value from the answer section, or 0 if no answers.
-
-        """
-        if reply.rr:
-            _ttls: list[int] = [int(rr.ttl) for rr in reply.rr]
-            return min(_ttls)
-        return 0
-
-    @staticmethod
-    def generate_cache_key(reply: DNSRecord) -> tuple[DNSLabel, int]:
-        """Generate cache key as normalized tuple of (qname string, qtype int).
-        Using string rather than DNSLabel to avoid subtle equality/hash issues.
-
-        Args:
-            reply (DNSRecord): DNSRecord object
-        Returns:
-            tuple[DNSLabel, int]: Cache key tuple
-
-        """
-        return (reply.q.qname, reply.q.qtype)

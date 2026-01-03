@@ -1,10 +1,12 @@
 from collections import OrderedDict
 from functools import wraps
 from multiprocessing import Manager, RLock
+from multiprocessing.managers import ListProxy, SyncManager
 from pathlib import Path
 from threading import RLock
 from time import perf_counter, time
-from typing import Any, Callable, Optional
+from typing import Any, Callable
+import itertools
 
 from lupa import LuaRuntime
 
@@ -12,10 +14,10 @@ from src.config.config import config
 
 LIBS_CONF = config.get("libs")
 MRU_MAX_SIZE = int(LIBS_CONF.get("mru_max_size"))
-TTL_MAX_SIZE = int(LIBS_CONF.get("ttl_max_size"))
-TTL_DEFAULT = int(LIBS_CONF.get("ttl_default"))
 METRICS_MAX_SIZE = int(LIBS_CONF.get("metrics_max_size"))
-DEFAULT_PERCENTILES: list[int] = [5, 25, 50, 75, 95, 99]
+DEFAULT_PERCENTILES: list[int] = [50, 75, 90, 95, 99]
+DEFAULT_WINDOWS: list[int] = [30,300,3600]
+DEFAULT_WINDOW_MAX_SIZE: int = 1000
 
 
 lua = LuaRuntime(unpack_returned_tuples=True)
@@ -30,18 +32,16 @@ class Metrics:
 
     def __init__(self, max_size: int = METRICS_MAX_SIZE):
         """Initialize with max number of metrics."""
-        self._max_size = max_size
+        self._max_size: int = max_size
         self._manager = Manager()
-        self._samples = self._manager.list()  # shared list across processes
+        self._samples = self._manager.list([0.0] * max_size)  # shared list across processes
+        self._cycle = itertools.cycle(range(max_size))
         self._lock = self._manager.RLock()    # process-safe lock
 
     def add_sample(self, duration: float) -> None:
-        """Add a timing sample in milliseconds."""
+        """Add a timing sample."""
         with self._lock:
-            if len(self._samples) >= self._max_size:
-                # Remove oldest to respect max_size
-                del self._samples[0]
-            self._samples.append(duration)
+            self._samples[next(self._cycle)] = duration
 
     def get_count(self) -> int:
         """Return number of samples."""
@@ -50,13 +50,9 @@ class Metrics:
 
     def get_percentile(self, percentile: float) -> float:
         """Get duration corresponding to the given percentile."""
+        if not (0 <= percentile <= 100):
+            raise ValueError("Percentile must be between 0 and 100.")
         with self._lock:
-            if not self._samples:
-                return 0.0
-            if len(self._samples) == 1:
-                return self._samples[0]
-            if not (0 <= percentile <= 100):
-                raise ValueError("Percentile must be between 0 and 100.")
             return float(lub_compute_percentiles(lua.table_from(list(self._samples)), [percentile]))
 
     def get_stats(self, percentiles: list[int] = DEFAULT_PERCENTILES) -> dict:
@@ -64,12 +60,57 @@ class Metrics:
         with self._lock:
             return {
                 percentile: value
-                for percentile, value in lub_compute_stats(lua.table_from(list(self._samples)),
-                                                            lua.table_from(percentiles)).items()
+                for percentile, value in lub_compute_stats(
+                    lua.table_from(list(self._samples)),
+                    lua.table_from(percentiles)
+                ).items()
             }
 
-    def clear(self):
+    def clear(self) -> None:
         """Clear samples."""
+        with self._lock:
+            for i in range(self._max_size):
+                self._samples[i] = 0.0
+            self._filled = 0
+
+
+class WindowedMetrics:
+    """Multiprocess-safe windowed sample counter."""
+
+    def __init__(self, windows:list[int]=DEFAULT_WINDOWS, max_size=DEFAULT_WINDOW_MAX_SIZE) -> None:
+        self.windows:list[int] = windows
+        self._max_size:int = max_size
+        self._manager: SyncManager = Manager()
+        self._lock: RLock = self._manager.RLock()
+        self._samples: ListProxy[float] = Manager().list()
+
+    def add_sample(self) -> None:
+        """Add a sample occurrence."""
+        with self._lock:
+            if len(self._samples) >= self._max_size:
+                del self._samples[0]
+            self._samples.append(time())
+
+    def get_results(self) -> dict[int, int]:
+        """Return dict of window -> count of samples in that window."""
+        output = {}
+        with self._lock:
+            _now = time()
+            for _window in self.windows:
+                output[_window] = sum(
+                    1
+                    for _timestamp in self._samples
+                    if _timestamp >= _now - _window
+                )
+        return output
+
+    def get_count(self) -> int:
+        """Return dict of window -> count of samples in that window."""
+        with self._lock:
+            return len(self._samples)
+
+    def clear(self):
+        """Clear all samples."""
         with self._lock:
             self._samples[:] = []
 
@@ -115,8 +156,8 @@ class MRUCache:
 
     def is_present(self, key: Any) -> bool:
         """Check if key exists."""
-        with self._lock:
-            return bool(key in self._cache)
+        # with self._lock:
+        return key in self._cache if key else False
 
     def get(self, key: Any) -> Any:
         """Check if key exists."""
@@ -140,119 +181,7 @@ class MRUCache:
             self._cache.clear()
 
 
-def ttl_clean_expired(func):
-    """Decorator to remove expired cache entries before executing the decorated method.
-    Calls the instance's `_clean_expired` method to purge stale items,
-    ensuring the cache is up-to-date during the decorated method's operation.
-    """
-
-    @wraps(func)
-    def wrapper(self, *args, **kwargs):
-        self.clean_expired()
-        return func(self, *args, **kwargs)
-
-    return wrapper
-
-
-def ttl_evict(func):
-    """Decorator to evict oldest cache entries if the cache exceeds its maximum size
-    before executing the decorated method.
-    Calls the instance's `_evict` method to maintain cache size constraints.
-    """
-
-    @wraps(func)
-    def wrapper(self, *args, **kwargs):
-        self.evict()
-        return func(self, *args, **kwargs)
-
-    return wrapper
-
-
-class TTLCache:
-    """Simple, thread-safe, one-directional TTL cache (key → value).
-    cache[key] = (value, expiry)
-    """
-
-    def __init__(self, max_size: int = TTL_MAX_SIZE, ttl: int = TTL_DEFAULT):
-        """Initialize cache with max size and default TTL."""
-        self._lock = RLock()
-        self._cache: dict[Any, tuple[Any, float]] = {}  # key -> (value, expiry)
-        self._max_size: int = max_size
-        self._ttl: int = ttl
-
-    def clean_expired(self):
-        """Remove expired entries."""
-        with self._lock:
-            _now = time()
-            for key in list(self._cache):
-                if self._cache[key][1] < _now:
-                    del self._cache[key]
-
-    def evict(self):
-        """Evict oldest entries if size exceeds limit."""
-        with self._lock:
-            sorted_keys = sorted(self._cache, key=lambda k: self._cache[k][1])
-            to_evict = int(len(self._cache) - self._max_size + 1)
-            if to_evict > 0:
-                for key in sorted_keys[:to_evict]:
-                    del self._cache[key]
-
-    @ttl_clean_expired
-    @ttl_evict
-    def add(self, key: Any, value: Any, ttl: int = 0):
-        """Add an item to the cache with an optional TTL.
-
-        Args:
-            key (Any): key to store the value.
-            value (Any): The value to cache..
-            ttl (int): TTL in sec, if <= 0 = self._ttl.
-
-        """
-        with self._lock:
-            expiry: float = time() + max(ttl, self._ttl)
-            self._cache[key] = (value, expiry)
-
-    @ttl_clean_expired
-    def get(self, key: Any) -> Optional[Any]:
-        """Get value by key or None if expired/missing."""
-        with self._lock:
-            item: tuple[Any, float] | None = self._cache.get(key)
-            return item[0] if item else None
-
-    @ttl_clean_expired
-    def get_by_value(self, value: Any) -> Optional[Any]:
-        """Find key by value or None."""
-        with self._lock:
-            for _key, (_value, _) in self._cache.items():
-                if _value == value:
-                    return _key
-            return None
-
-    @ttl_clean_expired
-    def keys(self) -> list[Any]:
-        """Return all non-expired keys in the cache."""
-        with self._lock:
-            return list(self._cache.keys())
-
-    @ttl_clean_expired
-    def remove(self, key: Any):
-        """Remove key from cache."""
-        with self._lock:
-            self._cache.pop(key, None)
-
-    def clear(self):
-        """Clear cache."""
-        with self._lock:
-            self._cache.clear()
-
-    @ttl_clean_expired
-    def size(self) -> int:
-        """Returns cache size."""
-        with self._lock:
-            return len(self._cache)
-
-
-def measure_latency_decorator(metrics: Metrics):
+def measure_duration_decorator(metrics: Metrics):
     """Decorator to measure execution time and add to metrics object.
 
     Args:
@@ -265,7 +194,7 @@ def measure_latency_decorator(metrics: Metrics):
         def wrapper(*args, **kwargs) -> Any:
             start: float = perf_counter()
             result: Any = func(*args, **kwargs)
-            metrics.add_sample((perf_counter() - start) * 1000)
+            metrics.add_sample(perf_counter() - start)
             return result
 
         return wrapper

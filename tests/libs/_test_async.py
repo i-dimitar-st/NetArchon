@@ -1,14 +1,16 @@
-import pytest
-import requests
-import statistics
 import asyncio
-import time
+import socket
+import statistics
 import threading
+import time
+from typing import List, Optional
+
 import aiohttp
 import dnslib
-import socket
-from typing import List, Optional
-from src.libs.workers import AsyncWorkerThread,SyncWorkerThread
+import pytest
+import requests
+
+from src.libs.workers import AsyncWorkerThread, SyncWorkerThread
 
 
 def make_dns_query(domain: str, qtype: str = "A") -> dnslib.DNSRecord:
@@ -71,7 +73,7 @@ def sync_sleep(name: str, delay: float, fail=False):
 async def test_submit_job_async():
 
     worker = AsyncWorkerThread()
-    args = (f"task", 0.5, False)
+    args = ("task", 0.5, False)
     kwargs = {"name":"task","delay":0.5,"fail":False}
 
     # Happy
@@ -79,7 +81,7 @@ async def test_submit_job_async():
     assert worker.submit_job(func=async_sleep, kwargs=kwargs).result() == "task"
 
     with pytest.raises(ValueError):
-        worker.submit_job(func=async_sleep, args=(f"task", 0.5, True),timeout=1).result()
+        worker.submit_job(func=async_sleep, args=("task", 0.5, True),timeout=1).result()
 
     # Timeout
     with pytest.raises(asyncio.TimeoutError):
@@ -97,10 +99,14 @@ async def test_submit_job_async():
 
     worker.stop()
 
+    with pytest.raises(RuntimeError):
+        worker.submit_job(func=async_sleep, args=("task", 0.5, False))
+    assert not worker._worker.is_alive()
+
 
 def test_submit_job_sync():
     worker = SyncWorkerThread()
-    args = (f"task", 0.5, False)
+    args = ("task", 0.5, False)
     kwargs = {"name":"task","delay":0.5,"fail":False}
 
     # Happy
@@ -108,7 +114,7 @@ def test_submit_job_sync():
     assert worker.submit_job(func=sync_sleep, kwargs=kwargs).result() == "task"
 
     with pytest.raises(ValueError):
-        worker.submit_job(func=sync_sleep, args=(f"task", 0.5, True),timeout=1).result()
+        worker.submit_job(func=sync_sleep, args=("task", 0.5, True),timeout=1).result()
 
     # Timeout
     with pytest.raises(asyncio.TimeoutError):
@@ -125,6 +131,10 @@ def test_submit_job_sync():
         worker.submit_job(func=sync_sleep, kwargs=kwargs,timeout={}).result() # type: ignore
 
     worker.stop()
+
+    with pytest.raises(RuntimeError):
+        worker.submit_job(func=sync_sleep, args=("task", 0.5, False))
+    assert not worker._worker.is_alive()
 
 
 @pytest.mark.asyncio

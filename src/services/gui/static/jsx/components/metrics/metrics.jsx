@@ -17,15 +17,19 @@ function estimateMean(metrics) {
     return mean;
 }
 
-function MaxMetrics({ maxValue }) {
+function formatValue(value, unit = 'sec') {
+    return unit === 'qty' ? value.toFixed(0) : value.toFixed(3);
+}
+
+function MaxMetrics({ value, unit }) {
     return (
         <div className="col-md-4">
             <div className="card rounded-4" style={{ backgroundColor: 'var(--warning-color)' }}>
                 <div className="card-body p-2">
                     <span className="text-uppercase fw-semibold opacity-75 text-dark small m-2">Max</span>
                     <span className="fs-4 fw-bold text-dark">
-                        {maxValue.toFixed(2)}
-                        <span className="fs-6 ms-1">ms</span>
+                        {formatValue(value, unit)}
+                        <span className="fs-6 ms-1">{unit}</span>
                     </span>
                 </div>
             </div>
@@ -33,15 +37,15 @@ function MaxMetrics({ maxValue }) {
     );
 }
 
-function AverageMetrics({ averageValue }) {
+function AverageMetrics({ value, unit }) {
     return (
         <div className="col-md-4">
             <div className="card rounded-4" style={{ backgroundColor: 'var(--primary-color)' }}>
                 <div className="card-body text-white p-2">
                     <span className="small fw-semibold opacity-75 text-uppercase m-2">Average</span>
                     <span className="fs-4 fw-bold">
-                        {averageValue.toFixed(2)}
-                        <span className="fs-6 ms-1">ms</span>
+                        {formatValue(value, unit)}
+                        <span className="fs-6 ms-1">{unit}</span>
                     </span>
                 </div>
             </div>
@@ -49,15 +53,15 @@ function AverageMetrics({ averageValue }) {
     );
 }
 
-function MinMetrics({ minValue }) {
+function MinMetrics({ value, unit }) {
     return (
         <div className="col-md-4">
             <div className="card rounded-4" style={{ backgroundColor: 'var(--success-color)' }}>
                 <div className="card-body text-white p-2">
                     <span className="small fw-semibold opacity-75 text-uppercase m-2">Min</span>
                     <span className="fs-4 fw-bold">
-                        {minValue.toFixed(2)}
-                        <span className="fs-6 ms-1">ms</span>
+                        {formatValue(value, unit)}
+                        <span className="fs-6 ms-1">{unit}</span>
                     </span>
                 </div>
             </div>
@@ -65,16 +69,15 @@ function MinMetrics({ minValue }) {
     );
 }
 
-function MetricBar({ label, value, maxValue }) {
+function MetricBar({ label, value, maxValue, unit }) {
     const percentage = parseInt(Math.min((value / maxValue) * 100, 100));
-
     return (
         <div className="mb-2">
             <div className="d-flex justify-content-between align-items-center">
                 <span className="fw-medium text-muted small">{label}</span>
                 <div className="d-flex align-items-center gap-2">
-                    <span className="fs-5 fw-bold text-dark">{value.toFixed(2)}</span>
-                    <span className="text-muted small">ms</span>
+                    <span className="fs-5 fw-bold text-dark"> {formatValue(value, unit)}</span>
+                    <span className="text-muted small">{unit}</span>
                 </div>
             </div>
             <div className="progress">
@@ -93,18 +96,21 @@ function MetricBar({ label, value, maxValue }) {
     );
 }
 
-function MetricContent({ item, maxValueForVisualiation }) {
+function MetricContent({ item, itemMaxValue }) {
+    const label = item.label;
+    const unit = item.unit || 'ms';
     const itemMetrics = Object.entries(item.metrics);
     const minValue = parseFloat(Math.min(...itemMetrics.map(([_, v]) => v)));
     const avgValue = parseFloat(estimateMean(item.metrics));
     const maxValue = parseFloat(Math.max(...itemMetrics.map(([_, v]) => v)));
+    const maxValueForVisualization = itemMaxValue;
 
     return (
         <div className="card-body">
             <div className="row g-3">
-                <MinMetrics minValue={minValue} />
-                <AverageMetrics averageValue={avgValue} />
-                <MaxMetrics maxValue={maxValue} />
+                <MinMetrics value={minValue} unit={unit} />
+                <AverageMetrics value={avgValue} unit={unit} />
+                <MaxMetrics value={maxValue} unit={unit} />
             </div>
 
             <div className="mt-4">
@@ -114,14 +120,17 @@ function MetricContent({ item, maxValueForVisualiation }) {
                         const numB = parseInt(keyB.replace(/\D/g, ''), 10);
                         return numA - numB;
                     })
-                    .map(([key, value], idx) => (
-                        <MetricBar
-                            key={idx}
-                            label={formatMetricKey(key)}
-                            value={value}
-                            maxValue={maxValueForVisualiation}
-                        />
-                    ))}
+                    .map(([key, value], idx) => {
+                        return (
+                            <MetricBar
+                                key={idx}
+                                label={formatMetricKey(key)}
+                                value={value}
+                                maxValue={maxValueForVisualization}
+                                unit={unit}
+                            />
+                        );
+                    })}
             </div>
         </div>
     );
@@ -131,7 +140,7 @@ function Metrics({ token }) {
     const { useState, useEffect } = React;
     const [metrics, setMetrics] = useState([]);
     const [activeIndex, setActiveIndex] = useState(0);
-    const [maxValueForVisualiation, setMaxValueForVisualiation] = useState(15000);
+    const [maxValueForVisualiation, setMaxValueForVisualiation] = useState(15);
     const [loading, setLoading] = useState(true);
 
     const transformMetricValues = (metricReceived) =>
@@ -171,7 +180,7 @@ function Metrics({ token }) {
             {metrics && metrics.length > 0 && (
                 <>
                     <TabList tabs={metrics} activeIndex={activeIndex} setActiveIndex={setActiveIndex} />
-                    <MetricContent item={activeItem} maxValueForVisualiation={maxValueForVisualiation} />
+                    <MetricContent item={activeItem} itemMaxValue={maxValueForVisualiation} />
                 </>
             )}
         </div>

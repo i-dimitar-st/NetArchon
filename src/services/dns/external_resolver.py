@@ -14,22 +14,17 @@ Usage:
 4. Stop the resolver with ExternalResolverService.stop() or restart with restart().
 """
 
-from concurrent.futures import Future, ThreadPoolExecutor, as_completed
-from ipaddress import IPv4Address
-from itertools import cycle
-from os import cpu_count
-from pathlib import Path
-from socket import AF_INET, SOCK_DGRAM, socket
-from threading import RLock
-from time import monotonic
-
-from dnslib import DNSRecord
+import concurrent.futures
+import os
+import pathlib
+import socket
+import threading
 
 from src.config.config import config
-from src.services.dns.metrics import dns_metrics_external, dns_per_server_metrics
+from src.services.dns.models import DNSReqMsg
 
 PATHS = config.get("paths")
-ROOT_PATH = Path(PATHS.get("root"))
+ROOT_PATH = pathlib.Path(PATHS.get("root"))
 DB_PATH = ROOT_PATH / PATHS.get("database")
 
 DNS_CONFIG = config.get("dns").get("config")
@@ -37,15 +32,14 @@ DNS_HOST = DNS_CONFIG.get("host")
 DNS_PORT = DNS_CONFIG.get("port")
 DNS_UDP_PACKET_MAX_SIZE = int(DNS_CONFIG.get("udp_max_size", 1232))
 EXTERNAL_DNS_SERVERS = [
-    IPv4Address(ip)
+    str(ip)
     for ip in list(DNS_CONFIG.get("external_dns_servers"))
 ]
 WORKERS_CONFIG = config.get("dns").get("worker_config")
-EXTERNAL_WORKERS = int(cpu_count() or 4)*2
+EXTERNAL_WORKERS = int(((os.cpu_count() or 4) + 4) * 4)
 
 TIMEOUTS = config.get("dns").get("timeouts")
-EXTERNAL_TIMEOUT = float(TIMEOUTS.get("external_socket", 15))
-EXTERNAL_TIMEOUT_BUFFER = float(TIMEOUTS.get("external_socket_buffer", 2))
+TIMEOUT = float(TIMEOUTS.get("external_socket", 5.0))
 
 
 class ExternalResolverService:
@@ -64,25 +58,23 @@ class ExternalResolverService:
     3. Call stop() or restart() to manage the executor lifecycle.
     """
 
-    _lock = RLock()
+    _lock = threading.RLock()
     _port: int
     _max_msg_size: int
     _workers: int
-    _dns_servers: list[IPv4Address]
+    _dns_servers: list[str]
+
+    _timeout_socket: float
     _timeout: float
-    _timeout_buffer: float
-    _timeout_w_buffer: float
-    _server_sockets: dict[IPv4Address, socket]
-    _executor: ThreadPoolExecutor | None = None
+    _executor: concurrent.futures.ThreadPoolExecutor | None = None
 
     @classmethod
     def init(
             cls,
             logger,
             port: int = DNS_PORT,
-            timeout: float = EXTERNAL_TIMEOUT,
-            timeout_buffer: float = EXTERNAL_TIMEOUT_BUFFER,
-            dns_servers: list[IPv4Address] = EXTERNAL_DNS_SERVERS,
+            timeout: float = TIMEOUT,
+            dns_servers: list[str] = EXTERNAL_DNS_SERVERS,
             workers: int = EXTERNAL_WORKERS,
             max_msg_size: int = DNS_UDP_PACKET_MAX_SIZE
         ) -> None:
@@ -90,212 +82,180 @@ class ExternalResolverService:
         with cls._lock:
             if cls._executor is not None:
                 raise RuntimeError("Already initialized")
-            cls._dns_servers = dns_servers
-            cls._dns_cycle: cycle[IPv4Address] = cycle(cls._dns_servers)
+
+            __class__._validate_input(
+                port=port,
+                timeout=timeout,
+                dns_servers=dns_servers,
+                workers=workers,
+                max_msg_size=max_msg_size,
+            )
+
             cls._port = port
             cls._max_msg_size = max_msg_size
+            cls._dns_servers = dns_servers
             cls._workers = workers
             cls._timeout = timeout
-            cls._timeout_buffer = timeout_buffer
-            cls._timeout_w_buffer = cls._timeout + cls._timeout_buffer
+
             cls.logger = logger
             cls.logger.info(f"{cls.__name__} init.")
 
+    @staticmethod
+    def _validate_input(
+            port: int,
+            timeout: float,
+            dns_servers: list[str],
+            workers: int,
+            max_msg_size: int
+        ) -> None:
+
+            if not isinstance(port, int) or not (0 < port < 65536):
+                raise ValueError(f"Invalid port: {port}")
+
+            if not isinstance(timeout, (float, int)) or not (0 < timeout < 30.0):
+                raise ValueError(f"Invalid timeout_socket: {timeout}")
+
+            if not isinstance(workers, int) or not (0 < workers <= 1000):
+                raise ValueError(f"Invalid workers count: {workers}")
+
+            if not isinstance(dns_servers, list) or not all(isinstance(s, str) for s in dns_servers):
+                raise ValueError(f"Invalid dns_servers list: {dns_servers}")
+
+            if not isinstance(max_msg_size, int) or not (0 < max_msg_size <= 1500):
+                raise ValueError(f"Invalid max_msg_size: {max_msg_size}")
+
+
     @classmethod
-    def start(cls):
-        """Start thread pool executor & initialize UDP sockets for all DNS servers.
-
-        This method sets up:
-        1. A ThreadPoolExecutor with the configured number of workers for handling
-        concurrent DNS queries.
-        2. A UDP socket per DNS server, stored in `_server_sockets`, with the
-        configured timeout. These sockets are reused for all queries until `stop()`.
-
-        The method is safe to call programmatically to restart the resolver after
-        a `stop()`. Raises:
-            - RuntimeError: if the executor is already started.
-            - ValueError: if `_dns_servers` is empty or invalid.
-        """
+    def start(cls) -> None:
+        """Start thread pool executor & initialize UDP sockets for all DNS servers."""
         with cls._lock:
             if cls._executor:
                 raise RuntimeError("Already started")
             if not cls._dns_servers:
                 raise ValueError("Invalid dns servers list")
-            cls._executor = ThreadPoolExecutor(
-                max_workers=cls._workers,
-                thread_name_prefix="external_dns_resolver_"
-            )
-            cls._server_sockets: dict[IPv4Address, socket] = {
-                server: (
-                    lambda sock: (sock.settimeout(cls._timeout), sock)[1]
-                    )(socket(AF_INET, SOCK_DGRAM))
-                for server in cls._dns_servers
-            }
+            cls._executor = concurrent.futures.ThreadPoolExecutor(max_workers=cls._workers)
             cls.logger.info(f"{cls.__name__} started.")
 
     @classmethod
-    def stop(cls):
-        """Stop the thread pool executor and clean up all resources.
-
-        This method performs the following:
-        1. Shuts down the ThreadPoolExecutor, optionally canceling pending futures.
-        2. Closes all UDP sockets stored in `_server_sockets`.
-        3. Clears internal executor and socket references for safe restart.
-
-        After calling this method, the resolver can be restarted by calling `start()`.
-
-        Thread-safe: acquires `_lock` to prevent concurrent start/stop conflicts.
-        """
+    def stop(cls) -> None:
+        """Stop the thread pool executor and clean up all resources."""
         with cls._lock:
             if cls._executor:
                 cls._executor.shutdown(wait=True, cancel_futures=True)
                 cls._executor = None
                 cls.logger.info(f"{cls.__name__} stopped.")
-            for _socket in cls._server_sockets.values():
-                _socket.close()
-            cls._server_sockets = {}
 
     @classmethod
-    def restart(cls):
+    def restart(cls) -> None:
         """Restart the thread pool executor with new worker count."""
         with cls._lock:
             cls.stop()
             cls.start()
             cls.logger.info(f"{cls.__name__} restarted.")
 
-    @staticmethod
-    def _submit_dns_requests(
-        executor: ThreadPoolExecutor,
-        servers: list[IPv4Address],
-        server_sockets: dict[IPv4Address, socket],
-        dns_request,
-        query_fn,
-        dns_cycle,
-        timeout: float,
-        port: int,
-        max_msg_size: int
-    ) -> dict[Future, IPv4Address]:
-        """Submit DNS queries concurrently to multiple external servers.
-
-        Each DNS query is submitted as a future to the provided ThreadPoolExecutor,
-        using the next server from `dns_cycle` in a round-robin fashion. Each future
-        is associated with its corresponding server IP.
+    @classmethod
+    def _query_external_dns_server(
+            cls,
+            request: bytes,
+            dns_server: str,
+            port: int,
+            timeout: float,
+            max_msg_size: int
+        ) -> bytes:
+        """Send a DNS query to a single upstream DNS server.
 
         Args:
-            executor: ThreadPoolExecutor used to run DNS query tasks.
-            servers: List of DNS server IPs.
-            server_sockets: Mapping of server IPs to pre-created UDP sockets.
-            dns_request: The DNSRecord query to send.
-            query_fn: Function that sends the DNS request and returns the response.
-            dns_cycle: Cycle iterator over server IPs for round-robin selection.
-            timeout: Timeout for each DNS request in seconds.
-            port: UDP port to send the DNS request to.
-            max_msg_size: Maximum size of UDP response packet.
+            request (bytes): Raw DNS query bytes.
+            dns_server (str): Upstream DNS server IP.
+            port (int): Destination port.
+            timeout (float): Socket timeout in seconds.
+            max_msg_size (int): Maximum response size in bytes.
 
         Returns:
-            dict[Future, IPv4Address]: Mapping of submitted Future to the server IP
-            it was sent to.
+            bytes: Raw DNS response.
 
         """
-        server_ip: IPv4Address = next(dns_cycle)
-        return {
-        executor.submit(
-            query_fn,
-            dns_request,
-            server_ip,
-            server_sockets[server_ip],
-            timeout,
-            port,
-            max_msg_size
-        ): server_ip
-        for _ in range(len(servers))
-    }
+        with socket.socket(socket.AF_INET, socket.SOCK_DGRAM) as _sock:
+            _sock.settimeout(timeout)
+            _sock.sendto(request, (dns_server, port))
+            data, _addr = _sock.recvfrom(max_msg_size)
+            if dns_server != _addr[0]:
+                raise ValueError(f"Address: {_addr[0]} answered instead of DNS Server: {dns_server}.")
+            return data
 
     @classmethod
-    def resolve_external(cls, dns_request: DNSRecord) -> DNSRecord | None:
-        """Send a DNS query concurrently to external servers.
-        Return the first successful response.
-
-        This method:
-        1. Submits the DNS query to all configured external servers in parallel using
-        the thread pool executor.
-        2. Waits for futures to complete with a timeout of `_timeout + _timeout_buffer`.
-        3. Returns the first successful DNSRecord response.
-        4. Updates per-server and global DNS metrics on success.
-        5. Cancels remaining/pending futures (success, failure, or timeout).
+    def _helper_create_and_submit_tasks(cls,dns_request: DNSReqMsg) -> dict[concurrent.futures.Future[bytes], str]:
+        """Submit DNS query tasks to all configured external DNS servers.
 
         Args:
-            dns_request (DNSRecord): The DNS query to send to external servers.
+            dns_request (DNSReqMsg): Incoming DNS request message.
 
         Returns:
-            DNSRecord | None: The first successful response received, or None if
-            all requests failed or timed out.
-
-        Raises:
-            RuntimeError: If resolver has not been started.
+            dict[concurrent.futures.Future[bytes], str]: Mapping of submitted
+            futures to the DNS server address they were sent to.
 
         """
-        if not cls._executor:
-            raise RuntimeError("Not started")
-        if cls._dns_servers is None:
-            raise RuntimeError("No DNS Servers")
-        if not cls._server_sockets:
-            raise RuntimeError("No DNS Socket")
-
-        _start = monotonic()
-        _futures = cls._submit_dns_requests(
-            cls._executor,
-            cls._dns_servers,
-            cls._server_sockets,
-            dns_request,
-            cls._query_external_dns_server,
-            cls._dns_cycle,
-            cls._timeout,
-            cls._port,
-            cls._max_msg_size
-        )
-        try:
-            for future in as_completed(fs=_futures, timeout=cls._timeout_w_buffer):
-                try:
-                    result:DNSRecord = future.result()
-                except: # noqa: S722 E722 S112
-                    continue
-                 # futures[_future] => dns_server_ip as its dict
-                duration = (monotonic() - _start) * 1000
-                dns_per_server_metrics[_futures[future]].add_sample(duration)
-                dns_metrics_external.add_sample(duration)
-                return result
-
-        except TimeoutError:
-            return None
-
-        finally:
-            for f in _futures:
-                if not f.done():
-                    f.cancel()
+        return {
+            cls._executor.submit( # type: ignore
+                cls._query_external_dns_server,
+                dns_request.raw,
+                server,
+                cls._port,
+                cls._timeout,
+                cls._max_msg_size
+            ): server
+            for server in cls._dns_servers
+        }
 
     @staticmethod
-    def _query_external_dns_server(
-            request: DNSRecord,
-            dns_server: IPv4Address,
-            socket: socket,
-            timeout:float,
-            port:int,
-            max_msg_size:int
-        ) -> DNSRecord:
-        """Send a DNS query to a single upstream DNS server and return the response.
+    def _resolve_all_tasks_get_first(
+            futures: dict[concurrent.futures.Future[bytes], str],
+            timeout:float
+    ) -> tuple[bytes | None, str | None]:
+        """Wait for the first completed DNS query task and return its result.
+
+        Cancels all remaining pending tasks once the first successful result
+        is obtained or the timeout is reached.
 
         Args:
-            request (DNSRecord): The DNS query to send.
-            dns_server (IPv4Address): The IPv4 address of the upstream DNS server.
-            socket (socket): Socket that will be used to fire request.
-            timeout (float): Not used current as timeout as is at init.
-            port (int): port used to fire request.
-            max_msg_size(int): max Mesasge size in bytes expected.
+            futures (dict[Future[bytes], str]): Mapping of futures to DNS server
+                addresses.
+            timeout (float): Maximum time to wait for a task to complete.
 
         Returns:
-            DNSRecord: The DNS response received from the server.
+            tuple[bytes | None, str | None]: The DNS response bytes and the server
+            address that returned it, or (None, None) if none succeed.
 
         """
-        socket.sendto(request.pack(), (str(dns_server), port))
-        return DNSRecord.parse(packet=socket.recvfrom(max_msg_size)[0])
+        try:
+            for future in concurrent.futures.as_completed(futures, timeout=timeout+1.0):
+                try:
+                    return future.result(), futures[future]
+                except Exception:
+                    continue
+        except concurrent.futures.TimeoutError:
+            pass
+        finally:
+            for future in futures:
+                future.cancel()
+        return None, None
+
+    @classmethod
+    def resolve(cls, dns_request: DNSReqMsg) -> tuple[bytes | None, str | None]:
+        """Resolve a DNS request using external DNS servers.
+
+        Submits the DNS query to all configured servers and returns the first
+        successful response.
+
+        Args:
+            dns_request (DNSReqMsg): Incoming DNS request message.
+
+        Returns:
+            tuple[bytes | None, str | None]: The DNS response bytes and the server
+            address that returned it, or (None, None) if resolution fails.
+
+        """
+        return cls._resolve_all_tasks_get_first(
+            futures=cls._helper_create_and_submit_tasks(dns_request),
+            timeout=cls._timeout
+        )

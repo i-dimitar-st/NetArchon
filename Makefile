@@ -66,16 +66,13 @@ clear_venv:
 clear_cache:
 	@echo "🧹 Clearing pip cache ..."
 	-@$(VENV_PYTHON) -m pip cache purge
-	@echo "✅ Pip cache cleared"
 	@echo "🗑 Deleting __pycache__ folders ..."
 	find $(APP) -type d -name "__pycache__" -exec rm -rf {} +
-	@echo "✅ __pycache__ deleted"
 	@echo "🗑 Deleting Jinja bytecode cache ..."
 	rm -rf $(JINJA_CACHE_PATH)/*
-	@echo "✅ Jinja cache cleared"
 	@echo "🗑 Deleting Ruff cache ..."
 	rm -rf $(RUFF_CACHE_PATH)/*
-	@echo "✅ Ruff cache cleared"
+	@echo "✅ Done"
 
 clear: clear_cache clear_venv
 	@echo "✅ Environment fully cleaned"
@@ -107,8 +104,7 @@ test:
 
 fix:
 	@echo "🎨 Formatting app with Ruff..."
-	$(VENV_PYTHON) -m ruff check --fix $(APP)/libs/workers.py
-	@echo "✅ Sweet"
+	$(VENV_PYTHON) -m ruff check --fix $(APP)/services/dns
 
 fix-test:
 	@echo "🎨 Formatting test with Ruff..."

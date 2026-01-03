@@ -5,7 +5,7 @@ This module sets up and manages an HTTP proxy server using the proxy.py library.
 import logging
 import threading
 from ipaddress import ip_address
-from multiprocessing import Manager,Process
+from multiprocessing import Manager, Process
 from os import cpu_count
 from pathlib import Path
 from queue import Empty, Full
@@ -92,7 +92,7 @@ class LoggingPlugin(HttpProxyBasePlugin):
             - connection_time_ms
 
         """
-        HttpProxy.add_duration(float(context.get("connection_time_ms",0.0)))
+        HttpProxy.add_duration(float(context.get("connection_time_ms",0.0))/1000.0)
         return None
 
 

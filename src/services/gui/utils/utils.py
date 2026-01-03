@@ -55,6 +55,7 @@ from src.services.dns.metrics import (
     dns_metrics,
     dns_metrics_external,
     dns_per_server_metrics,
+    received_metrics,
 )
 from src.services.gui.metrics import api_metrics, http_response_metrics
 from src.services.http_proxy.metrics import http_proxy_metrics
@@ -791,38 +792,52 @@ def get_metrics() -> list[dict]:
                 "label": str(server),
                 "metrics": metrics.get_stats(),
                 "qty": metrics.get_count(),
+                "unit":"sec"
             }
         )
+    dns_received_results = received_metrics.get_results()
     return [
         {
             "label": "api",
             "metrics": api_metrics.get_stats(),
             "qty": api_metrics.get_count(),
+            "unit":"sec"
         },
         {
             "label": "gui",
             "metrics": http_response_metrics.get_stats(),
             "qty": http_response_metrics.get_count(),
+            "unit":"sec"
         },
         {
             "label":"http_proxy",
             "metrics": http_proxy_metrics.get_stats(),
             "qty":http_proxy_metrics.get_count(),
+            "unit":"sec"
         },
         {
             "label": "dhcp",
             "metrics": dhcp_metrics.get_stats(),
             "qty": dhcp_metrics.get_count(),
+            "unit":"sec"
         },
         {
             "label": "dns",
             "metrics": dns_metrics.get_stats(),
             "qty": dns_metrics.get_count(),
+            "unit":"sec"
         },
+        {
+            "label":"dns_received",
+            "metrics":dns_received_results,
+            "qty":len(dns_received_results.keys()),
+            "unit":"qty"
+         },
         {
             "label": "external",
             "metrics": dns_metrics_external.get_stats(),
             "qty": dns_metrics_external.get_count(),
+            "unit":"sec"
         },
         *_server_metrics,
     ]

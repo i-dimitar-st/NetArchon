@@ -12,7 +12,7 @@ from ipaddress import (
 )
 
 
-@lru_cache(maxsize=100)
+@lru_cache(maxsize=1024)
 def extract_hostname(host: bytes | str | None) -> str:
     """Docstring for extract_hostname
     Args:
@@ -30,7 +30,7 @@ def extract_hostname(host: bytes | str | None) -> str:
         else str(host).lower()
     )
 
-@lru_cache(maxsize=100)
+@lru_cache(maxsize=1024)
 def is_ip_address(ip: str) -> bool:
     """Return True if ip is a valid IPv4 or IPv6 address, else False."""
     try:
@@ -40,7 +40,7 @@ def is_ip_address(ip: str) -> bool:
         return False
 
 
-@lru_cache(maxsize=100)
+@lru_cache(maxsize=1024)
 def is_in_subnet(host: str, proxy_ip: str,subnet:str="24") -> bool:
     """Check if host is in the same /24 subnet as proxy_ip."""
     try:
